@@ -1,0 +1,139 @@
+PINEWOOD DYNAMICS
+PRELIMINARY BRAND CLEARANCE SEARCH
+Date: 2026-10-26
+Primary jurisdiction: United States
+Proposed use: downloadable and/or hosted software for designing, simulating, optimizing, visualizing, and manufacturing gravity-powered hobby race cars; related educational/game services and possibly physical accessories or kits.
+
+IMPORTANT LIMITATION
+This is an extensive preliminary marketplace and indexed-record search, not a legal opinion, USPTO registrability determination, or guarantee of freedom to use. Trademark rights can arise from unregistered use. Final clearance should be performed by a trademark attorney using the final owner, exact goods/services, logo, markets, jurisdictions, channels, and intended filing basis.
+
+EXECUTIVE CONCLUSION
+No exact, clearly relevant marketplace or indexed trademark use of PINEWOOD DYNAMICS was surfaced in the searches performed. That is favorable compared with GRAVITY RACER.
+
+However, the candidate is not low risk. Two substantial adjacent rights fields exist:
+1. PINEWOOD DERBY is a live/renewed U.S. registration associated with hobby craft wooden automobile kits and hobby craft automobile racing competitions.
+2. PINEWOOD is used by Pinewood Technologies/Pinewood.AI for automotive software and related vehicle-oriented technology, and PINEWOOD AUTOMOTIVE INTELLIGENCE has U.S. and EU trademark coverage reported in indexed trademark records.
+
+Because the proposed product is software about wooden hobby race cars, PINEWOOD DYNAMICS sits semantically between these two fields. The absence of an exact-match result does not eliminate likelihood-of-confusion, dilution, sponsorship, descriptiveness, or common-law risk.
+
+PRELIMINARY RISK RATING
+Exact phrase collision: LOW based on retrieved results
+Broader likelihood-of-confusion risk: MEDIUM-HIGH
+Conflict with PINEWOOD DERBY field: MEDIUM-HIGH
+Conflict with Pinewood automotive software field: MEDIUM-HIGH
+Inherent distinctiveness/strength: MEDIUM-LOW
+Domain/handle availability: UNVERIFIED
+Overall recommendation: ATTORNEY REVIEW REQUIRED BEFORE ADOPTION OR FILING
+
+EXACT-PHRASE SEARCH FINDINGS
+Searches were run for:
+- "Pinewood Dynamics"
+- "PinewoodDynamics"
+- "Pine Wood Dynamics"
+- trademark, company, LLC, corporation, software, app, game, simulation, engineering, STEM, education, racing, and derby variants
+- indexed results from trademark sites, corporate directories, social networks, GitHub, app stores, game stores, and general web search
+
+No exact, clearly relevant commercial product/company/trademark named PINEWOOD DYNAMICS was surfaced. One Facebook search result contains the words in an event/video description, but the retrieved snippet does not establish a relevant software, toy, or engineering brand.
+
+MATERIAL ADJACENT RIGHTS
+
+A. PINEWOOD DERBY
+Indexed trademark records report PINEWOOD DERBY as a registered and renewed mark owned by Boy Scouts of America/Scouting America, Registration No. 2947271, covering hobby craft wooden toy automobile kits in Class 028 and entertainment services involving hobby craft automobile racing competitions in Class 041.
+
+This is highly relevant because the proposed product designs and simulates the same general type of physical hobby vehicle and may be offered as educational/game software. Even though the candidate does not include DERBY, PINEWOOD is the dominant shared first word and the product may be marketed in the same hobby ecosystem.
+
+B. PINEWOOD AUTOMOTIVE SOFTWARE / PINEWOOD.AI
+Pinewood Technologies Group PLC publicly describes Pinewood.AI as a cloud-based automotive intelligence/software platform for automotive retailers and OEMs. Indexed U.S. and EU trademark records report PINEWOOD AUTOMOTIVE INTELLIGENCE in software, technology, vehicle, automotive-service and related classes. A Microsoft Store listing also exists for Pinewood DMS Companion from Pinewood Technologies PLC.
+
+This is relevant because the proposed brand would be used for design/simulation software connected to cars, even though miniature gravity-racing cars differ from dealership-management and OEM software.
+
+C. OTHER PINEWOOD MARKS
+Indexed results also show PINEWOOD registrations in film/television studio and consulting fields. These are less closely related but reinforce that PINEWOOD is already used as a commercial source identifier by multiple parties.
+
+D. DYNAMICS FIELD
+The word DYNAMICS is widely used in engineering/software branding and is conceptually descriptive of physics and motion. Indexed results also show a SIMULATION DYNAMICS mark/use for industrial modeling and simulation consulting. This does not create an exact phrase conflict but reduces the distinctiveness contributed by DYNAMICS.
+
+DESCRIPTIVENESS / REGISTRABILITY CONCERN
+For software that simulates the physics/dynamics of pinewood-style cars, PINEWOOD DYNAMICS describes or strongly suggests the subject matter and function. This may weaken the mark and increase the chance that protection would be narrow. The phrase may be more protectable as a distinctive composite logo, but logo protection would not necessarily provide broad exclusivity in the words.
+
+LIKELIHOOD-OF-CONFUSION FACTORS REQUIRING COUNSEL ANALYSIS
+- Similarity between PINEWOOD DYNAMICS and PINEWOOD DERBY.
+- Relatedness to kits, competitions, educational services, games, and hobby-car software.
+- Similarity to PINEWOOD automotive software and vehicle-technology marks.
+- Marketing channels: parents, youth programs, schools, churches, derby organizers, hobbyists, app stores, and educational software.
+- Whether consumers could infer sponsorship by Scouting America or Pinewood Technologies.
+- Strength and scope of the existing marks.
+- Any consent/coexistence practices or enforcement history not surfaced here.
+
+DOMAIN AND SOCIAL-HANDLE STATUS
+The following candidate domains were probed:
+- pinewooddynamics.com
+- pinewooddynamics.net
+- pinewooddynamics.org
+- pinewooddynamics.app
+- pinewood-dynamics.com
+
+The research tools did not return authoritative registration-status records for these domains. No availability claim is made. ICANN states its lookup service uses RDAP to obtain current registration data, so each domain should be checked directly and, if available and approved, registered promptly.
+
+Exact social-handle availability was not authoritatively established. Search results did not surface a clearly relevant established PINEWOOD DYNAMICS brand, but absence from indexed results is not proof of availability.
+
+APP STORES / SOFTWARE / GAMES
+No exact PINEWOOD DYNAMICS app, game, GitHub project, Steam title, Apple App Store title, Google Play title, or Microsoft Store title was surfaced in the searches performed. A Microsoft Store product from Pinewood Technologies named Pinewood DMS Companion was found, demonstrating real use of PINEWOOD in software.
+
+INTERNATIONAL SEARCH LIMITATIONS
+WIPO Global Brand Database and EUIPO entry points were probed, and web/index searches were run for the exact phrase. No exact PINEWOOD DYNAMICS record was surfaced. The tools did not provide a complete authoritative result set for all jurisdictions, so no international clearance conclusion is made.
+
+PROPOSED GOODS/SERVICES FOR PROFESSIONAL SEARCH
+Class 009:
+- downloadable computer software for design, CAD-like modeling, simulation, games, and educational physics applications;
+- downloadable software for generating and exporting 3D models and manufacturing files.
+
+Class 042:
+- software as a service featuring design, simulation, optimization, and 3D-model generation;
+- engineering/design software services.
+
+Class 041:
+- educational services, STEM activities, competitions, tutorials, entertainment and online simulation/game experiences.
+
+Class 028:
+- physical hobby-car kits, accessories, weights, jigs, fixtures, toys or game products, if ever offered.
+
+Possibly Class 016:
+- printed templates, build guides, educational materials or workbooks, if sold as goods.
+
+BRANDING AND POSITIONING RECOMMENDATIONS IF COUNSEL APPROVES
+1. Always present a clear independent-company identifier.
+2. Do not use PINEWOOD DERBY in the master brand, app-store title, domain, or metadata without permission.
+3. Do not use Scouting America/BSA, AWANA, GrandPrix Race Manager, BestTrack, or Pinewood.AI logos or trade dress.
+4. Describe compatibility/rulesets nominatively and neutrally only when legally appropriate.
+5. Avoid brand language suggesting official, authorized, sanctioned, or endorsed status.
+6. Create a distinctive device mark based on gravity vectors, CG placement, digital-to-physical construction, or a unique car silhouette rather than generic checkered flags.
+7. Consider pairing the phrase with a clearly distinctive house mark, e.g., [COINED HOUSE MARK] Pinewood Dynamics, to reduce reliance on a semantically descriptive composite.
+8. Preserve search records, first-use evidence, development dates, and final goods/services descriptions.
+
+COMPARISON WITH GRAVITY RACER
+PINEWOOD DYNAMICS has materially better exact-name search results than GRAVITY RACER because the exact phrase did not surface as a relevant established product in the searches performed. But PINEWOOD DYNAMICS creates a different and potentially serious problem: direct proximity to the registered PINEWOOD DERBY hobby-racing field and to PINEWOOD-branded automotive software.
+
+PRACTICAL DISPOSITION
+Do not treat PINEWOOD DYNAMICS as cleared. Treat it as a viable candidate for attorney review, not as a name ready for launch.
+
+Recommended decision status:
+- Internal working title: acceptable
+- Public beta branding: not recommended before counsel review
+- Trademark filing: not recommended before full professional search
+- Logo investment: limit to low-cost concept development until clearance
+- Domain registration: register defensively only after confirming availability and internal approval; domain ownership does not establish trademark rights
+
+FINAL ASSESSMENT
+PINEWOOD DYNAMICS is a stronger and cleaner candidate than GRAVITY RACER in exact marketplace searching. Nevertheless, it falls within two populated trademark neighborhoods that are unusually relevant to the product: PINEWOOD DERBY for wooden hobby racing and PINEWOOD automotive software for vehicle-related technology. The wording is also somewhat descriptive. A trademark attorney should evaluate the complete federal record, state/common-law uses, Scouting America rights and practices, Pinewood Technologies' portfolio, international plans, and the final goods/services before adoption.
+
+SOURCES CONSULTED
+- USPTO Trademark Search and TSDR entry points
+- Indexed U.S. trademark records for PINEWOOD DERBY and PINEWOOD AUTOMOTIVE INTELLIGENCE
+- Scouting America Pinewood Derby pages and brand guidance
+- Pinewood.AI public product/company pages
+- Microsoft Store result for Pinewood DMS Companion
+- General web/common-law exact and variant searches
+- App stores, game stores, GitHub, corporate and social searches
+- ICANN RDAP lookup entry point
+- WIPO and EUIPO search entry points / indexed results

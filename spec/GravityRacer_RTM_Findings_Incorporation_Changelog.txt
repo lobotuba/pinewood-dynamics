@@ -1,0 +1,28 @@
+GRAVITY RACER - RTM FINDINGS INCORPORATION CHANGELOG
+
+The Missing and Conflicting Requirements Assessment has been incorporated into GravityRacer_Requirements_Traceability_Matrix.txt.
+
+ADDED REQUIREMENT FAMILIES
+- CMP: compliance/rules governance
+- KIT: official-kit component identity
+- MFG: manufacturability
+- SAF: child-facing material safety
+- FRI: friction-model definition
+- GATE/TIM/LANE: start, finish and lane modeling
+- AERO: aerodynamic fidelity
+- DAT: project data and migration
+- PLT: platform/performance
+- ACC: accessibility
+- PRV: privacy/community gating
+- GOV: baseline, bidirectional traceability and release governance
+- CHAR: physical-characterization dependencies
+
+KEY CONFLICT RESOLUTIONS CAPTURED
+- Pointed/upturned starting-nose conflict is tied to RUL-010 and compliance qualification.
+- Binary legal status is replaced by multi-state compliance requirements.
+- Fixed wheelbase now depends explicitly on a frozen coordinate/datum convention.
+- Fore/aft axle movement is incompatible with certified fixed-wheelbase mode.
+- Inside wheel spacing must be computed from actual installed geometry.
+
+STATUS
+New findings are incorporated as DRAFT requirements. Unknown numerical tolerances, track/gate geometry, kit dimensions and unresolved event legality remain TBD and are explicitly traced through CHAR requirements.

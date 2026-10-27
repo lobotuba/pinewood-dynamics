@@ -1,0 +1,21 @@
+
+26. DESIGN CONSTRAINTS PANEL
+Persistent in Design, Components, Wheels, Optimize, and Build:
+
+DESIGN CONSTRAINTS
+- Official axle locations: LOCKED (LOCAL/FROZEN)
+- Nominal wheelbase: LOCKED (LOCAL/FROZEN)
+- Starting-gate contact: REQUIRED (PUBLISHED RULE)
+- Official wheel envelope: PROTECTED
+- Ground clearance: REQUIRED (PUBLISHED RULE)
+- Inside wheel spacing: REQUIRED (PUBLISHED RULE)
+- Overall rules envelope: ACTIVE
+
+27. ORBIT-VIEW DATUM OVERLAYS
+Optional overlays: axle center datums, wheelbase dimension, gate-contact zone, wheel swept volumes, guide-rail clearance volume, axle structural zones, and measurement-box envelope.
+
+28. CONSTRAINT FEEDBACK
+Published-rule violations use red and block certified export. Local/frozen-lock violations use a visible lock status and block export while active. Advisories use amber. The inspection panel shall report valid gate contact, a non-pointed starting nose, and a nose that does not slope upward away from required contact. Exact thresholds remain unknown until measured or specified.
+
+29. CONSTRAINT-AWARE AI AND OPTIMIZATION
+AI generation and optimization shall use the same constraint service as the inspector. Locked axle datums and wheelbase cannot be changed. Creative bodies shall form around those datums and protected zones.

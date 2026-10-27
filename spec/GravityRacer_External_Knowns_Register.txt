@@ -1,0 +1,73 @@
+GRAVITY RACER - EXTERNAL KNOWNS REGISTER
+Status: Initial baseline
+
+PURPOSE
+Maintain a strict boundary between externally established facts, direct measurements, calculated/derived values, estimates, and unknowns. Simulation inputs must carry provenance so the software does not silently convert assumptions into facts.
+
+PROVENANCE CLASSES
+1. RULE - explicit event/rules document.
+2. MANUFACTURER - explicit manufacturer specification.
+3. MEASURED - measured from the actual physical kit/car/track.
+4. DERIVED - calculated from known or measured values.
+5. ESTIMATED - modeling approximation that must be labeled as such.
+6. UNKNOWN - not yet characterized.
+
+CURRENT EXTERNAL BASELINE
+A. CCCS/AWANA event rules
+Source: https://cc-awana.weebly.com/rules--tips.html
+Known rules include kit requirement, dimensional envelope, clearance constraints, 5 oz maximum, wheel-modification restrictions, starting-peg compatibility, and technical inspection.
+Detailed record: GravityRacer_External_Knowns_Race_Rules.txt
+
+B. BestTrack configuration timing distances
+Source: https://www.besttrack.com/track_specs.html
+Known manufacturer values include 358 in, 442 in, and 526 in timed distances for the 35 ft, 42 ft, and 49 ft configurations respectively, plus the number of post-curve 7 ft straight sections.
+Detailed record: GravityRacer_External_Knowns_BestTrack.txt
+
+C. Race manager software
+The user reports that race-manager software has been placed in the Gravity Racer OneDrive project. At the time this register was generated, the available OneDrive search results did not identify the race-manager file by name or expose its contents. No software-specific facts are therefore recorded here yet. This avoids inventing file contents or capabilities.
+
+HIGH-PRIORITY UNKNOWNS TO CHARACTERIZE
+OFFICIAL AWANA KIT
+- Starting block dimensions if not otherwise confirmed by authoritative kit documentation.
+- Starting block actual mass and effective density for a specific car.
+- Official wheel outer diameter.
+- Official wheel tread width.
+- Official wheel mass.
+- Official wheel bore diameter.
+- Official wheel rotational moment of inertia.
+- Official wheel runout characteristics.
+- Official axle diameter and geometry.
+- Official axle mass.
+- Axle/bore friction under defined preparation/lubrication states.
+
+LOCAL TRACK
+- Actual installed track configuration confirmation.
+- Vertical starting height.
+- Full centerline/elevation profile.
+- Curved transition geometry.
+- Lane width.
+- Guide-rail width and height.
+- Start-pin dimensions.
+- Start-gate motion/release behavior.
+- Timing sensor location relative to manufacturer nominal.
+- Track surface/contact properties.
+- Lane-specific deviations if material.
+
+ENVIRONMENT
+- Air density or inputs used to calculate it when aerodynamic sensitivity warrants it.
+- Local gravity can ordinarily use a documented standard/model value unless precision testing demonstrates a need for local treatment.
+
+CAR / BUILD
+- Actual uncut block mass for calibrated-density mode.
+- Finished body mass.
+- Actual ballast component masses/dimensions.
+- Fastener/accessory masses.
+- Actual total mass on the relevant scale.
+- Measured CG.
+- As-built camber/toe/wheel gaps if measurable.
+
+AERODYNAMICS
+Arbitrary AI-generated car shapes do not have a directly known drag coefficient merely because an STL exists. Cd/effective drag-area inputs remain ESTIMATED until supported by an aerodynamic model or experiment.
+
+DATA RULE
+Never replace UNKNOWN with a plausible default without marking the quantity DEFAULT or ESTIMATED. Never present an illustrative GUI number as a measured or manufacturer value. Preserve provenance through simulation, optimization, build export, and comparison with real race results.

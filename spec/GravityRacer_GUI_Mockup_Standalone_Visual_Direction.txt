@@ -1,0 +1,453 @@
+GRAVITY RACER
+GUI / UX MOCKUP - STANDALONE RACE-SOFTWARE VISUAL DIRECTION
+Revision intent: Gravity Racer remains completely independent software. GrandPrix Race Manager is only a loose visual-context reference for a familiar derby/race-night desktop-software feel. No compatibility, shared files, workflow integration, branding relationship, or common functionality is implied.
+
+1. PRODUCT UI POSITION
+Gravity Racer should feel immediately at home on a computer used around a gravity-racing event while retaining its own name, branding, information architecture, file format, simulation engine, and design workflow.
+
+The application must NOT present itself as a module, extension, companion utility, or product from the maker of GrandPrix Race Manager.
+
+2. CORE WORKFLOW
+Preserve the Gravity Racer workflow:
+DESIGN -> COMPONENTS -> WHEELS -> OPTIMIZE -> RACE SETUP -> RACE -> ANALYZE -> BUILD
+
+Do not restructure Gravity Racer around another application's race-management workflow.
+
+3. VISUAL DIRECTION
+Desired character:
+- Standalone desktop engineering/racing application.
+- Purposeful race-night utility feel rather than generic web dashboard.
+- Information rich without becoming visually noisy.
+- Strong grouping of controls into clearly labeled panels.
+- Obvious distinction among configuration, live race, analysis, and build activities.
+- Large, accessible primary actions suitable for parent/child use.
+- Precise engineering controls available without dominating Kid Mode.
+
+Do not directly copy proprietary logos, branded artwork, screenshots, exact icons, or other protected visual assets from third-party software.
+
+4. APPLICATION SHELL
++--------------------------------------------------------------------------------+
+| GRAVITY RACER                                                     [ - ][ ][ X ] |
++--------------------------------------------------------------------------------+
+| File   Edit   View   Car   Simulation   Tools   Help                            |
++--------------------------------------------------------------------------------+
+| DESIGN | COMPONENTS | WHEELS | OPTIMIZE | RACE SETUP | RACE | ANALYZE | BUILD |
++--------------------------------------------------------------------------------+
+|                                                                                |
+|                            CURRENT WORKSPACE                                   |
+|                                                                                |
++--------------------------------------------------------------------------------+
+| Project: Banana Racer V4        Rules: AWANA-CCCS       Status: LEGAL           |
++--------------------------------------------------------------------------------+
+
+The first line visually identifies Gravity Racer as its own product. Conventional desktop menus provide a familiar utility-software frame. The workflow tabs are Gravity Racer-specific.
+
+5. DESIGN WORKSPACE
++-------------------+--------------------------------------+-----------------------+
+| DESIGN TOOLS      |                                      | CAR STATUS            |
+|                   |                                      |                       |
+| [AI DESIGN]       |                                      | Total       4.82 oz   |
+| Select            |            3D ORBIT VIEW             | Limit       5.00 oz   |
+| Shape             |                                      | Remaining   0.18 oz   |
+| Cut               |          [PHYSICAL CAR]              |                       |
+| Drill             |                                      | CG X        0.94 in   |
+| Pocket            |     Orbit / Zoom / Pan               | CG Y        0.01 in   |
+| Round             |                                      | CG Z        0.43 in   |
+| Paint             |                                      |                       |
+|                   |                                      | Body        2.61 oz   |
+| [ADD PART]        |                                      | Ballast     1.55 oz   |
+| [ADD WEIGHT]      |                                      | Running gear ...      |
+|                   |                                      |                       |
+| Undo              |                                      | RULE CHECK: PASS      |
+| Redo              |                                      |                       |
++-------------------+--------------------------------------+-----------------------+
+| VIEW: Perspective | Top | Bottom | Front | Rear | Left | Right                  |
+| DISPLAY: [ ] X-Ray  [ ] Wireframe  [x] CG  [ ] Rules Envelope                 |
++--------------------------------------------------------------------------------+
+
+The central viewport remains much larger than either side panel. Gravity Racer is a visual design application first.
+
+6. COLOR / VISUAL SEMANTICS
+Use an original Gravity Racer palette, but use conventional race-operations semantics:
+- Neutral application chrome/background.
+- Strong blue or another distinctive Gravity Racer primary color for selection and primary commands.
+- Green for verified/pass/ready states.
+- Amber for warning/estimated/uncharacterized states.
+- Red for illegal/fail/contact/error conditions.
+- Lane colors used consistently when multiple cars are shown.
+
+Exact palette values are a Gravity Racer design choice and are not claimed to be values from any third-party race software.
+
+7. TYPOGRAPHY
+Use a highly readable system/UI sans-serif with compact engineering labels and larger race/timing numerals. Prefer standard desktop readability over stylized game typography.
+
+Suggested Gravity Racer convention:
+- Application/menu: normal UI size.
+- Panel heading: bold, compact.
+- Data labels: compact UI size.
+- Primary numerical result: substantially larger.
+- Race timer: largest numeric element during a race.
+
+Exact third-party fonts are not assumed.
+
+8. PANEL CONVENTION
+Controls should be presented in visually bounded functional groups rather than floating cards everywhere.
+
+Example:
++--------------------------------+
+| MASS PROPERTIES                |
++--------------------------------+
+| Body               2.610 oz   |
+| Ballast            1.550 oz   |
+| Wheels/Axles       ...        |
+| Total              4.820 oz   |
+| Limit              5.000 oz   |
++--------------------------------+
+
+This gives the application a practical desktop-tool character while remaining original.
+
+9. AI DESIGN PANEL
++----------------------------------------------------------------+
+| AI DESIGN                                                      |
++----------------------------------------------------------------+
+| Describe the car you want to build:                            |
+| +------------------------------------------------------------+ |
+| | A banana-shaped car with the stem toward the rear          | |
+| +------------------------------------------------------------+ |
+|                                                                |
+| Build difficulty: (o) Easy  ( ) Intermediate  ( ) Advanced     |
+| Preserve kit block constraints: [x]                            |
+|                                                                |
+| [GENERATE STARTING SHAPE]                                      |
++----------------------------------------------------------------+
+
+After generation, return to the normal Design workspace. AI does not become a separate product mode.
+
+10. VIEW CONTROLS
+Orbit view is default.
+Required quick views:
+- Perspective
+- Top
+- Bottom
+- Front
+- Rear
+- Left
+- Right
+
+Required display modes:
+- Solid
+- X-Ray / transparent body
+- Wireframe
+- Wood/body only
+- Ballast only
+- Wheels/axles only
+- CG/mass properties
+- Rules envelope
+
+11. SELECTED COMPONENT PANEL
+Selecting a component should create a conventional property editor on the right side of the application.
+
++--------------------------------+
+| SELECTED: TUNGSTEN PLATE #1   |
++--------------------------------+
+| Material      Tungsten        |
+| Mass          1.20 oz         |
+| Mount         Top             |
+| X             1.04 in         |
+| Y             0.00 in         |
+| Z             0.56 in         |
+|                                |
+| [MOVE] [ISOLATE] [REMOVE]     |
++--------------------------------+
+
+12. ADD WEIGHT DIALOG
++------------------------------------------+
+| ADD BALLAST                              |
++------------------------------------------+
+| Material      [ Tungsten             v ]|
+| Shape         [ Cylinder             v ]|
+| Mass          [ 0.750 ] oz              |
+| Diameter      [ 0.375 ] in              |
+| Length        [ calculated ]             |
+|                                          |
+| Mounting                                 |
+| ( ) Top                                  |
+| ( ) Bottom                               |
+| ( ) Internal                             |
+| (o) Free Placement                       |
+|                                          |
+| [x] Include mounting hardware if used    |
+|                                          |
+| [CANCEL]                    [ADD WEIGHT] |
++------------------------------------------+
+
+13. WHEEL WORKSPACE
++-------------------+--------------------------------------+-----------------------+
+| WHEELS            |                                      | RIGHT REAR            |
+|                   |             3D CAR                   |                       |
+| [LF] [RF]         |                                      | Camber    -1.50 deg   |
+| [LR] [RR]         |     Selected wheel highlighted       | Toe       +0.05 deg   |
+|                   |     Other geometry subdued           | Gap       ...         |
+| All Wheels        |                                      | Friction  ...         |
+| Front Pair        |                                      | Runout    ...         |
+| Rear Pair         |                                      |                       |
+|                   |                                      | [COPY] [MIRROR]       |
+|                   |                                      | [RESET]               |
++-------------------+--------------------------------------+-----------------------+
+
+Changing alignment values must immediately move the visual wheel model.
+
+14. TECHNICAL INSPECTION
++------------------------------------------+
+| TECHNICAL INSPECTION                     |
++------------------------------------------+
+| Length              6.91 in    PASS      |
+| Width               2.70 in    PASS      |
+| Height              0.84 in    PASS      |
+| Ground clearance    0.39 in    PASS      |
+| Inside wheel gap    1.77 in    PASS      |
+| Weight              4.992 oz   PASS      |
++------------------------------------------+
+| STATUS                         LEGAL      |
++------------------------------------------+
+
+Failing values use red emphasis and select/highlight the responsible geometry when practical.
+
+15. OPTIMIZE WORKSPACE
+Optimization remains a Gravity Racer engineering function, not a race-management feature.
+
++------------------------------------------------+
+| OPTIMIZE MY CAR                                |
++------------------------------------------------+
+| Objective                                      |
+| (o) Faster Race Time                           |
+| ( ) More Stable                                |
+| ( ) Easier to Build                            |
+| ( ) Robust Real-World Build                    |
+|                                                |
+| Protect                                        |
+| [x] Visible silhouette                         |
+| [x] Decorations                                |
+| [x] Paint                                      |
+| [ ] Wheel locations                            |
+|                                                |
+| May Change                                     |
+| [x] Ballast amount                             |
+| [x] Ballast position                           |
+| [x] Ballast material                           |
+| [x] Wheel alignment                            |
+| [x] Hidden geometry                            |
+| [ ] Visible geometry                           |
+|                                                |
+| [FIND IMPROVEMENTS]                            |
++------------------------------------------------+
+
+16. OPTIMIZATION RESULTS
+Use a compact engineering comparison rather than a flashy game-upgrade screen.
+
+CURRENT                  PROPOSED
+Predicted time: ...      Predicted time: ...
+Mass: ...                Mass: ...
+CG: ...                  CG: ...
+
+Changes:
+- Move Weight #1 rearward by computed amount.
+- Change modeled ballast arrangement.
+- Adjust selected wheel parameters.
+
+[VIEW CHANGES] [APPLY] [DISCARD]
+
+No illustrative values become authoritative simulation outputs.
+
+17. RACE SETUP
++------------------------------------------------+
+| RACE SETUP                                     |
++------------------------------------------------+
+| Car          [ Banana Racer V4             v ]|
+| Rules        [ AWANA - CCCS                v ]|
+| Track        [ BestTrack 35 ft             v ]|
+| Lane         [ 2                            v ]|
+|                                                |
+| Simulation                                     |
+| (o) Realistic                                  |
+| ( ) Ideal                                      |
+| ( ) Manufacturing Variation                    |
+| ( ) Engineering Test                           |
+|                                                |
+| Rules Check             PASS                   |
+| Model Readiness         READY                  |
+|                                                |
+| [RETURN TO DESIGN]             [GO TO TRACK]   |
++------------------------------------------------+
+
+18. RACE MODE
+Race Mode should be visually distinct from editing mode, with larger operational elements and reduced configuration clutter.
+
++--------------------------------------------------------------------------------+
+| GRAVITY RACER - RACE                                                          |
++--------------------------------------------------------------------------------+
+|                                                                                |
+|                                [3] [2] [1]                                     |
+|                                                                                |
+| Lane 1   [car] --------------------------------------------------------------   |
+| Lane 2   [car] --------------------------------------------------------------   |
+| Lane 3   [car] --------------------------------------------------------------   |
+| Lane 4   [car] --------------------------------------------------------------   |
+|                                                                                |
+|                                  1.736 s                                       |
+|                                                                                |
+| Camera: [TRACK] [CHASE] [OVERHEAD] [WHEEL] [RAIL] [FINISH]                    |
+|                                                                                |
+| [PAUSE]   [0.25x] [1x] [4x]                                  [RESET RACE]     |
++--------------------------------------------------------------------------------+
+
+The visual treatment may evoke the clarity of race-control software, but all content and layout are specifically Gravity Racer's simulation environment.
+
+19. RESULT SCREEN
++------------------------------------------------+
+| RACE RESULT                                    |
++------------------------------------------------+
+| BANANA RACER                                   |
+|                                                |
+| ELAPSED TIME               [solver result]     |
+| FINISH SPEED               [solver result]     |
+|                                                |
+| ENERGY / LOSS SUMMARY                          |
+| Translational energy       [telemetry]         |
+| Wheel rotational energy    [telemetry]         |
+| Axle/bore loss             [telemetry]         |
+| Rolling/contact loss       [telemetry]         |
+| Aerodynamic loss           [telemetry]         |
+| Rail-contact loss          [telemetry]         |
+| Numerical residual         [telemetry]         |
+|                                                |
+| [WHY?] [REPLAY] [COMPARE] [MODIFY CAR]         |
++------------------------------------------------+
+
+20. ANALYZE WORKSPACE
+Analysis should resemble a technical race-results workstation:
+- Result summary at top.
+- Timeline/replay central area.
+- Telemetry graphs in tabbed/bounded panels.
+- Selected-event details in a right-side inspector.
+- Controls for showing CG, forces, wheel loads, path, and contacts.
+
+21. WHY DID I LOSE?
+Present only solver-supported explanations.
+
++------------------------------------------------+
+| WHY DID I LOSE?                                |
++------------------------------------------------+
+| Comparison: Banana V4 vs Banana V3             |
+| Difference: [computed]                         |
+|                                                |
+| Contributors                                   |
+| Rail contact           [computed]              |
+| Axle/bore losses       [computed]              |
+| Aerodynamic losses     [computed]              |
+| Wheel rotation         [computed]              |
+| Starting energy        [computed]              |
+|                                                |
+| [REPLAY SELECTED CONTRIBUTOR]                  |
++------------------------------------------------+
+
+22. BUILD WORKSPACE
++------------------------------------------------+
+| BUILD THIS CAR                                 |
++------------------------------------------------+
+| Design validation             PASS             |
+| Rule inspection               PASS             |
+| Ballast placement             DEFINED          |
+| Wheel targets                 DEFINED          |
+|                                                |
+| OUTPUTS                                        |
+| [EXPORT BODY STL]                              |
+| [EXPORT SIDE TEMPLATE]                         |
+| [EXPORT TOP TEMPLATE]                          |
+| [EXPORT BUILD SHEET]                           |
+| [EXPORT COMPONENT LIST]                        |
+| [EXPORT PROJECT CONFIGURATION]                 |
+|                                                |
+| Target mass       [value]                      |
+| Target CG         [value]                      |
++------------------------------------------------+
+
+23. STATUS BAR
+Persistent desktop-style status bar should be concise and useful:
+Project | Ruleset | Units | Model Status | Legal/Illegal | Save State
+
+Example concept:
+Banana Racer V4 | AWANA-CCCS | in/oz | Physics P3 | LEGAL | Saved
+
+24. KID MODE
+Kid Mode retains the same shell but simplifies controls:
+DESIGN -> ADD STUFF -> WHEELS -> MAKE IT FASTER -> RACE -> WHY? -> BUILD
+
+Use larger labels and hide detailed coefficient editors. The underlying project and physics remain the same.
+
+25. BUILDER MODE
+Builder Mode uses the full normal Gravity Racer workflow and emphasizes physical values, dimensions, material, mass, CG, rules compliance, wheel setup, and build exports.
+
+26. ENGINEERING MODE
+Engineering Lab exposes parameter provenance, solver settings, energy residual, detailed telemetry, parameter sweeps, and uncertainty controls.
+
+27. VISUAL CROSSOVER BOUNDARIES
+Allowed design inspiration:
+- Compact desktop application chrome.
+- Familiar race-control seriousness during Race mode.
+- Bounded functional panels.
+- Prominent timers/results.
+- Clear settings/status separation.
+- Information-dense but readable layouts.
+
+Do not imply:
+- Data compatibility.
+- Shared racer databases.
+- Race-file compatibility.
+- Timer integration with another product.
+- Shared vendor or endorsement.
+- RaceFX/RaceReplay/DerbyDMV/DerbyMobile integration.
+- Identical menus/workflows.
+
+Do not copy:
+- Logos.
+- Proprietary artwork.
+- Exact icon assets.
+- Product name treatment.
+- Screenshots as UI backgrounds.
+
+28. DESIGN SYSTEM GOAL
+The desired visual relationship is:
+"This clearly belongs in the world of gravity-race software."
+
+The undesired relationship is:
+"This looks like a screen or module from GrandPrix Race Manager."
+
+29. CORE IDENTITY
+Gravity Racer's strongest visual feature remains the interactive physical car in Orbit View. The race-software crossover should frame this experience, not suppress it.
+
+Final principle:
+A user familiar with derby race software should find Gravity Racer operationally comfortable, while a new user should see a distinct, modern, standalone product whose central purpose is designing, simulating, optimizing, and building a real gravity racer.
+
+30. CONSTRAINT-AWARE STANDALONE UI
+Add a persistent group without changing the standalone product identity:
+
+DESIGN CONSTRAINTS
+[LOCK] Axle locations        LOCAL/FROZEN
+[LOCK] Wheelbase             LOCAL/FROZEN
+[PASS] Starting-gate face    PUBLISHED RULE
+[PASS] Wheel envelopes       CLEAR
+[PASS] Guide-rail clearance  RULE
+[PASS] Rules envelope        RULE
+
+31. DATUM OVERLAYS
+View Options shall add Axle Datums, Wheelbase Dimension, Gate Contact Zone, Wheel Swept Envelopes, Axle Structural Zones, and Guide-Rail Clearance.
+
+32. INSPECTION PROVENANCE
+Every line shall expose RULE, LOCAL LOCK, MEASURED, DERIVED, ESTIMATED, UNKNOWN, or ADVISORY status. The unchanged-wheelbase requirement shall not be presented as if explicitly stated by the current published rule page.
+
+33. AI CONSTRAINT SUMMARY
+Before generation, show that the design will preserve published dimensional and gate rules, locked axle datums and wheelbase, protected wheel/clearance envelopes, and selected manufacturing difficulty.
+
+34. READINESS
+Engineering Test may simulate a deliberately noncompliant design if clearly labeled. Certified ruleset racing and Build export require all published hard rules and active local locks to pass.

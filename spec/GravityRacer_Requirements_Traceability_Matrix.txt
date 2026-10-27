@@ -1,0 +1,256 @@
+GRAVITY RACER
+FINAL REQUIREMENTS TRACEABILITY MATRIX
+Revision focus: detailed fixed-axle and wheelbase traceability
+
+TRACEABILITY LEGEND
+SOURCE CLASS
+USR = User-directed product requirement
+RULE = Explicit published race rule
+LOCAL = Local/frozen project constraint
+MEAS = Physical measurement required
+DER = Derived value
+DES = Product/design decision
+UNK = Unknown pending authoritative source or measurement
+
+VERIFICATION
+I = Inspection
+A = Analysis/calculation
+T = Test
+D = Demonstration
+R = Source review
+
+PRIORITY
+P0 = architectural / must be correct before dependent development
+P1 = MVP
+P2 = subsequent validated capability
+
+GENERAL REQUIREMENTS
+VIS-001 | The product shall be a standalone gravity-racer design, physics simulation, optimization, and build application. | Source: USR/DES | Allocated: application architecture | Verify: I,D | Priority: P0
+VIS-002 | Performance shall emerge from physical properties and solver behavior rather than arbitrary game statistics. | Source: USR/DES | Allocated: physics/game architecture | Verify: I,T | Priority: P0
+UI-001 | Design mode shall provide a freely orbitable 3D model view. | Source: USR | Allocated: Design UI/renderer | Verify: D | Priority: P1
+UI-002 | Design mode shall provide Perspective, Top, Bottom, Front, Rear, Left, and Right views. | Source: USR/DES | Allocated: camera system | Verify: D | Priority: P1
+UI-003 | The visual direction shall be standalone race-software styling without implying integration or common ownership with third-party race-management software. | Source: USR/DES | Allocated: design system | Verify: I | Priority: P1
+AI-001 | The user shall be able to prompt an AI design assistant for an initial recognizable car shape. | Source: USR | Allocated: AI design service | Verify: D,T | Priority: P1
+AI-002 | AI-generated geometry shall receive the active hard-rule and local/frozen constraint set before design generation. | Source: DES | Allocated: AI + constraint service | Verify: T | Priority: P0
+AI-003 | Optimization shall preserve locked artistic/design features selected by the user. | Source: USR/DES | Allocated: optimizer/design model | Verify: T | Priority: P1
+GEO-001 | STL shall be an export representation and shall not be the authoritative editable project model. | Source: DES | Allocated: geometry architecture | Verify: I | Priority: P0
+MAT-001 | Body mass shall be calculated from modeled body volume and assigned/effective material density. | Source: USR/DES | Allocated: mass-properties service | Verify: A,T | Priority: P1
+BAL-001 | Ballast shall be represented by physical material, geometry, mass, position, and orientation. | Source: USR | Allocated: component model | Verify: I,A,T | Priority: P1
+BAL-002 | Initial ballast selection shall support multiple material types including tungsten, lead, tin, steel, brass, zinc, copper, aluminum, and configurable material. | Source: USR/DES | Allocated: material library | Verify: I,D | Priority: P1
+BAL-003 | Ballast placement shall permit external mounting as well as cavities; the optimizer shall not assume material must be removed to add weight. | Source: USR | Allocated: component/optimizer/build systems | Verify: D,T | Priority: P1
+WHL-001 | LF, RF, LR, and RR wheel/axle assemblies shall be independently represented. | Source: USR/DES | Allocated: vehicle model | Verify: I,T | Priority: P1
+WHL-002 | Wheel controls shall support modeled camber and toe independently as the applicable physics model matures. | Source: USR | Allocated: wheel UI/physics | Verify: D,T | Priority: P1/P2
+RUL-001 | Selected-rule maximum length shall be enforceable; current CCCS/AWANA value is 7.000 in. | Source: RULE | Allocated: constraint service | Verify: R,T | Priority: P1
+RUL-002 | Selected-rule maximum width shall be enforceable; current CCCS/AWANA value is 2.750 in. | Source: RULE | Allocated: constraint service | Verify: R,T | Priority: P1
+RUL-003 | Selected-rule maximum height shall be enforceable; current CCCS/AWANA value is 3.000 in. | Source: RULE | Allocated: constraint service | Verify: R,T | Priority: P1
+RUL-004 | Minimum underside clearance shall be enforceable; current CCCS/AWANA value is 0.375 in. | Source: RULE | Allocated: constraint service | Verify: R,T | Priority: P1
+RUL-005 | Minimum inside wheel spacing shall be enforceable; current CCCS/AWANA value is 1.750 in. | Source: RULE | Allocated: constraint service | Verify: R,T | Priority: P1
+RUL-006 | Maximum total weight shall be enforceable; current CCCS/AWANA value is 5.000 oz. | Source: RULE | Allocated: mass/constraint services | Verify: R,A,T | Priority: P1
+RUL-007 | The starting nose shall not come to a point or slope upward in a way that prevents proper retention behind the starting peg. | Source: RULE | Allocated: geometry/constraint service | Verify: R,I,T after gate geometry is characterized | Priority: P0/P1
+RUL-008 | Official-wheel constraints shall prevent reducing wheel width, diameter, or mass where the CCCS/AWANA ruleset is active. | Source: RULE | Allocated: component/constraint service | Verify: R,T | Priority: P1
+RUL-009 | The AWANA wheel-sidewall marking visibility requirement shall be retained in the applicable ruleset. | Source: RULE | Allocated: component/inspection model | Verify: R,I | Priority: P1
+TRK-001 | BestTrack 35-ft configuration shall support a 358-in timed distance from start-gate pin to middle timing hole. | Source: MANUFACTURER | Allocated: track model | Verify: R,T | Priority: P1
+TRK-002 | BestTrack 42-ft and 49-ft selectable configurations shall carry manufacturer-published timed distances of 442 in and 526 in respectively. | Source: MANUFACTURER | Allocated: track library | Verify: R,T | Priority: P1/P2
+PHY-001 | The authoritative solver shall model gravity and translational motion. | Source: DES | Allocated: solver | Verify: A,T | Priority: P0/P1
+PHY-002 | Wheel rotational inertia shall enter the energy/dynamics model. | Source: DES | Allocated: solver | Verify: A,T | Priority: P1
+PHY-003 | Axle/bore friction, rolling/contact loss, aerodynamics, and later rail interaction shall be represented as separable modeled mechanisms where implemented. | Source: USR/DES | Allocated: solver | Verify: A,T | Priority: P1/P2
+ANA-001 | Engineering analysis shall expose an energy ledger including numerical residual. | Source: DES | Allocated: telemetry/analysis | Verify: A,T | Priority: P1
+OPT-001 | Optimization shall propose reviewable changes rather than silently replacing the player's design. | Source: USR/DES | Allocated: optimizer/UI | Verify: D,T | Priority: P1
+BLD-001 | The build workflow shall export final body geometry as STL. | Source: USR | Allocated: manufacturing exporter | Verify: T,D | Priority: P1
+BLD-002 | Build output should include cutting/build references, ballast placement, and wheel setup sufficient to reproduce the designed car as implemented. | Source: USR/DES | Allocated: manufacturing exporter | Verify: I,D | Priority: P1/P2
+DT-001 | As-designed and as-built states shall be stored distinctly. | Source: DES | Allocated: project/data model | Verify: I,T | Priority: P2
+
+DETAILED FIXED-AXLE AND WHEELBASE TRACEABILITY
+
+LOC-AX-001 | The project shall support a locked front axle datum defined from the official kit/block geometry. | Source class: LOCAL + MEAS | Origin: user requirement that wheelbase remain as the block | Parent requirements: GEO-001, WHL-001 | Allocated: master geometry model + constraint service | Input: measured front axle datum | Verification: I against project data; T edit attempt | Acceptance: once lock active, no certified design operation changes the datum outside defined measurement/storage tolerance | Priority: P0
+
+LOC-AX-002 | The project shall support a locked rear axle datum defined from the official kit/block geometry. | Source class: LOCAL + MEAS | Origin: user requirement | Parent: GEO-001, WHL-001 | Allocated: master geometry model + constraint service | Input: measured rear axle datum | Verification: I,T | Acceptance: no certified design operation changes the locked rear datum | Priority: P0
+
+LOC-AX-003 | Axle datum values shall retain provenance identifying how each datum was obtained. | Source class: DES/MEAS | Parent: LOC-AX-001, LOC-AX-002 | Allocated: project schema/provenance service | Required states include MEASURED or another explicitly supported provenance type | Verification: I,T | Acceptance: saved project retains datum value, units, and provenance on reopen/export | Priority: P0
+
+LOC-AX-004 | The application shall not invent official-kit axle coordinates that have not been measured or authoritatively specified. | Source class: DES/UNK | Parent: LOC-AX-001/002 | Allocated: defaults/import/AI | Verification: I,T | Acceptance: missing official coordinates remain UNKNOWN/uncharacterized or explicitly non-authoritative defaults; they are never labeled measured/rule values | Priority: P0
+
+LOC-WB-001 | Nominal wheelbase shall be derived from the locked front and rear axle datums rather than entered independently when both datums are authoritative for the project. | Source class: LOCAL + DER | Parent: LOC-AX-001/002 | Allocation: geometry/mass project service | Relation: WB_nominal = distance between selected front and rear axle reference datums along the defined longitudinal chassis convention | Verification: A,T | Acceptance: stored/displayed wheelbase equals the derived datum separation within numerical tolerance | Priority: P0
+
+LOC-WB-002 | When the fixed-wheelbase constraint is active, body design shall preserve nominal wheelbase. | Source class: LOCAL | Origin: explicit user requirement | Parent: LOC-WB-001 | Allocation: constraint service/design editor | Verification: T,D | Acceptance: shape operations do not relocate locked front/rear axle datums; attempts are blocked or place the design in clearly invalid engineering-test state | Priority: P0
+
+LOC-WB-003 | Fixed wheelbase shall not be represented as an explicit published CCCS/AWANA rule unless a separate authoritative source is added. | Source class: LOCAL | Evidence basis: current published rule source does not state fixed wheelbase | Parent: provenance architecture | Allocation: rules engine/UI/docs/export | Verification: R,I | Acceptance: rules reports label this item LOCAL/FROZEN, not RULE | Priority: P0
+
+LOC-AX-005 | AI-generated bodies shall form around locked axle datums and shall not relocate those datums to improve appearance or performance. | Source class: DES/LOCAL | Parent: AI-002, LOC-AX-001/002 | Allocation: AI design constraint adapter | Verification: T using multiple prompts including banana, cheese wedge, rocket | Acceptance: generated authoritative chassis datums remain identical before/after generation | Priority: P1
+
+LOC-AX-006 | Manual shape tools shall treat locked axle datums as protected references. | Source class: DES/LOCAL | Parent: LOC-AX-001/002 | Allocation: design editor | Verification: T,D | Acceptance: Cut/Remove, Add Shape, Scale, Move, Drill, Fillet/Round and future geometry tools cannot silently relocate chassis datums | Priority: P1
+
+LOC-AX-007 | A protected structural zone shall be definable around axle/slot regions. | Source class: DES/LOCAL | Parent: LOC-AX-001/002 | Allocation: geometry constraint service | Input: zone definition remains project/configuration data until authoritative kit dimensions are established | Verification: I,T | Acceptance: tool can visualize and detect geometry intrusion below the configured protected region | Priority: P1
+
+LOC-WB-004 | Optimization shall exclude axle datum position and nominal wheelbase from its decision variables whenever their locks are active. | Source class: USR/DES/LOCAL | Parent: OPT-001, LOC-WB-002 | Allocation: optimizer variable registry | Verification: I,T | Acceptance: optimization runs cannot propose or apply axle relocation/wheelbase changes | Priority: P0/P1
+
+LOC-WB-005 | Weight optimization may modify permitted ballast and body variables while holding axle datums and wheelbase fixed. | Source class: USR/DES | Parent: BAL-003, LOC-WB-004 | Allocation: optimizer | Verification: T | Acceptance: optimized solution reports identical locked axle datums/wheelbase to baseline while permitted variables may change | Priority: P1
+
+LOC-AX-008 | Wheel camber and toe adjustments shall not be implemented by translating the locked nominal axle-location datum. | Source class: DES/LOCAL | Parent: WHL-002, LOC-AX-001/002 | Allocation: wheel kinematics model | Verification: A,T | Acceptance: configuration changes orientation/setup variables using the defined wheel/axle model while the locked chassis reference remains fixed | Priority: P1/P2
+
+LOC-AX-009 | Orbit View shall be capable of displaying front and rear axle datums. | Source class: USR/DES | Parent: UI-001, LOC-AX-001/002 | Allocation: renderer/UI | Verification: D | Acceptance: toggle visibly shows both axle references in all useful camera orientations | Priority: P1
+
+LOC-WB-006 | Orbit View shall be capable of displaying the derived nominal wheelbase as a dimension between the applicable axle references. | Source class: DES | Parent: LOC-WB-001, LOC-AX-009 | Allocation: renderer/dimension overlay | Verification: D,A | Acceptance: displayed dimension matches derived project wheelbase | Priority: P1
+
+LOC-AX-010 | The technical-inspection panel shall separately report axle-location lock compliance. | Source class: DES/LOCAL | Parent: LOC-AX-001/002 | Allocation: inspection UI | Verification: D,T | Acceptance: PASS requires both locked datums to match the project's authoritative references | Priority: P1
+
+LOC-WB-007 | The technical-inspection panel shall separately report wheelbase-lock compliance and identify it as LOCAL/FROZEN. | Source class: DES/LOCAL | Parent: LOC-WB-002/003 | Allocation: inspection UI | Verification: D,T | Acceptance: status label never implies source RULE unless provenance changes through an authoritative source update | Priority: P1
+
+LOC-WB-008 | Simulation metadata shall preserve the wheelbase and chassis datum configuration used for each run. | Source class: DES | Parent: simulation reproducibility | Allocation: simulation result schema | Verification: I,T | Acceptance: replay/comparison can identify the exact axle/wheelbase configuration of the run | Priority: P1
+
+LOC-AX-011 | Saved project versions shall preserve axle datum locks and authoritative values. | Source class: DES | Parent: LOC-AX-003 | Allocation: persistence/versioning | Verification: T | Acceptance: save/reload/version-copy retains values, units, provenance, and lock state | Priority: P1
+
+LOC-WB-009 | Build export shall state target wheelbase derived from frozen axle datums and shall label the constraint as project/local unless later supported by an authoritative published rule. | Source class: USR/DES/LOCAL | Parent: BLD-001/002, LOC-WB-003 | Allocation: build-sheet exporter | Verification: I,A,D | Acceptance: build output matches project data and provenance | Priority: P1
+
+LOC-AX-012 | STL/body export shall not intentionally relocate axle-related body features relative to the master-model axle coordinate frame. | Source class: DES/LOCAL | Parent: GEO-001, BLD-001 | Allocation: geometry exporter | Verification: A,T | Acceptance: exported geometry reference checks agree with the master-model datums within specified export tolerance | Priority: P1
+
+LOC-WB-010 | Any future ruleset that permits variable wheelbase shall be able to disable the local fixed-wheelbase constraint without changing the underlying general vehicle architecture. | Source class: DES | Parent: data-driven rules/constraint architecture | Allocation: constraint configuration | Verification: T | Acceptance: constraint can be deactivated by an authorized project/rules configuration and the resulting state is explicitly identified | Priority: P2
+
+LOC-WB-011 | If an authoritative event source later explicitly requires original axle locations or wheelbase, provenance may be promoted from LOCAL/FROZEN to RULE only by updating the source record and ruleset. | Source class: DES | Parent: provenance discipline | Allocation: rules data governance | Verification: R,I | Acceptance: promotion requires stored source reference; changing a UI label alone is insufficient | Priority: P0
+
+GATE / AXLE INTERACTION TRACEABILITY
+GATE-001 | The starting-gate contact constraint and fixed axle/wheelbase constraint shall be independent. | Source: RULE + LOCAL | Rationale: gate rule is sourced; axle/wheelbase lock is local | Allocation: constraint service | Verify: T | Acceptance: either can fail/pass independently and provenance remains distinct | Priority: P0
+GATE-002 | AI shape generation shall simultaneously satisfy the protected gate-contact region and locked axle datums when both constraints are active. | Source: DES | Parent: RUL-007, LOC-AX-005 | Allocation: AI/geometry constraint solver | Verify: T | Acceptance: compliant generated geometry preserves both constraint families | Priority: P1
+GATE-003 | Optimization shall not solve a gate-contact problem by altering locked wheelbase or axle position. | Source: DES/LOCAL | Parent: RUL-007, LOC-WB-004 | Allocation: optimizer | Verify: T | Acceptance: only permitted geometry/component variables are proposed | Priority: P1
+
+REQUIREMENT-TO-ARTIFACT TRACE
+LOC-AX-001..012 and LOC-WB-001..011 shall trace to:
+- GravityRacer_Detailed_Specification: constraint-aware design, frozen axle datums/wheelbase, protected zones, inspection, export gate.
+- GravityRacer_GUI_Mockup / Standalone Visual Direction: Design Constraints panel, datum overlays, provenance labels, readiness status.
+- GravityRacer_External_Knowns_Register: wheelbase/axle lock classified LOCAL/FROZEN and exact unmeasured values retained as unknown.
+- Car project schema: datum values, units, provenance, lock state, wheelbase derivation.
+- Constraint service tests: editing, AI, optimization, inspection, save/reload, simulation metadata, export.
+
+MINIMUM VERIFICATION TEST SET FOR FIXED AXLE/WHEELBASE
+V-AX-001 Baseline measurement load: load a project with known test axle datums; confirm wheelbase derivation.
+V-AX-002 AI generation: generate several radically different bodies and assert identical axle datums.
+V-AX-003 Manual edit: attempt move/scale operations that would relocate chassis references; assert lock enforcement/noncompliance handling.
+V-AX-004 Optimizer: include geometry and ballast variables; assert axle/wheelbase variables are absent when locked.
+V-AX-005 Wheel setup: change camber/toe; assert master axle datum/wheelbase values remain unchanged.
+V-AX-006 Persistence: save/reload/version copy and compare datum values, units, provenance, locks.
+V-AX-007 Technical inspection: deliberately corrupt a test datum in an engineering-test fixture and assert axle and wheelbase checks fail independently of published-rule checks.
+V-AX-008 Export: compare master-model datum references with exported manufacturing references within declared export tolerance.
+V-AX-009 Provenance: verify UI/build sheet says LOCAL/FROZEN, not RULE, for fixed wheelbase under the current source set.
+V-AX-010 Gate independence: create a test geometry that fails nose contact while axle/wheelbase passes, then a separate fixture that passes nose contact while local axle lock fails.
+
+OPEN ITEMS / EXIT CRITERIA
+OPEN-AX-001 | Measure or obtain authoritative official-kit front and rear axle datum coordinates. Until then exact coordinates remain UNKNOWN.
+OPEN-AX-002 | Define coordinate-system convention and datum-reference geometry before implementation freeze.
+OPEN-AX-003 | Define acceptable measurement/storage/export tolerances based on the real kit and manufacturing workflow; do not invent tolerances before characterization.
+OPEN-GATE-001 | Characterize the real starting pin/contact geometry. Until then only the published functional no-point/no-upward-slope rule is authoritative.
+
+MATRIX GOVERNANCE RULE
+No requirement may change provenance class because it is convenient for implementation. In particular, fixed axle locations and nominal wheelbase remain LOCAL/FROZEN until supported by an authoritative rule source. The same requirement IDs shall be used in specifications, source code/tests, validation records, and build/export checks so implementation evidence can trace back to this matrix.
+
+============================================================
+REQUIREMENTS REVIEW INCORPORATION - MISSING / CONFLICT RESOLUTION
+============================================================
+
+STATUS LEGEND
+DRAFT = identified but not baselined
+APPROVED = accepted requirement, pending implementation
+TBD = requirement exists but a value/model/source remains unresolved
+
+COMPLIANCE / RULE GOVERNANCE
+RUL-010 | A car shall not receive CERTIFIED COMPLIANT status until every applicable hard-rule inspection is defined and passes, including the starting-gate contact test. | Source: requirements review; parent RUL-007 | Allocation: constraint/compliance service | Verify: T | State: DRAFT | Priority: P0
+CMP-001 | Compliance states shall include NOT EVALUATED, PARTIALLY EVALUATED, PROVISIONALLY COMPLIANT, CERTIFIED COMPLIANT, NONCOMPLIANT, and SANDBOX/RULES DISABLED. | Source: requirements review | Allocation: rules engine/UI | Verify: I,T,D | State: DRAFT | P0
+CMP-002 | A ruleset shall store identity, organization/event, version/effective date when known, source references, provenance, local overrides, review status, and an immutable snapshot with simulation/build records. | Source: requirements review | Allocation: ruleset/project schemas | Verify: I,T | DRAFT | P0
+CMP-003 | Constraint precedence shall be geometry validity; safety/structural constraints; published rules; local/frozen constraints; manufacturing capability; player design locks; optimizer objectives; aesthetic preferences. Infeasible combinations shall be reported rather than silently relaxing higher-priority constraints. | Source: requirements review/design decision | Allocation: shared constraint service | Verify: T | DRAFT | P0
+CMP-004 | Technical inspection shall define bounding orientation, included geometry, clearance method, swept/static envelopes, numerical precision, rounding policy, exact-limit behavior, and official-measurement override handling. | Source: requirements review | Allocation: inspection service | Verify: A,T | DRAFT | P0
+CMP-005 | Display rounding shall never convert an underlying failing limit value into a PASS result. | Source: requirements review | Allocation: inspection/UI | Verify: boundary T | DRAFT | P0
+WHL-003 | Applicable rulesets shall preserve/verify required official wheel sidewall marking visibility. | Source: current CCCS/AWANA rule baseline | Allocation: component/inspection model | Verify: R,I | DRAFT | P1
+KIT-001 | Official block/wheel/axle definitions shall carry model/version identity, geometry, mass where known, variation data where known, protected attributes, provenance, and update policy. | Source: requirements review | Allocation: kit library | Verify: I,T | DRAFT | P0
+
+GEOMETRY / CAD
+GEO-002 | Authoritative car-body geometry shall satisfy a defined valid-solid test prior to certified simulation/build export. | Source: requirements review | Allocation: geometry kernel/validator | Verify: T | DRAFT | P0
+GEO-003 | Valid-solid checks shall cover watertight/manifold state, self-intersection, normals/topology defects, physical connectivity or explicit component separation, wheel interference, and exportability. Minimum wall/feature limits are TBD by manufacturing characterization. | Source: requirements review | Allocation: geometry validator | Verify: T | DRAFT/TBD | P0
+GEO-004 | The project shall freeze an authoritative editable geometry representation before architecture freeze; candidate technologies shall be evaluated against AI generation, Boolean editing, mass properties, templates, and STL export. | Source: requirements review | Allocation: architecture | Verify: design review | DRAFT/TBD | P0
+GEO-005 | The original kit block representation shall be retained separately from the derived finished body and operation/feature history sufficient for provenance, undo, removed-volume calculation, and build outputs. | Source: requirements review | Allocation: project/geometry model | Verify: I,T | DRAFT | P0
+GEO-006 | The project shall define master internal units, display conversion, STL import/export unit handling, conversion precision, mixed-unit component handling, and behavior for unitless STL inputs. | Source: requirements review | Allocation: core data/import/export | Verify: T | DRAFT | P0
+GEO-007 | Datum, geometry, tessellation, collision/contact, mass-calculation, and print-scale tolerance fields and verification processes shall exist; numerical values remain TBD until characterized. | Source: requirements review | Allocation: configuration/validation | Verify: I,T | DRAFT/TBD | P0
+GEO-008 | The master vehicle coordinate system and axle datum-reference convention shall be frozen before implementation of fixed-wheelbase conformance. | Source: conflict C-03; parent LOC-AX/WB | Allocation: geometry architecture | Verify: design review, T | DRAFT/TBD | P0
+
+MANUFACTURING / BUILD
+BLD-003 | Build output shall define a reproducible operation sequence where implemented, including datum preservation, cut/drill sequence, ballast installation, finishing allowance, final mass adjustment, and adult-supervision notes for hazardous operations. | Source: requirements review | Allocation: build planner/exporter | Verify: I,D | DRAFT | P2
+BLD-004 | Certified build export shall be blocked by unresolved required compliance checks as well as known failures. | Source: requirements review | Allocation: build exporter/constraint service | Verify: T | DRAFT | P0
+MFG-001 | Easy/Intermediate/Advanced manufacturing levels shall be defined using available tools, operations, minimum feature size, precision, setup changes, compound geometry, and adult-supervision needs. | Source: requirements review | Allocation: manufacturing model | Verify: review/T | DRAFT/TBD | P1
+
+MASS / MATERIALS
+MAT-002 | Effective block density derived from original block mass shall be identified as a uniform-density approximation and shall not be represented as establishing exact finished-body CG. | Source: requirements review | Allocation: mass-properties/UI/provenance | Verify: I,T | DRAFT | P0
+MAT-003 | As-built workflow shall permit measured finished-body mass and measured/derived CG data to supersede nominal predictions for as-built simulation without overwriting as-designed state. | Source: requirements review; parent DT-001 | Allocation: digital twin/mass-properties | Verify: T | DRAFT | P2
+MAT-004 | Modeled total mass shall account for paint/finish, adhesive, decals, lubricant where materially represented, accessories, and mounting hardware, with provenance/uncertainty status. | Source: requirements review | Allocation: component/mass model | Verify: A,T | DRAFT | P1
+MAT-005 | Material-library entries shall identify density source/provenance, material/alloy description where relevant, nominal vs. measured mass status, safety classification, and generic/commercial component status. | Source: requirements review | Allocation: material library | Verify: I,T | DRAFT | P1
+SAF-001 | Lead ballast in a child-facing application shall have an explicit safety policy covering warnings, adult supervision, safer alternatives and restriction of unsafe processing guidance; Kid Mode availability is TBD. | Source: requirements review/product safety | Allocation: material library/UI/content policy | Verify: I,D | DRAFT/TBD | P0
+MAT-006 | Optimization/build planning shall support a configurable mass margin/trim reserve rather than assuming a real build should target exactly the rule maximum; no universal reserve value is defined without evidence. | Source: requirements review | Allocation: optimizer/build settings | Verify: T | DRAFT | P1
+
+WHEELS / AXLES
+WHL-004 | The model shall represent wheel contact state independently per wheel. Ruleset legality of three-wheel contact remains TBD until sourced for the event. | Source: requirements review | Allocation: wheel physics/rules | Verify: T | DRAFT/TBD | P1/P2
+WHL-005 | Camber physics may be supported independently from ruleset legality. Certified-mode permission for deliberate camber/bent axles/drilled holes/slot changes shall remain unresolved until sourced. | Source: requirements review | Allocation: wheel physics/rules | Verify: R,T | DRAFT/TBD | P1
+WHL-006 | Toe configuration shall have a defined physical implementation method for build export; a numeric toe target without a manufacturable mechanism shall not be presented as a build instruction. | Source: requirements review | Allocation: wheel model/build exporter | Verify: I,D | DRAFT/TBD | P1/P2
+WHL-007 | Minimum inside-wheel spacing shall be computed from the actual installed wheel/axle/body geometry and applicable orientation rather than from an unrelated independent nominal value. | Source: conflict C-05 | Allocation: geometry/inspection | Verify: A,T | DRAFT | P0/P1
+FRI-001 | Axle/bore friction model shall define the dependencies actually modeled, calibration basis, lubricant state, and uncertainty/provenance; a generic friction slider shall not imply unmodeled physical fidelity. | Source: requirements review | Allocation: solver/material model | Verify: model review/A/T | DRAFT/TBD | P1
+WHL-008 | Wheel moment of inertia shall be measured or calculated with documented method/provenance and uncertainty/fallback treatment; wheel mass and radius alone shall not be assumed sufficient. | Source: requirements review | Allocation: kit library/solver | Verify: A,T | DRAFT/TBD | P1
+
+TRACK / RACE
+TRK-003 | A fully characterized track simulation shall define centerline/elevation, slope and curvature along the timed course. Manufacturer timed distance alone shall not be represented as a complete physics profile. | Source: requirements review | Allocation: track model | Verify: A,R/T | DRAFT | P0
+TRK-004 | Track configurations lacking full measured/manufacturer profile data shall expose ESTIMATED/UNCHARACTERIZED profile status in the UI and simulation metadata. | Source: requirements review/provenance | Allocation: track library/UI | Verify: I,T | DRAFT | P0
+GATE-004 | The start-gate model shall define the modeled pin geometry/position/motion, contact/release behavior, simulation timing-start event and uncertainty before certified timing claims depend on gate dynamics. | Source: requirements review | Allocation: gate/solver | Verify: model review, T | DRAFT/TBD | P0/P1
+TIM-001 | The finish timing event shall model a defined sensor/event plane and triggering car geometry; elapsed time shall not silently use CG crossing as a substitute unless the selected model explicitly defines that approximation. | Source: requirements review | Allocation: solver/timing | Verify: T | DRAFT | P0/P1
+LANE-001 | The track model shall define lane centerline, guide geometry, lane spacing/boundaries and lane-specific data used by the solver; unknown dimensions remain uncharacterized rather than invented. | Source: requirements review | Allocation: track model | Verify: I,A,T | DRAFT/TBD | P1
+SIM-001 | Multi-car comparisons shall record whether conditions are identical idealized conditions or lane-calibrated conditions and shall preserve environmental/random-seed state necessary for reproduced comparisons. | Source: requirements review | Allocation: simulation runner/results | Verify: T | DRAFT | P1
+
+PHYSICS / NUMERICS
+PHY-004 | The authoritative solver state vector shall be frozen by release and documented, including which translational/rotational states, wheel states, and contacts are active. | Source: requirements review | Allocation: solver architecture | Verify: design review/I | DRAFT/TBD | P0
+PHY-005 | Solver validation shall define integration/event-localization method, convergence tests, energy-residual criterion, and deterministic reproducibility acceptance thresholds before physics release certification. | Source: requirements review | Allocation: solver/validation | Verify: A,T | DRAFT/TBD | P0
+PHY-006 | Contact models implemented for wheel-track, wheel-rail, hub, and gate shall define their contact geometry, friction and any damping/restitution/penetration treatment plus validation cases. | Source: requirements review | Allocation: contact solver | Verify: A,T | DRAFT/TBD | P1/P2
+AERO-001 | The aerodynamic fidelity level shall be explicit. An estimated Cd/shape-class model shall be labeled estimated and shall not be represented as CFD or experimentally validated unless supported by evidence. | Source: requirements review | Allocation: aero model/UI | Verify: I,A,T | DRAFT | P1
+PHY-007 | Normal loads, unloading/stability, and load-dependent losses shall use actual modeled track orientation and rigid-body configuration rather than flat-track formulas where the solver claims transition fidelity. | Source: requirements review | Allocation: rigid-body solver | Verify: A,T | DRAFT | P1/P2
+PHY-008 | “Stability” shall be defined through measurable solver outputs before Optimize Stability is released. Candidate metrics must be baselined before use. | Source: requirements review | Allocation: physics/optimizer | Verify: requirements review/T | DRAFT/TBD | P1
+
+OPTIMIZATION
+OPT-002 | Every optimization mode shall have a defined measurable objective, hard constraints, permitted variables, infeasibility behavior, stopping criteria, comparison baseline, and result explanation. | Source: requirements review | Allocation: optimizer | Verify: I,T | DRAFT | P0/P1
+OPT-003 | Appearance preservation shall initially be expressed via explicit protected/locked features and allowed visible/hidden edits; numerical similarity percentages shall not be shown until a validated metric exists. | Source: requirements review | Allocation: optimizer/UI | Verify: I,T | DRAFT | P1
+OPT-004 | Robust/stochastic optimization shall record parameter distributions, centers, spreads, bounds, correlations where modeled, provenance, trial/convergence rule, and reproducible random seed. | Source: requirements review | Allocation: optimizer/simulation | Verify: I,T | DRAFT/TBD | P2
+
+AI
+AI-004 | AI-generation functionality shall define handling of protected brands/characters/reference assets, provider/model terms, output licensing considerations, and child-appropriate content controls before public release. | Source: requirements review | Allocation: AI product policy | Verify: policy review/T | DRAFT/TBD | P0 public release
+AI-005 | AI shall not silently relax hard constraints when a requested design is infeasible; it shall report conflicts, preserve the prior design, and block invalid authoritative export. | Source: requirements review | Allocation: AI/constraint service | Verify: T | DRAFT | P0/P1
+AI-006 | AI-created design records shall store prompt, active constraints, generation engine/version where available, seed where available, repairs/transforms, source project version, and AI-vs-human provenance where supported. | Source: requirements review | Allocation: project schema/AI service | Verify: I,T | DRAFT | P1
+
+SOFTWARE / DATA / ACCESSIBILITY
+DAT-001 | Gravity Racer shall use a versioned project schema containing units, coordinate conventions, master geometry, components/materials, rules snapshot, track snapshot, constraint locks/provenance, solver version, simulation records and as-designed/as-built state. | Source: requirements review | Allocation: project/data architecture | Verify: schema review/T | DRAFT | P0
+DAT-002 | Project-schema, solver, rules and library upgrades shall define migration/compatibility behavior; historical simulation records shall not be silently rewritten. | Source: requirements review | Allocation: persistence/migration | Verify: T | DRAFT | P1
+DAT-003 | Save behavior shall define dirty state, autosave, recovery, version copy/save-as, concurrency behavior and asset handling. | Source: requirements review | Allocation: application persistence | Verify: D,T | DRAFT | P1
+PLT-001 | Target platform, packaging, offline behavior, AI connectivity dependency, hardware/browser support as applicable, model-size limits and performance targets shall be baselined before production architecture freeze. | Source: requirements review | Allocation: product architecture | Verify: design review/performance T | DRAFT/TBD | P0
+ACC-001 | Public UI shall provide keyboard accessibility, non-color-only status communication, scalable text, reduced-motion accommodation, and accessible labels; detailed platform conformance level is TBD. | Source: requirements review | Allocation: UI | Verify: accessibility test | DRAFT/TBD | P0 public release
+PRV-001 | Community/account features shall not ship without requirements for child/guardian consent as applicable, privacy defaults, moderation, retention/deletion, uploads and telemetry; otherwise Community shall remain out of scope. | Source: requirements review | Allocation: product/privacy | Verify: requirements/policy review | DRAFT/TBD | P0 public release
+
+VERIFICATION / GOVERNANCE
+GOV-001 | The program shall establish one controlling merged requirements baseline identifying revision, incorporated amendments, superseded files, RTM revision, approval authority and change-control process. | Source: requirements review | Allocation: configuration management | Verify: I | DRAFT | P0
+GOV-002 | Traceability shall be bidirectional from user need to requirements, implementation, verification case/result and release evidence, and from verification/implementation artifacts back to requirement IDs. | Source: requirements review | Allocation: RTM/configuration management | Verify: trace audit | DRAFT | P0
+GOV-003 | Each normative requirement shall carry lifecycle state: Draft, Approved, Implemented, Verified, Deferred, Rejected or Superseded. | Source: requirements review | Allocation: RTM/configuration management | Verify: I | DRAFT | P0
+GOV-004 | Release gates shall be defined for Prototype, Physics Alpha, Builder Alpha, Ruleset Beta and Public Release. | Source: requirements review | Allocation: program V&V | Verify: gate review | DRAFT | P0
+GOV-005 | Prototype gate shall require visual design and basic mass-property functionality sufficient for controlled prototype use. | Source: requirements review | Allocation: release plan | Verify: D/T | DRAFT | P1
+GOV-006 | Physics Alpha shall require validated ideal-gravity and wheel-inertia baselines before downstream physics is treated as authoritative. | Source: requirements review | Allocation: V&V | Verify: test evidence | DRAFT | P0/P1
+GOV-007 | Builder Alpha shall require valid-solid checks and functioning build exports. | Source: requirements review | Allocation: V&V | Verify: test evidence | DRAFT | P1
+GOV-008 | Ruleset Beta shall require complete source-backed inspection for the targeted certified ruleset and explicit treatment of local constraints/unknowns. | Source: requirements review | Allocation: V&V | Verify: trace/source audit | DRAFT | P1
+GOV-009 | Public Release shall require applicable safety, privacy, accessibility, migration and regression evidence. | Source: requirements review | Allocation: release governance | Verify: release review | DRAFT | P0 public release
+
+CONFLICT RESOLUTION TRACE
+C-01 -> RUL-007, RUL-010, GATE-004, CMP-001.
+C-02 -> CMP-001, CMP-002, RUL-010, BLD-004.
+C-03 -> GEO-008, LOC-AX-001..004, LOC-WB-001..003.
+C-04 -> LOC-WB-002, LOC-WB-010, WHL-006; certified mode locks fore/aft axle position.
+C-05 -> WHL-007 plus official axle/wheel/body geometry definition under KIT-001.
+
+OPEN CHARACTERIZATION TRACE
+CHAR-001 | Official block geometry/mass | Feeds: MAT-001/002, GEO-005, KIT-001 | State: TBD
+CHAR-002 | Front/rear axle-slot datums and nominal wheelbase | Feeds: LOC-AX/WB, GEO-008 | State: TBD
+CHAR-003 | Official wheel/axle mass, geometry, inertia | Feeds: KIT-001, WHL-008, physics | State: TBD
+CHAR-004 | Starting-pin geometry and release motion | Feeds: RUL-007/010, GATE-004 | State: TBD
+CHAR-005 | BestTrack elevation/transition and guide/lane geometry | Feeds: TRK-003/004, LANE-001, PHY-007 | State: TBD
+CHAR-006 | Representative friction behavior | Feeds: FRI-001 | State: TBD
+CHAR-007 | Measurement/manufacturing tolerances | Feeds: GEO-007, robust optimization/build compliance | State: TBD
+
+BASELINE NOTE
+The requirements above incorporate the findings from GravityRacer_Missing_and_Conflicting_Requirements_Assessment.txt into this RTM. All newly incorporated entries are DRAFT unless separately approved. Existing provenance discipline remains controlling: unknowns are not promoted to measured/rule values, and local/frozen axle and wheelbase constraints are not represented as published AWANA rules without authoritative evidence.

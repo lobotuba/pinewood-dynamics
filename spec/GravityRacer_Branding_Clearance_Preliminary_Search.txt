@@ -1,0 +1,106 @@
+GRAVITY RACER
+PRELIMINARY BRANDING AVAILABILITY / CLEARANCE SEARCH
+Date: 2026-10-26
+Jurisdictional focus: United States, with broader web/common-law review
+
+IMPORTANT
+This is a practical preliminary clearance search, not a legal opinion or a guarantee of registrability or freedom to use. Trademark rights can arise from use without federal registration. Final clearance should be performed by a U.S. trademark attorney using the exact goods/services, markets, logo, and proposed owner.
+
+BRANDING REVIEWED
+- Word mark: GRAVITY RACER
+- Compound spelling: GRAVITYRACER
+- Tagline: REAL PHYSICS. REAL CREATIVITY. REAL RACERS.
+- Workflow phrase: DESIGN. SIMULATE. BUILD. RACE.
+- Logo direction: italic GRAVITY RACER wordmark, blue accent, checkered-flag motif
+- Mockup references: AWANA name/logo and Kestrel Corp identity
+
+BOTTOM-LINE FINDING
+GRAVITY RACER is not a clean or exclusive brand candidate. The exact phrase is already widely used for video games, software/interactive experiences, educational STEM material, toys, kits, CAD projects, and the generic name of a category of motorless racing vehicle. The compound GRAVITYRACER is also used commercially for toy products. Those uses create material common-law, marketplace-confusion, search-discoverability, app-store, domain, and registrability risks even if an exact live federal registration is not found.
+
+RISK RATING
+- GRAVITY RACER word mark: HIGH
+- GRAVITYRACER compound spelling: HIGH
+- Exact tagline REAL PHYSICS. REAL CREATIVITY. REAL RACERS.: LOWER PRELIMINARY COLLISION SIGNAL, but not legally cleared
+- DESIGN. SIMULATE. BUILD. RACE.: likely weak/descriptive; not recommended as the primary protectable mark
+- Checkered-flag + italic racing wordmark: crowded/generic visual field; weak distinctiveness unless redesigned with a unique device
+- AWANA branding in product UI/marketing: permission/licensing required according to Awana guidance
+
+MATERIAL EXACT/SIMILAR USES FOUND
+1. GRAVITY RACER browser game on Addicting Games, identified as a racing game.
+2. GRAVITY RACER game on Y8, listed since April 11, 2013.
+3. GRAVITY RACER mobile-friendly car physics racer and road editor by PebbleBuddy.
+4. GRAVITY RACER prototype game on Devpost using augmented reality.
+5. GRAVITY RACER on Amazon Appstore by KOONOOZ, first listed October 10, 2015.
+6. GRAVITY RACER iOS listing attributed to Justin Albo.
+7. GRAVITY RACER prototypes on itch.io, including Cosmic Scribe and Manou projects.
+8. GRAVITY RACER game on Newgrounds, uploaded February 22, 2014.
+9. GRAVITY RACER Windows listing and GRAVITY RACERS Android listings.
+10. GRAVITYRACER-labelled wall-climbing toy products from multiple retailers, including one presentation with a TM symbol.
+11. Pitsco Education product named Try This: Gravity Racer Kit.
+12. K20 Center educator resource titled STEM Challenge: Gravity Racer.
+13. Teachers Pay Teachers product titled Gravity Racer STEM Challenge.
+14. NSTA resource titled Gravity Racers.
+15. Numerous CAD, industrial-design, Tinkercad, GrabCAD, and training projects named Gravity Racer.
+16. Formula Gravity describes and sells Gravity Racer educational kits.
+17. GRAVITY RACER is used generically for a motorless downhill vehicle category.
+18. Gravity Race Car and Gravity Gran Prix are active adjacent event/brand uses.
+
+FEDERAL TRADEMARK SEARCH LIMITATION
+The official USPTO search interface was reviewed and search-engine queries were run for exact and variant forms. No citable exact-match federal record for GRAVITY RACER was surfaced in the results available to this research session. That is not evidence that no relevant registration/application exists. USPTO guidance states that clearance requires evaluating confusing similarity and related goods/services, and that comprehensive clearance involves sources beyond the federal database.
+
+LIKELY GOODS/SERVICES REQUIRING PROFESSIONAL SEARCH
+- Class 009: downloadable software, simulation software, game software, CAD/design software
+- Class 028: games, toys, model-car/derby kits and accessories
+- Class 041: educational and entertainment services, STEM instruction, competitions
+- Class 042: SaaS, hosted design/simulation software, engineering/design technology services
+Related goods can conflict even when placed in different international classes.
+
+DESCRIPTIVENESS / STRENGTH
+GRAVITY RACER directly names a gravity-powered racer and is used as a common category term. For software that designs and simulates gravity racers, the wording strongly describes the subject and purpose. This can make the wording difficult to monopolize and difficult to rank distinctly in general and marketplace search.
+
+TAGLINES
+No exact web result was surfaced for REAL PHYSICS. REAL CREATIVITY. REAL RACERS. in the searches performed. That makes the phrase more promising than GRAVITY RACER at the preliminary level. It is not cleared until federal, state, common-law, advertising, app-marketplace, and international searches are completed for exact and similar wording.
+
+DESIGN. SIMULATE. BUILD. RACE. describes the workflow and is likely weak as a source identifier. Treat it as explanatory copy, not the main protectable asset, unless counsel advises otherwise.
+
+DOMAINS / HANDLES
+Exact domains gravityracer.com, gravityracer.net, gravityracer.org, gravityracer.app, gravityracer.io and gravity-racer.com were probed, but this research session did not retrieve authoritative registration-status results for them. No claim of availability is made. ICANN RDAP/registrar checks and immediate attempted registration are required.
+
+Searches also located #gravityracer use on YouTube and Facebook. Exact social-handle availability was not authoritatively verified and should not be assumed.
+
+AWANA BRANDING
+Awana states that Awana and the Awana logo are registered trademarks and limits use. Its guidelines allow some references and certain church/noncommercial uses, but the commercial/public software mockup should not display the Awana logo or imply endorsement without written permission. Use a neutral ruleset label during development, such as “CCCS local kit rules,” and obtain specific permission before shipping an AWANA-branded mode.
+
+GRANDPRIX RACE MANAGER VISUAL CROSSOVER
+Maintain only broad genre familiarity. Do not copy logos, exact screen arrangements, proprietary artwork, icon assets, or distinctive trade dress. Gravity Racer should remain independently branded and should not imply compatibility, sponsorship, or common origin.
+
+LOGO ASSESSMENT
+The checkered-flag motif and italicized motorsport lettering are common racing imagery. They provide low inherent distinctiveness and may resemble many racing brands. Create a unique device mark tied to the product’s special proposition: AI-assisted physical design, mass/CG visualization, virtual-to-real build, or a distinctive gravity/vector motif. Avoid AWANA wheel logos and third-party marks in product artwork.
+
+RECOMMENDED DISPOSITION
+Do not launch or file the product under GRAVITY RACER as the sole primary word mark without attorney-led comprehensive clearance. The current evidence shows heavy exact marketplace use in closely related games, software, toys, STEM education and gravity-racing contexts.
+
+Best path:
+1. Treat Gravity Racer as an internal working title.
+2. Select a distinctive coined or suggestive primary mark.
+3. Use “gravity-racer design and simulation” descriptively beneath the new mark.
+4. Search the new candidate across USPTO federal records, state registrations, common-law web use, domains, social handles, app stores, game stores, company names and international databases.
+5. Clear the final logo separately from the word mark.
+6. Obtain explicit Awana permission before using its name/logo as branded product content.
+7. File an intent-to-use application in the appropriate classes only after counsel approves the mark and goods/services description.
+
+SEARCH SOURCES AND CHANNELS REVIEWED
+- USPTO trademark search guidance/interface and TSDR access
+- General web/common-law exact and variant searches
+- App/game marketplaces and game portals
+- Educational/STEM resources and commercial kits
+- Toy/product listings
+- GitHub and game-development platforms
+- CAD/design/model repositories
+- Social hashtag/search results
+- Domain/WHOIS/RDAP resources (status not conclusively established)
+- Awana trademark/copyright guidelines
+- WIPO and EUIPO entry points were probed, but no authoritative exact-result dataset was retrievable in this session
+
+CONCLUSION
+The exact GRAVITY RACER name should be treated as unavailable or commercially imprudent for a distinctive software brand unless trademark counsel reaches a different conclusion after a full professional search. The proposed Real Physics / Real Creativity / Real Racers tagline appears more promising at the preliminary search level, but remains uncleared. A new coined master brand is the prudent course.

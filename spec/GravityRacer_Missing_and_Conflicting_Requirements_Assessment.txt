@@ -1,0 +1,363 @@
+GRAVITY RACER
+MISSING AND CONFLICTING REQUIREMENTS ASSESSMENT
+Status: Requirements review and architecture-risk assessment
+
+1. EXECUTIVE ASSESSMENT
+The Gravity Racer concept is internally viable, but several requirements remain unresolved and several existing statements conflict. The most important issues are:
+
+1. The illustrated banana car has a tapered, pointed nose that appears inconsistent with the published starting-gate requirement.
+2. Fixed axle locations and nominal wheelbase are required locally but are not yet numerically defined from an authoritative kit measurement.
+3. The application cannot certify a car as fully legal until all necessary rules, physical kit attributes, and gate checks are characterized.
+4. The selected BestTrack timed distance is known, but the complete physical track profile required for a credible simulation is not yet known.
+5. Coordinate systems, units, numerical tolerances, geometry-validity criteria, and solver acceptance thresholds are not yet fully defined.
+6. Optimization objectives such as fastest, stable, robust, easy to build, and appearance preserving are not yet mathematically defined.
+7. AI-generated geometry does not yet have complete acceptance criteria for becoming a manufacturable solid.
+8. The proposed MVP contains physics and manufacturing capabilities that cannot all be validated from the current external-knowns set.
+
+The central product risk is premature certainty: the UI must not present a design, simulation result, or rules status with more confidence than the source data and physical characterization justify.
+
+2. DIRECT REQUIREMENT CONFLICTS
+
+C-01 POINTED BANANA NOSE VS. STARTING-GATE RULE
+Conflict:
+The mockup banana has a tapered, pointed front. The current published CCCS/AWANA rule states that the front should not come to a point or slope upward in a manner that prevents proper retention behind the starting peg.
+
+Required resolution:
+- Redesign the banana with a flattened or otherwise valid starting-pin contact region; or
+- add an integrated gate-contact bumper; or
+- identify the mockup as noncompliant; or
+- identify the gate check as unverified pending characterization.
+
+New requirement:
+RUL-010: A car shall not receive CERTIFIED COMPLIANT status until a defined starting-gate contact test has passed.
+
+C-02 BINARY “LEGAL FOR AWANA” VS. UNCHARACTERIZED CHECKS
+Conflict:
+The GUI currently implies a binary legal status even though starting-pin geometry, exact contact testing, official axle coordinates, and some official component properties remain unknown.
+
+Required resolution:
+Use compliance levels:
+- NOT EVALUATED
+- PARTIALLY EVALUATED
+- PROVISIONALLY COMPLIANT
+- CERTIFIED COMPLIANT
+- NONCOMPLIANT
+- SANDBOX / RULES DISABLED
+
+Certification requires every applicable hard rule and active local/frozen constraint to be defined and passed.
+
+C-03 FIXED WHEELBASE VS. UNDEFINED DATUM CONVENTION
+Conflict:
+Wheelbase is described as the distance between front and rear axle datums, but the datum-reference convention is not defined.
+
+Required resolution:
+Freeze a coordinate system and axle-reference definition before implementation. A proposed convention is:
+- origin: center of nominal rear axle-slot axis, centered laterally;
+- +X: toward the front;
+- +Y: toward the car’s left;
+- +Z: upward normal to nominal block bottom;
+- nominal wheelbase: front nominal axle-axis X minus rear nominal axle-axis X.
+
+This convention is a proposed design decision and must not be represented as an external fact until approved.
+
+C-04 FIXED AXLE DATUMS VS. ADJUSTABLE FORE/AFT AXLE PLACEMENT
+Conflict:
+Earlier wheel configuration concepts allow fore/aft axle movement, while later project constraints lock official-kit axle locations.
+
+Required resolution:
+- AWANA-CCCS Certified Mode: fore/aft axle positions locked.
+- Sandbox/Open Rules Mode: fore/aft positions configurable.
+- Engineering Test Mode: configurable, but the design is explicitly noncompliant with the local/frozen constraint.
+
+C-05 INDEPENDENT BODY WIDTH/WHEEL GAP CONTROLS VS. PHYSICALLY COUPLED WHEEL SPACING
+Conflict:
+Body width, wheel gaps, camber, axle insertion, official axle geometry, and inside-wheel spacing are physically coupled but are currently treated as largely independent controls.
+
+Required resolution:
+Define the wheel-installation model and calculate minimum inside-wheel spacing from actual component geometry and orientation, including camber and swept envelope where required.
+
+3. MISSING RULE AND CONSTRAINT REQUIREMENTS
+
+M-01 COMPLIANCE QUALIFICATION LEVELS
+Add formal compliance states listed in C-02. Binary legal/illegal status is insufficient when required inputs remain unknown.
+
+M-02 RULESET IDENTITY, OWNERSHIP, VERSIONING, AND SNAPSHOTS
+Each ruleset needs:
+- name;
+- event/organization;
+- version or effective date when known;
+- source reference;
+- source provenance;
+- local overrides;
+- review status/date;
+- immutable snapshot stored with each simulation and build export.
+
+M-03 CONSTRAINT PRECEDENCE
+Define conflict precedence:
+1. geometry validity;
+2. safety and structural constraints;
+3. selected published rules;
+4. active local/frozen constraints;
+5. manufacturing capability;
+6. player design locks;
+7. optimizer objectives;
+8. aesthetic preferences.
+
+The system shall report infeasibility rather than silently relaxing a higher-priority constraint.
+
+M-04 TECHNICAL-INSPECTION MEASUREMENT DEFINITIONS
+Define:
+- bounding-box orientation;
+- whether wheels and accessories count in overall dimensions;
+- minimum-clearance calculation;
+- static vs. swept wheel envelope;
+- calculation precision;
+- rounding/display policy;
+- exact-limit behavior;
+- official-scale override workflow.
+
+The system shall never round an overweight or oversized value into a displayed pass.
+
+M-05 WHEEL-SIDEWALL MARKING
+Define how the design/inspection model protects or verifies the required AWANA sidewall marking.
+
+M-06 OFFICIAL-KIT COMPONENT IDENTITY
+Official block, wheel, and axle definitions need:
+- model/version identifier;
+- geometry;
+- mass;
+- acceptable component variation;
+- protected attributes;
+- source/provenance;
+- update policy when kit components change.
+
+4. MISSING GEOMETRY AND CAD REQUIREMENTS
+
+M-07 VALID-SOLID ACCEPTANCE
+Define tests for:
+- watertight manifold body;
+- no self-intersection;
+- consistent normals;
+- no zero-area faces;
+- connected physical body or explicitly defined separate components;
+- minimum feature/wall thickness;
+- no wheel/body interference;
+- no unintended inaccessible voids;
+- exportable geometry.
+
+M-08 AUTHORITATIVE EDITABLE GEOMETRY REPRESENTATION
+Choose and freeze the master representation, such as:
+- boundary-representation solid with features;
+- constrained constructive-solid geometry;
+- signed-distance/voxel representation;
+- subdivision surface plus solidification;
+- hybrid parametric body/accessory model.
+
+This decision affects AI generation, Boolean cuts, pockets, fillets, mass properties, manufacturing templates, and STL export.
+
+M-09 IMMUTABLE REFERENCE BLOCK AND DERIVED BODY
+Store the original official block separately from the finished design and maintain feature/operation history sufficient to support removed volume, added components, cutting templates, undo, and build sequence.
+
+M-10 UNIT AND SCALE HANDLING
+Define:
+- internal master units;
+- display-unit conversion;
+- STL import-unit selection;
+- STL export units;
+- unit metadata in project files;
+- conversion precision;
+- mixed inch/mm components;
+- handling of STL files that contain no intrinsic unit metadata.
+
+M-11 TOLERANCE FIELDS
+Requirements must exist for:
+- datum lock tolerance;
+- geometry comparison tolerance;
+- export tessellation tolerance;
+- collision/contact tolerance;
+- mass-calculation precision;
+- printed-template scale verification.
+
+Values may remain TBD until characterized, but the fields and verification process must exist.
+
+M-12 BUILD SEQUENCE
+The build package should define operation order, datum preservation, drilling/cutting sequence, weight installation, finishing allowance, trim-weight strategy, final weigh-in adjustment, and adult-supervision operations.
+
+5. MISSING MASS AND MATERIAL REQUIREMENTS
+
+M-13 NONUNIFORM WOOD DENSITY
+The effective-density model derived from whole-block mass is an approximation. Distinguish:
+- uniform effective-density prediction;
+- measured finished-body mass;
+- measured as-built CG correction.
+
+Do not imply that weighing the original block determines exact finished CG.
+
+M-14 PAINT, GLUE, LUBRICANT, DECALS, AND HARDWARE
+Define how these contribute to mass, uncertainty, CG, and build reserve.
+
+M-15 MATERIAL-LIBRARY GOVERNANCE
+Material records need density source, alloy/grade, nominal vs. measured component mass, safety classification, generic vs. commercial status, and provenance.
+
+M-16 LEAD SAFETY
+A child-facing product needs requirements for warnings, adult supervision, safe alternatives, event/jurisdiction restrictions where applicable, prohibition on unsafe machining guidance, and whether lead is hidden or restricted in Kid Mode.
+
+M-17 MASS SAFETY MARGIN
+Optimizing to exactly 5.000 oz risks a real overweight car. Add configurable build target, uncertainty allowance, and trim reserve. No universal margin should be asserted without event/build evidence.
+
+6. MISSING WHEEL AND AXLE REQUIREMENTS
+
+M-18 THREE-WHEEL VS. FOUR-WHEEL CONTACT
+Determine whether the active ruleset requires all wheels to contact the track. The physics model needs explicit wheel-contact state regardless of legality.
+
+M-19 CAMBER LEGALITY
+The captured rule source does not establish whether deliberate camber, bent axles, drilled holes, or modified slots are legal. Physics may support camber, but certified-mode permission remains unresolved until sourced.
+
+M-20 TOE LEGALITY AND MANUFACTURING METHOD
+Define both permissibility and the physical method that produces toe while preserving locked chassis datums.
+
+M-21 AXLE/BORE FRICTION MODEL
+Define load dependence, speed dependence, contact radius, lubrication state, calibration experiment, uncertainty, and any static/kinetic distinction used.
+
+M-22 WHEEL-INERTIA CHARACTERIZATION
+Define measured/calculated inertia, method, uncertainty, per-wheel variation, and fallback behavior when inertia is unknown.
+
+7. MISSING TRACK AND RACE REQUIREMENTS
+
+M-23 COMPLETE TRACK PROFILE
+Timed distance does not establish the vertical/transition physics. A characterized track needs position, elevation, slope, and curvature along the timed course. Until that exists, BestTrack simulations must disclose that the profile is estimated or uncharacterized.
+
+M-24 START-GATE RELEASE MODEL
+Define pin geometry, initial position, motion, opening time, contact behavior, release synchronization, timing-start event, and uncertainty.
+
+M-25 FINISH-TIMING EVENT
+Define whether the simulated timer triggers on nose crossing, another body feature, wheel crossing, or a modeled optical sensor plane. The simulation shall not automatically equate CG position with timer trigger.
+
+M-26 LANE MODEL
+Define centerlines, guide rails, lane width, lane separation, boundaries, lane-specific profiles, lane assignment, and whether cars physically interact.
+
+M-27 FAIR COMPARISON CONDITIONS
+Define identical-condition comparison, lane-calibrated comparison, shared random seed for tolerance experiments, environmental snapshot, and deterministic order independence.
+
+8. MISSING PHYSICS AND NUMERICAL REQUIREMENTS
+
+M-28 SOLVER STATE VECTOR
+Freeze the modeled states by release: longitudinal motion, pitch, yaw, lateral motion, roll, wheel rotations, contact states, and any compliance.
+
+M-29 SOLVER ACCURACY
+Define integrator, time-step behavior, event localization, convergence test, energy-residual criterion, and deterministic reproducibility threshold. Thresholds must be validated, not guessed.
+
+M-30 CONTACT-MODEL REQUIREMENTS
+Define geometry and model behavior for wheel-track, wheel-rail, hub, and gate contact, including friction, damping/restitution as used, penetration tolerance, stability, and validation cases.
+
+M-31 AERODYNAMIC MODEL BOUNDARY
+State exactly what V1 calculates. If frontal area and an estimated shape-class Cd are used, label outputs as estimates and present sensitivity bounds. Do not imply CFD fidelity.
+
+M-32 MASS AND LOADS ON TRACK SLOPE/TRANSITION
+Normal loads, front unloading, instability, and friction must use actual track orientation and rigid-body geometry rather than only flat-track static equations.
+
+M-33 STABILITY OBJECTIVE
+Define stability through measurable criteria such as minimum required wheel load, bounded yaw, rail-contact energy, body/track clearance, and robustness to construction tolerances.
+
+9. MISSING OPTIMIZATION REQUIREMENTS
+
+M-34 OBJECTIVE FUNCTIONS
+Mathematically define fastest, stable, robust, easy to build, appearance preserving, and cost objectives. Also define hard constraints, penalties, infeasible-result handling, stopping criteria, seeds, baseline, and explanation method.
+
+M-35 APPEARANCE PRESERVATION
+Do not show a visual-similarity percentage until a valid metric exists. Initially report preservation of locked features, visible unlocked areas, and hidden-only changes.
+
+M-36 MANUFACTURABILITY LEVELS
+Define Easy/Intermediate/Advanced in terms of tools, operation types, minimum feature size, precision, setup changes, compound geometry, and adult-supervision needs.
+
+M-37 ROBUST-OPTIMIZATION DISTRIBUTIONS
+Every stochastic parameter needs distribution family, center, spread, bounds, correlations, provenance, trial/convergence criteria, and reproducible seed.
+
+10. MISSING AI REQUIREMENTS
+
+M-38 IP, BRAND, AND CHILD-SAFETY HANDLING
+Define handling of trademarked logos, copyrighted characters, reference images, generated-content restrictions, provider/model terms, output licensing, and child-appropriate moderation.
+
+M-39 AI FAILURE BEHAVIOR
+AI shall not silently relax hard rules. Report infeasibility, identify conflicting locks, preserve the original version, propose alternatives, and block invalid-solid export.
+
+M-40 AI REPRODUCIBILITY AND PROVENANCE
+Store prompt, constraints/negative prompt, engine/version where available, seed where available, post-generation repairs, source version, and AI-vs-human feature provenance.
+
+11. MISSING SOFTWARE AND DATA REQUIREMENTS
+
+M-41 VERSIONED PROJECT FILE
+Define a schema for units, coordinate systems, geometry, components, materials, rules snapshot, track snapshot, locks, provenance, solver version, simulations, and as-designed/as-built states.
+
+M-42 MIGRATION AND BACKWARD COMPATIBILITY
+Define migration, immutable historical simulations, re-simulation warnings, compatibility reporting, backup, and recovery.
+
+M-43 SAVE/AUTOSAVE/RECOVERY
+Define dirty state, autosave, crash recovery, versioning, save-as, file concurrency, and large-asset handling.
+
+M-44 PLATFORM AND PERFORMANCE
+Freeze target platforms, GPU/browser requirements, packaging, offline behavior, AI connectivity dependency, model complexity, viewport performance, and solver execution expectations.
+
+M-45 ACCESSIBILITY
+Provide keyboard navigation, non-color-only status, screen-reader labels, high contrast, scalable text, reduced motion, and alternatives to drag-only editing.
+
+M-46 CHILD ACCOUNTS, PRIVACY, AND COMMUNITY
+The mockup includes a Community area without requirements. Define accounts, age/consent, moderation, public/private defaults, retention/deletion, telemetry, and uploads, or remove Community from scope.
+
+12. MISSING VERIFICATION AND GOVERNANCE REQUIREMENTS
+
+M-47 DOCUMENT BASELINING
+The current set includes baseline documents plus amendments. Establish a controlling merged specification, revision, amendment incorporation state, superseded-file list, RTM revision, approval authority, and change-control process.
+
+M-48 BIDIRECTIONAL TRACEABILITY
+Support traceability from user need through system/software requirement, component, test, result, and release evidence, plus reverse tracing from tests and code to requirements.
+
+M-49 REQUIREMENT MATURITY STATE
+Add Draft, Approved, Implemented, Verified, Deferred, Rejected, and Superseded states.
+
+M-50 RELEASE GATES
+Define gates for:
+- Prototype: visual design and basic mass calculations;
+- Physics Alpha: validated ideal gravity and wheel inertia;
+- Builder Alpha: valid solid and build outputs;
+- Ruleset Beta: complete source-backed inspection;
+- Public Release: safety, privacy, accessibility, migration, and regression evidence.
+
+13. RECOMMENDED IMMEDIATE DISPOSITIONS
+
+FREEZE NOW
+1. Gravity Racer is standalone.
+2. Orbit View is central.
+3. Creativity precedes optimization.
+4. STL is export, not master geometry.
+5. One shared constraint service is authoritative.
+6. The starting nose must satisfy the published functional gate requirement.
+7. Fixed axle locations and nominal wheelbase are local/frozen constraints.
+8. Published rules and local constraints remain visibly distinct.
+9. Unknown values remain unknown.
+10. Certified build export is blocked by unresolved hard compliance checks.
+
+RESOLVE BEFORE ARCHITECTURE FREEZE
+1. Coordinate system and axle datum convention.
+2. Master geometry representation.
+3. Versioned project schema.
+4. Ruleset versioning and compliance statuses.
+5. Valid-solid/manufacturing criteria.
+6. Target platform and cloud/offline boundary.
+7. Authoritative solver scope.
+8. Track, gate, and finish event model.
+9. AI provider and manufacturable-solid pathway.
+10. MVP and later-release boundaries.
+
+RESOLVE THROUGH PHYSICAL CHARACTERIZATION
+1. Official block geometry and mass.
+2. Axle-slot datums and wheelbase.
+3. Wheel/axle geometry, mass, and inertia.
+4. Starting-pin geometry and motion.
+5. BestTrack elevation/transition profile.
+6. Guide-rail and lane geometry.
+7. Representative friction behavior.
+8. Measurement and manufacturing tolerances.
+
+14. OVERALL CONCLUSION
+No fatal product-level contradiction has been identified. The concept remains feasible. The controlling concern is confidence discipline: legality, track fidelity, simulation precision, optimization results, and build readiness must reflect the provenance and completeness of the underlying information. The existing provenance framework should therefore be applied consistently across the UI, project format, AI generation, optimization, simulation results, and manufacturing export.

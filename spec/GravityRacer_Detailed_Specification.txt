@@ -1,0 +1,552 @@
+GRAVITY RACER
+Detailed Product and System Specification
+Status: Concept / System Requirements Baseline
+
+1. PRODUCT VISION
+Gravity Racer is a creativity-first 3D engineering game and design platform for gravity-powered derby cars. A player imagines a car, creates or AI-generates an editable design, configures real physical components, simulates the design against a modeled track and ruleset, analyzes performance, optimizes the design while preserving its appearance, and exports the result for real-world construction.
+
+Core promise: Design what you imagine. Engineer it to race. Build it for real.
+
+Performance shall emerge from modeled physics. The player shall not purchase or assign abstract performance statistics such as +10 speed.
+
+2. PRIMARY EXPERIENCE
+IMAGINE -> DESIGN -> CONFIGURE -> RACE -> ANALYZE -> OPTIMIZE -> RACE AGAIN -> BUILD -> MEASURE -> REAL-WORLD RACE -> COMPARE -> ITERATE
+
+3. PRIMARY USER MODES
+3.1 Kid Mode
+- AI prompt-first workflow.
+- Simple visual shaping and decoration.
+- Basic weight placement and wheel setup.
+- Race, replay, and plain-language diagnostics.
+- Advanced numerical controls hidden by default.
+
+3.2 Builder Mode
+- Inches and ounces.
+- Body dimensions, ballast, CG, rules compliance, wheel alignment, build drawings, STL export, and component list.
+
+3.3 Engineering Lab
+- Full physical model and solver controls.
+- Mass properties, inertia, drag parameters, friction terms, camber, toe, telemetry, parameter sweeps, uncertainty analysis, and validation diagnostics.
+
+4. MASTER CAR ARCHITECTURE
+The STL shall not be the authoritative model.
+
+Each project shall maintain synchronized representations:
+A. Design representation: editable geometry, cuts, holes, profiles, fillets, pockets, decorative features, colors, design-intent locks.
+B. Physics representation: mass distribution, CG, inertia tensor, collision geometry, wheels, axles, friction, aero model, ballast, hardware.
+C. Manufacturing representation: final body geometry, cutting profiles, drilling locations, ballast locations, dimensions, templates, and build instructions.
+
+5. DESIGN WORKSPACE
+The Design workspace shall be centered on a large interactive 3D viewport.
+
+5.1 Camera
+- Perspective orbit shall be the default view.
+- Orbit, zoom, pan, focus selection, fit model, and reset view.
+- One-click Perspective, Front, Rear, Left, Right, Top, and Bottom views.
+- Bottom view is mandatory for clearance, axle, wheel, ballast, and rail-interference inspection.
+
+5.2 Visualization modes
+- Solid.
+- Transparent/X-ray.
+- Wireframe.
+- Wood only.
+- Ballast only.
+- Wheels and axles only.
+- Center of gravity and mass properties.
+- Rules envelope.
+- Collision/contact geometry in Engineering Lab.
+
+5.3 Selection
+Components shall be selectable in the viewport. Selection shall expose relevant editing controls and may fade unrelated geometry.
+
+6. AI DESIGN ASSISTANT
+The Design workspace shall include a natural-language prompt for creating an initial car design.
+
+Examples:
+- A banana-shaped race car with the curved stem at the rear.
+- A wedge of Swiss cheese with round holes.
+- A rocket with fins.
+- A shark-shaped race car.
+
+AI output shall be an editable solid/parametric design or editable feature representation, not an immutable render-only mesh.
+
+6.1 AI validation
+Generated designs shall be checked for:
+- selected ruleset dimensional envelope;
+- wheel clearance;
+- ground clearance;
+- starting-gate compatibility;
+- disconnected or invalid geometry;
+- minimum practical feature sizes;
+- axle-region integrity;
+- manufacturability constraints.
+
+6.2 Design-intent locks
+The player may lock silhouette, decorative features, proportions, portions of the body, nose, tail, and accessory locations. Optimization shall respect these locks.
+
+7. MANUAL BODY EDITOR
+Initial tools:
+- Select/move/scale appropriate features.
+- Profile cut.
+- Wedge/plane cut.
+- Cylindrical bore.
+- Pocket.
+- General material removal.
+- Fillet/roundover.
+- Chamfer.
+- Mirror/symmetry.
+- Undo/redo.
+- Paint/material appearance.
+
+Future tools may include splines, lofts, extrusions, freeform sculpting, and general Boolean operations.
+
+8. BODY MASS MODEL
+The car body shall have geometric volume, material density, mass, center of mass, and inertial properties.
+
+m_body = rho_body * V_body
+
+As shape changes, volume and predicted mass shall update automatically.
+
+8.1 Wood calibration
+Nominal mode may use a default characterized material density.
+Measured mode shall allow the player to enter the mass of the actual unmodified block. Effective density shall be derived from measured block mass divided by original block volume. The source/status of each material property shall be marked as measured, manufacturer specified, estimated, default, or derived.
+
+9. COMPONENT-BASED MASS MODEL
+Total mass shall emerge from modeled components:
+
+m_total = m_body + m_wheels + m_axles + m_ballast + m_hardware + m_accessories + m_finish
+
+The player shall not normally type a desired total car mass as the primary control.
+
+10. BALLAST SYSTEM
+Ballast shall be represented as physical components with:
+- material;
+- density;
+- geometry;
+- dimensions;
+- calculated or specified mass;
+- XYZ position;
+- orientation;
+- mounting method;
+- optional price/vendor metadata.
+
+10.1 Initial ballast materials
+- Tungsten.
+- Lead.
+- Tin.
+- Steel.
+- Brass.
+- Zinc.
+- Copper.
+- Aluminum.
+- Custom/user-defined material.
+
+Lead shall receive appropriate child-facing safety handling warnings.
+
+10.2 Ballast shapes
+- Cylinder.
+- Disk.
+- Rectangular block.
+- Plate.
+- Sphere.
+- Washer.
+- Putty/freeform mass.
+- Future custom component model/STL.
+
+10.3 Mounting strategies
+- External top mounted.
+- External underside mounted.
+- External side mounted.
+- Embedded/internal cavity.
+- Hybrid combination.
+
+The optimizer shall not assume that removal of wood is preferred. External screw-mounted ballast is a first-class strategy.
+
+10.4 Mounting hardware
+Screws, washers, brackets, or other modeled mounting hardware shall contribute mass and location to the physical model.
+
+11. CENTER OF GRAVITY AND INERTIA
+The application shall continuously calculate the whole-car center of gravity from all components.
+
+r_CG = sum(m_i r_i) / sum(m_i)
+
+Display longitudinal, lateral, and vertical CG. The CG marker shall update interactively while a player drags ballast or other components.
+
+The physics representation should calculate rigid-body inertia terms Ixx, Iyy, Izz and cross-products when required by the dynamics model.
+
+12. WHEEL AND AXLE SYSTEM
+Each wheel/axle assembly shall be independently configurable: LF, RF, LR, RR.
+
+Wheel parameters may include:
+- mass;
+- diameter/radius;
+- width;
+- bore diameter;
+- rotational moment of inertia;
+- radial runout;
+- axial runout.
+
+Axle parameters may include:
+- diameter;
+- XYZ position;
+- straightness;
+- bend/alignment;
+- surface/friction properties.
+
+Alignment:
+- camber;
+- toe;
+- axle elevation;
+- fore/aft placement;
+- wheel-to-body gap.
+
+Friction mechanisms shall be separable where modeled:
+- axle-to-bore;
+- inner hub-to-body;
+- outer hub-to-axle-head;
+- tread-to-track;
+- wheel-to-guide-rail.
+
+Wheel editing shall visually rotate/reposition the selected wheel as camber or toe is changed. Provide Copy, Mirror Setup, and Reset commands.
+
+13. ACCESSORIES AND AFTERMARKET PARTS
+Accessories are physical components and shall have geometry and mass when they exist physically.
+
+Examples include spoilers, stems, fins, decorative lights, exhausts, rocket nozzles, figurative pieces, decorative housings, ballast covers, and functional hardware.
+
+Future component-library records may contain manufacturer, part number, geometry, verified mass, material, mounting interfaces, cost, and source metadata.
+
+14. RULES ENGINE
+Rules shall be data-driven. A ruleset may define:
+- maximum/minimum dimensions;
+- mass constraints;
+- body/material requirements;
+- wheel requirements;
+- axle requirements;
+- clearance constraints;
+- permitted/prohibited modifications;
+- starting-gate interface requirements;
+- inspection rules.
+
+Initial AWANA/CCCS ruleset based on the supplied published event rules:
+- Official Awana Grand Prix Car Kit basis.
+- Kit wood, wheels, and axles required.
+- Additional features/weights allowed subject to rules.
+- Maximum length: 7.0 in.
+- Maximum width: 2.75 in.
+- Maximum height: 3.0 in.
+- Minimum underside clearance: 0.375 in.
+- Minimum inside wheel-to-wheel clearance: 1.75 in.
+- Maximum allowable weight: 5.0 oz.
+- Wheel width, diameter, and mass may not be reduced.
+- Front geometry must interface properly with the starting peg.
+
+The rules engine shall enforce m_total <= m_allowed; it shall not force equality. The physics/optimization system may test whether approaching maximum allowed mass is actually optimal for a modeled configuration.
+
+15. LIVE TECHNICAL INSPECTION
+Design Mode shall continuously report rules compliance, including mass, dimensions, and clearances. Violating geometry/components shall be highlighted in the 3D view.
+
+16. TRACK SYSTEM
+Tracks shall be data-driven and contain:
+- named configuration;
+- centerline/profile geometry;
+- timed distance;
+- lane count;
+- lane geometry;
+- start-gate geometry;
+- guide-rail geometry;
+- transition geometry;
+- surface/contact parameters;
+- finish/timing location.
+
+Initial selector:
+- BestTrack 35 ft.
+- BestTrack 42 ft.
+- BestTrack 49 ft.
+- Custom Track.
+- Idealized Test Ramp.
+
+Published BestTrack timed distances to the middle timing hole from the start gate pin:
+- 35-ft configuration: 358 in.
+- 42-ft configuration: 442 in.
+- 49-ft configuration: 526 in.
+
+Unknown BestTrack geometry shall remain marked uncharacterized until supported by manufacturer data or measurement. The model shall not silently invent track geometry.
+
+17. CALIBRATED TRACKS
+The player may eventually clone a generic/manufacturer track and create a locally calibrated instance using measured geometry and observed lane characteristics. Lane-specific parameters shall be optional and disabled for ideal deterministic comparisons unless explicitly enabled.
+
+18. RACE SETUP
+Race Setup shall allow selection of:
+- ruleset;
+- track;
+- lane;
+- environment where applicable;
+- simulation mode;
+- opponent/ghost cars;
+- deterministic or uncertainty mode.
+
+Simulation modes may include Realistic, Ideal, Manufacturing Variation, and Engineering Test.
+
+19. PHYSICS ARCHITECTURE
+Official race outcomes shall be determined by a transparent, testable deterministic solver. The 3D renderer visualizes solver state. General-purpose game physics may assist contact visualization but shall not silently become the authoritative race-time model without validation.
+
+20. INITIAL PHYSICS
+The model shall progressively include:
+- gravity and track-relative force;
+- translational rigid-body motion;
+- wheel rotational inertia;
+- axle/bore friction;
+- rolling/contact losses;
+- aerodynamic drag approximation;
+- longitudinal CG and wheel load effects;
+- body pitch through track transitions;
+- later lateral dynamics, yaw, toe/camber contact behavior, guide-rail contact, and stability.
+
+Representative equations:
+KE_translation = 1/2 m v^2
+KE_wheels = sum(1/2 I_i omega_i^2)
+F_drag = 1/2 rho_air Cd A v^2
+
+21. ENERGY ACCOUNTING
+Every engineering-mode race shall support an energy ledger:
+Potential energy -> translational kinetic + rotational kinetic + axle loss + rolling loss + aerodynamic loss + rail loss + other modeled losses + numerical residual.
+
+Numerical residual shall be exposed as a validation diagnostic.
+
+22. PHYSICS VALIDATION GATES
+P0 Track geometry validation.
+P1 Ideal gravity/energy conservation.
+P2 Wheel rotational inertia.
+P3 Axle/bore friction.
+P4 Aerodynamic approximation and limiting cases.
+P5 CG and rigid-body effects.
+P6 Lateral dynamics.
+P7 Guide-rail interaction.
+P8 Manufacturing variation/Monte Carlo.
+
+Each stage shall have explicit verification cases before being treated as authoritative.
+
+23. RACE EXPERIENCE
+Race Mode shall feel like a game/event rather than CAD. Include countdown/gate release, 3D car motion, elapsed time, finish order where applicable, replay, speed control, and slow motion.
+
+24. RACE CAMERAS
+- Full-track.
+- Chase.
+- Overhead.
+- Finish line.
+- Wheel close-up.
+- Rail/contact view.
+- Engineering slow-motion/free camera.
+
+Camera selection shall not affect solver results.
+
+25. GHOST AND COMPARISON RACING
+Saved designs/versions may race as translucent ghost cars. Multiple designs may run under identical deterministic conditions. This lets players see where one design gains or loses distance/time along the track.
+
+26. POST-RACE ANALYSIS
+Report as available:
+- elapsed time;
+- finish velocity;
+- maximum velocity;
+- rail contacts;
+- energy distribution;
+- velocity vs distance/time;
+- acceleration;
+- wheel angular velocity;
+- wheel loads;
+- CG/body state;
+- lateral/yaw state;
+- loss totals by mechanism.
+
+27. WHY DID I LOSE?
+The game shall explain vehicle differences using actual simulation telemetry. It shall not fabricate causal explanations. The player shall be able to select an identified loss mechanism and replay the relevant portion of the race with appropriate overlays.
+
+28. PHYSICS OVERLAYS
+Optional visual overlays:
+- CG marker;
+- velocity vector;
+- gravity/normal/contact forces;
+- aerodynamic drag;
+- wheel loads;
+- contact points;
+- rail force/contact markers;
+- trajectory/history.
+
+29. OPTIMIZATION
+Optimization shall be targeted and reviewable rather than a single opaque magic button.
+
+Initial tools:
+- Optimize Ballast.
+- Optimize Alignment.
+- Optimize Stability.
+- Optimize Robustness.
+- Optimize Build.
+
+The optimizer shall present proposed changes before application and provide predicted impact using the same authoritative physics model.
+
+30. OPTIMIZE BALLAST
+May vary, subject to user constraints:
+- amount;
+- material;
+- number of components;
+- component geometry;
+- XYZ location;
+- orientation;
+- mounting strategy.
+
+If ideal placement is inaccessible, the optimizer may propose top, underside, side, internal cavity, or hybrid strategies. Shape modifications require explicit permission and shall honor design-intent locks.
+
+31. APPEARANCE-PRESERVING OPTIMIZATION
+The player may specify High, Moderate, or Unrestricted appearance preservation. High preservation primarily allows hidden/underside geometry, ballast changes, internal features, and wheel setup while protecting visible silhouette and locked details.
+
+32. ROBUST OPTIMIZATION
+Advanced optimization shall account for realistic construction variation. Candidate random variables may include camber error, toe error, CG placement error, friction variability, and wheel runout. The UI should distinguish Fastest Theoretical from Fastest Realistic Build.
+
+33. MANUFACTURING CAPABILITY
+The player may describe available build capability, for example Basic hand tools, Intermediate, Advanced precision tools, or CNC/digital fabrication. Optimization and AI design should avoid recommending features inconsistent with the selected capability.
+
+34. BUILD DIFFICULTY
+The application should eventually estimate build difficulty from number of operations, geometry complexity, minimum feature size, required positioning precision, alignment sensitivity, and ballast-installation complexity. Such ratings shall be identified as modeled/estimated until validated.
+
+35. BUILD OUTPUT
+Primary command: BUILD THIS CAR.
+
+A build package may include:
+- final body STL;
+- side cutting template;
+- top cutting template;
+- useful cross sections;
+- dimensioned build sheet;
+- ballast/component list;
+- ballast positions and mounting instructions;
+- axle/wheel configuration;
+- car/project configuration;
+- simulation summary.
+
+STL shall use explicitly selected units and is an output, not the master design representation.
+
+36. OPTIONAL MANUFACTURING JIGS
+Future outputs may include weight-drilling jigs, ballast-positioning jigs, axle-alignment jigs, and cutting fixtures. CNC toolpaths/G-code are not an initial requirement because machine, tooling, origin, stock, and workholding decisions belong downstream.
+
+37. AS-DESIGNED VS AS-BUILT DIGITAL TWIN
+The project shall retain immutable/recoverable As Designed values alongside entered As Built measurements. As-built inputs may include final mass, CG, measured alignment, dimensional deviations, and observed race behavior.
+
+38. REAL RACE RESULTS
+Allow registration of event/track/lane, elapsed time, and observations. Compare real measurements against the corresponding simulated design/build state.
+
+39. UNCERTAINTY AND PROVENANCE
+Quantities shall be labeled by source/status where practical:
+- Measured.
+- Manufacturer specified.
+- Calculated.
+- Derived.
+- Estimated.
+- Default.
+- Unknown/uncharacterized.
+
+The game shall avoid unsupported false precision.
+
+40. EXPERIMENT SYSTEM
+Engineering Lab shall support controlled parameter sweeps while specified variables remain fixed. Examples: total-mass sweep, CG sweep, camber sweep, toe sweep, axle-friction sweep, aerodynamic sweep. Structured telemetry should eventually be exportable to CSV.
+
+41. VERSIONING
+Projects shall support named versions, such as Banana V1, Banana V2 rear ballast, and Banana V3 alignment. Versions may be compared or ghost-raced.
+
+42. GAME/CHALLENGE SYSTEM
+Potential themed challenges include Fruit Cup, Cheese Challenge, budget-limited build, stock-kit challenge, engineering challenge, and Prediction Challenge where scoring rewards agreement between simulation and real-world performance.
+
+Creativity/coolness should be judged by people, event judges, or voting rather than presented as objective physics.
+
+43. CORE UX PRINCIPLES
+1. Creativity precedes optimization.
+2. Physics determines performance.
+3. Rules constrain designs but do not define optimal designs.
+4. Optimization improves the player's car instead of replacing the idea.
+5. Every physical component has geometry, mass, and position where material.
+6. Simulation results must be explainable.
+7. Unknowns stay identified as unknown/estimated.
+8. The digital design must remain buildable.
+9. As-designed and as-built states remain distinct.
+10. Real-world testing is the final authority.
+
+44. MVP
+Design:
+- rectangular starting block;
+- orbit camera and preset views;
+- simple cuts/bores/pockets;
+- initial AI-assisted shape workflow;
+- body volume and mass calculation.
+
+Components:
+- four wheels/axles;
+- independently adjustable camber;
+- basic toe;
+- physical ballast components;
+- positionable tungsten/lead/tin/steel/brass ballast.
+
+Rules:
+- configurable ruleset with the current AWANA/CCCS rule baseline.
+
+Track:
+- BestTrack selector with the 35-ft configuration prioritized for full characterization/validation.
+
+Physics:
+- gravity;
+- track geometry;
+- wheel inertia;
+- basic axle/bore friction;
+- rolling loss;
+- approximate aerodynamics;
+- energy accounting.
+
+Race:
+- animated 3D race;
+- multiple cameras;
+- timing;
+- replay.
+
+Diagnostics:
+- total mass;
+- CG;
+- velocity;
+- energy accounting;
+- legality.
+
+Export:
+- STL;
+- project/configuration data;
+- basic build sheet/templates.
+
+45. MVP+1
+- Lateral dynamics.
+- Toe steering.
+- Guide-rail contact.
+- Improved camber/contact model.
+- Why Did I Lose analysis.
+- Ghost cars.
+- Multi-car comparisons.
+- Ballast optimizer.
+- Appearance-preserving optimization.
+- Improved build templates.
+
+46. LATER RELEASES
+- Monte Carlo construction tolerances.
+- As-built measurement workflow.
+- Calibrated custom/local tracks.
+- Commercial parts catalog.
+- Printable manufacturing/alignment jigs.
+- Challenge/community system.
+- Virtual race nights.
+- Classroom experiment mode.
+- More advanced AI design and robust optimization.
+
+47. REFERENCE BASELINE
+Race rule source used in initial concept development:
+https://cc-awana.weebly.com/rules--tips.html
+
+BestTrack configuration source used in initial concept development:
+https://www.besttrack.com/track_specs.html
+
+48. PRODUCT STATEMENT
+Gravity Racer is not simply a fastest-car optimizer. It is a creativity-first engineering game where a child can imagine a banana, cheese wedge, rocket, shark, or other object; turn the idea into a real gravity racer; use measured and modeled physics to improve it; export the car for construction; and discover whether the real world agrees with the prediction.

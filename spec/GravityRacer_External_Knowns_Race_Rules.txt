@@ -1,0 +1,51 @@
+GRAVITY RACER - EXTERNAL KNOWNS
+AWANA / CCCS GRAND PRIX RULE BASELINE
+Source accessed: https://cc-awana.weebly.com/rules--tips.html
+Source title: Rules & Tips - AWANA at CCCS
+
+PURPOSE
+This file records externally sourced facts that can be treated as known inputs to the current Gravity Racer CCCS/AWANA ruleset. It intentionally separates published facts from design assumptions.
+
+ELIGIBILITY / EVENT RULES
+- Race is for Sparks and T&T clubbers.
+- Entrant must be present for the car to compete in race and design contests.
+- Cars must be constructed from the Official Awana Grand Prix Car Kit.
+- Previously raced cars are not eligible; participating cars must be built specifically for this race.
+- The kit axles, wheels, and wood supplies must be used.
+- Additional features such as windshields, weights, and decals may be added, and the starting wood block may be modified.
+- The Awana name must remain visible on the wheel sidewall.
+- Wheel modifications may not reduce wheel width, diameter, or mass/weight.
+- The front must not come to a point or slope upward in a way that prevents proper retention behind the starting peg.
+- Chassis/underside clearance must be at least 3/8 inch to avoid the guide rail.
+- No alterations are allowed after check-in, including final preparation and lubrication.
+- If an entrant cannot attend check-in, another person may submit the car.
+- Entrants must participate in designing and building their cars; the car should not be completely designed and built by an adult.
+- Every car must pass technical inspection, including weigh-in and size check.
+
+CAR SPECIFICATIONS
+- Maximum length: 7.000 in
+- Maximum width: 2.750 in
+- Maximum height: 3.000 in
+- Minimum underside clearance: 0.375 in
+- Minimum inside wheel-to-wheel clearance: 1.750 in
+- Maximum allowable mass/weight: 5.000 oz
+- Official scale determines compliance with the 5 oz limit.
+- A measurement box is used to check dimensional compliance.
+
+PUBLISHED SPEED TIPS - ADVISORY, NOT RULES
+The source separately recommends:
+- Competitive cars generally weigh the maximum 5.0 oz.
+- Concentrate weight as far rearward as possible without causing the car to pop a wheelie.
+- Design a way to add/remove weight for final scale adjustment.
+- Suggested ballast examples include washers, coins, embedded metal, fishing weights, pinewood derby weights, and embellishments.
+- Reduce axle friction by removing burrs, polishing axles, and using a light lubricant such as graphite.
+- Minor cleanup of wheel plastic stubs/flat spots/flashing is suggested while avoiding resizing/reshaping the wheel.
+- Aerodynamic drag is described as very small, with streamlined shape and sleek finish suggested for reducing it.
+- Check axle slots for square alignment and check wheels on a flat surface before gluing.
+
+MODELING CONSEQUENCES
+The facts above justify a data-driven CCCS/AWANA ruleset. They do NOT establish the detailed physical properties of the official wood, wheels, axles, starter gate, or track. Those remain separate characterization tasks.
+
+SOURCE
+Rules & Tips - AWANA at CCCS
+https://cc-awana.weebly.com/rules--tips.html

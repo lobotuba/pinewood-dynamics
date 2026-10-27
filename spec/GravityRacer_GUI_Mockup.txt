@@ -1,0 +1,423 @@
+GRAVITY RACER
+GUI / UX MOCKUP SPECIFICATION
+
+1. GLOBAL NAVIGATION
+
++--------------------------------------------------------------------------------+
+| GRAVITY RACER          File   Project   Help                       Settings     |
++--------------------------------------------------------------------------------+
+| DESIGN | COMPONENTS | WHEELS | OPTIMIZE | RACE SETUP | RACE | ANALYZE | BUILD |
++--------------------------------------------------------------------------------+
+
+Primary workflow follows left-to-right progression but all completed workspaces remain directly accessible.
+
+2. DESIGN WORKSPACE
+
++----------------+-----------------------------------------+-----------------------+
+| DESIGN TOOLS   |                                         | CAR PROPERTIES        |
+|                |                                         |                       |
+| AI Design      |             3D ORBIT VIEW               | Mass       4.82 oz    |
+| Select         |                                         | Allowed    5.00 oz    |
+| Shape          |          [editable car model]           | Remaining  0.18 oz    |
+| Cut            |                                         |                       |
+| Drill          |     left drag: orbit                    | CG X       0.94 in     |
+| Pocket         |     wheel: zoom                         | CG Y       0.01 in     |
+| Fillet         |     right drag: pan                     | CG Z       0.43 in     |
+| Paint          |                                         |                       |
+|                |                                         | Wood       2.61 oz    |
+| Add Part       |                                         | Ballast    1.55 oz    |
+| Add Weight     |                                         | Wheels     measured    |
+|                |                                         | Axles      measured    |
+| Undo / Redo    |                                         |                       |
+|                |                                         | LEGAL: YES            |
++----------------+-----------------------------------------+-----------------------+
+| Perspective | Top | Bottom | Front | Rear | Left | Right | X-Ray | CG | Rules |
++--------------------------------------------------------------------------------+
+
+The 3D viewport is the dominant element. Design controls and property panels act on the visible physical car.
+
+3. AI DESIGN DIALOG
+
++----------------------------------------------------------------+
+| AI DESIGN                                                      |
+|                                                                |
+| What do you want to build?                                     |
+| +------------------------------------------------------------+ |
+| | A banana-shaped race car with the stem toward the rear     | |
+| +------------------------------------------------------------+ |
+|                                                                |
+| Build difficulty:  (o) Easy  ( ) Medium  ( ) Advanced          |
+| Preserve official starting block: [x]                          |
+|                                                                |
+|                              [ GENERATE CAR ]                   |
++----------------------------------------------------------------+
+
+After generation the application immediately returns to Orbit View with editable geometry and a validation summary.
+
+4. ORBIT / INSPECTION BEHAVIOR
+- Orbit shall be the default Design camera.
+- Mouse/touch controls: orbit, zoom, pan.
+- Double click/tap a component to focus.
+- Home/Fit command frames the whole car.
+- Preset Perspective/Top/Bottom/Front/Rear/Left/Right buttons remain visible.
+- Bottom view shall make underside ballast, ground clearance, wheels, axles, and guide-rail interference easy to inspect.
+
+Display toggles:
+[ ] X-Ray
+[ ] Wireframe
+[ ] Wood Only
+[ ] Weights Only
+[ ] Wheels/Axles Only
+[ ] Center of Gravity
+[ ] Rules Envelope
+
+5. ADD WEIGHT PANEL
+
++--------------------------------+
+| ADD WEIGHT                     |
+|                                |
+| Material   [ Tungsten       v ]|
+| Shape      [ Cylinder       v ]|
+|                                |
+| Mass       [ 0.75 ] oz         |
+| Diameter   [ 0.375 ] in        |
+| Length     [ calculated ]       |
+|                                |
+| Mounting                       |
+| ( ) Top                        |
+| ( ) Bottom                     |
+| ( ) Internal                   |
+| (o) Custom                     |
+|                                |
+| Hardware                       |
+| [x] Include mounting screws    |
+|                                |
+|          [ ADD TO CAR ]        |
++--------------------------------+
+
+Once added, the ballast becomes a selectable/draggable physical component. Moving it updates total CG, mass properties, and rule status live.
+
+6. COMPONENT DETAIL PANEL
+
++--------------------------------+
+| TUNGSTEN PLATE #1              |
+|                                |
+| Mass        1.20 oz            |
+| X           1.04 in            |
+| Y           0.00 in            |
+| Z           0.56 in            |
+| Mounting    Top / 2 screws     |
+|                                |
+| [MOVE] [ISOLATE] [DELETE]      |
++--------------------------------+
+
+7. WHEEL EDITOR
+
++--------------------------------+
+| RIGHT REAR WHEEL               |
+|                                |
+| Camber       -1.50 deg         |
+|   -----------o-----             |
+| Toe          +0.05 deg         |
+|   --------o--------             |
+| Wheel gap    [value]            |
+| Axle friction [value]           |
+| Runout        [value/status]    |
+|                                |
+| [COPY] [MIRROR] [RESET]        |
++--------------------------------+
+
+Changing camber or toe rotates the selected wheel in the 3D viewport immediately. Selecting Isolate fades unrelated geometry.
+
+8. RULE INSPECTOR
+
++--------------------------------+
+| TECHNICAL INSPECTION           |
+|                                |
+| Length       6.91 in   PASS    |
+| Width        2.70 in   PASS    |
+| Height       0.84 in   PASS    |
+| Clearance    0.39 in   PASS    |
+| Inner wheels 1.77 in   PASS    |
+| Mass         4.992 oz  PASS    |
+|                                |
+| CAR STATUS              LEGAL  |
++--------------------------------+
+
+Any failure highlights the associated dimension or component in the 3D viewport.
+
+9. OPTIMIZE MY CAR
+
++------------------------------------------------+
+| OPTIMIZE MY CAR                                |
+|                                                |
+| Goal                                           |
+| (o) Faster Race Time                           |
+| ( ) More Stable                                |
+| ( ) Easier To Build                            |
+| ( ) Robust Real-World Setup                    |
+|                                                |
+| Preserve My Design                             |
+| [x] Visible silhouette                         |
+| [x] Decorations                                |
+| [x] Paint                                      |
+| [ ] Wheel locations                            |
+|                                                |
+| Optimizer May Change                           |
+| [x] Ballast amount                             |
+| [x] Ballast position                           |
+| [x] Ballast material                           |
+| [x] Wheel alignment                            |
+| [x] Hidden body geometry                       |
+| [ ] Visible body geometry                      |
+|                                                |
+| Appearance Preservation                        |
+| [ HIGH v ]                                     |
+|                                                |
+|                [ FIND IMPROVEMENTS ]           |
++------------------------------------------------+
+
+10. OPTIMIZER REVIEW
+
++------------------------------------------------+
+| PROPOSED IMPROVEMENT                           |
+|                                                |
+| Current predicted time      2.984 s             |
+| Proposed predicted time     2.941 s             |
+| Predicted improvement       0.043 s             |
+|                                                |
+| Proposed changes:                              |
+| - Move tungsten weight 0.21 in rearward         |
+| - Lower ballast 0.08 in                         |
+| - Adjust rear-wheel camber                      |
+| - Adjust front toe                              |
+|                                                |
+| [SHOW ON CAR] [APPLY] [KEEP CURRENT]            |
++------------------------------------------------+
+
+Suggested values are illustrative UI placeholders until generated by validated simulation output.
+
+11. RACE SETUP
+
++------------------------------------------------+
+| RACE SETUP                                     |
+|                                                |
+| Rules       [ AWANA - CCCS                 v ] |
+| Track       [ BestTrack 35 ft              v ] |
+| Lane        [ 2                             v ] |
+|                                                |
+| Simulation                                     |
+| (o) Realistic                                  |
+| ( ) Ideal                                      |
+| ( ) Manufacturing Variation                    |
+| ( ) Engineering Test                           |
+|                                                |
+| CAR                                            |
+| Mass         4.998 oz                          |
+| Rules        PASS                              |
+| Simulation   READY                             |
+|                                                |
+|                     [ GO TO TRACK ]             |
++------------------------------------------------+
+
+12. TRACK SELECTOR
+
+Track
+[ BestTrack 35 ft v ]
+
+Available initial options:
+- BestTrack 35 ft
+- BestTrack 42 ft
+- BestTrack 49 ft
+- Custom Track
+- Idealized Test Ramp
+
+Advanced users may eventually save calibrated local instances such as a specific church/event track.
+
+13. RACE SCREEN
+
++--------------------------------------------------------------------------------+
+|                                GRAVITY RACER                                   |
+|                                                                                |
+|                                      3                                         |
+|                                      2                                         |
+|                                      1                                         |
+|                                     RACE                                       |
+|                                                                                |
+| Lane 1   [car] --------------------------------------------------------------   |
+| Lane 2   [car] --------------------------------------------------------------   |
+| Lane 3   [car] --------------------------------------------------------------   |
+| Lane 4   [car] --------------------------------------------------------------   |
+|                                                                                |
+| Camera: TRACK | CHASE | OVERHEAD | WHEEL | RAIL | FINISH                       |
+|                                                                                |
+|                              TIME  1.736 s                                     |
+|                                                                                |
+|                 [PAUSE] [0.25x] [1x] [4x] [RESTART]                           |
++--------------------------------------------------------------------------------+
+
+Race mode visually separates itself from CAD/design mode. Camera changes never alter solver results.
+
+14. FINISH / RESULTS
+
++------------------------------------------------+
+| FINISH                                         |
+|                                                |
+| BANANA RACER                                   |
+|                                                |
+| Race Time         [computed]                   |
+| Finish Speed      [computed]                   |
+|                                                |
+| ENERGY / LOSSES                                |
+| Translation       [telemetry]                  |
+| Wheel rotation    [telemetry]                  |
+| Axle/bore loss    [telemetry]                  |
+| Aerodynamic loss  [telemetry]                  |
+| Rail contact loss [telemetry]                  |
+| Residual          [telemetry]                  |
+|                                                |
+| [WHY?] [REPLAY] [COMPARE] [MODIFY CAR]         |
++------------------------------------------------+
+
+15. WHY DID I LOSE?
+
++------------------------------------------------+
+| WHY DID I LOSE?                                |
+|                                                |
+| Difference vs selected comparison: [computed]  |
+|                                                |
+| Contributors from simulation telemetry:        |
+| - Rail contact        [computed]               |
+| - Axle/bore losses    [computed]               |
+| - Aerodynamic losses  [computed]               |
+| - Wheel rotation      [computed]               |
+| - Starting energy     [computed]               |
+|                                                |
+| Select a contributor to replay the relevant    |
+| portion of the race with engineering overlays. |
++------------------------------------------------+
+
+The application must never invent an explanation not supported by solver telemetry.
+
+16. ENGINEERING REPLAY
+Controls:
+- timeline scrubber;
+- play/pause;
+- 0.1x/0.25x/0.5x/1x speed;
+- free orbit camera;
+- focus car/wheel/contact point;
+- show/hide CG;
+- force vectors;
+- wheel loads;
+- velocity vector;
+- rail contacts;
+- trajectory trace.
+
+17. BUILD SCREEN
+
++------------------------------------------------+
+| BUILD MY CAR                                   |
+|                                                |
+| [x] Legal design                               |
+| [x] Geometry checked                           |
+| [x] Target mass calculated                     |
+| [x] Ballast locations defined                  |
+| [x] Wheel configuration saved                  |
+|                                                |
+| BUILD PACKAGE                                  |
+|                                                |
+| Body STL                 [EXPORT]               |
+| Side Cutting Template    [EXPORT]               |
+| Top Cutting Template     [EXPORT]               |
+| Build Sheet              [EXPORT]               |
+| Component List           [EXPORT]               |
+| Project Configuration    [EXPORT]               |
+|                                                |
+| Target Mass       [value]                       |
+| Target CG         [value]                       |
+|                                                |
+|                      [ BUILD THIS CAR ]         |
++------------------------------------------------+
+
+18. AS-DESIGNED / AS-BUILT SCREEN
+
++----------------------+--------------------------+
+| AS DESIGNED          | AS BUILT                 |
+| Mass   [predicted]   | Mass   [enter measured] |
+| CG     [predicted]   | CG     [enter measured] |
+| Camber [targets]     | Camber [measured]       |
+| Toe    [targets]     | Toe    [measured]       |
+| Time   [predicted]   | Time   [race result]    |
++----------------------+--------------------------+
+
+The system keeps both states instead of overwriting design predictions.
+
+19. PROJECT/VERSION BROWSER
+
+Project: Banana Racer
+- V1 Initial AI shape
+- V2 Rear ballast
+- V3 Alignment test
+- V4 Optimized hidden ballast
+
+Actions:
+[OPEN] [DUPLICATE] [COMPARE] [GHOST RACE]
+
+20. KID MODE SIMPLIFICATION
+Kid Mode should keep the same 3D model/physics but simplify labels and panels.
+Primary controls:
+- Imagine My Car
+- Shape It
+- Add Stuff
+- Add Weight
+- Wheels
+- Race
+- Why?
+- Make It Faster
+- Build It
+
+Advanced numerical coefficients remain hidden unless opened.
+
+21. BUILDER MODE
+Builder Mode emphasizes:
+- inches/ounces;
+- actual materials;
+- weight placement;
+- dimensions;
+- CG;
+- wheel setup;
+- legality;
+- build outputs.
+
+22. ENGINEERING LAB
+Engineering Lab may expose:
+- full solver state;
+- physical coefficients;
+- parameter provenance;
+- energy residual;
+- parameter sweeps;
+- uncertainty/Monte Carlo controls;
+- structured CSV telemetry export.
+
+23. INTERACTION PRINCIPLES
+- The car remains the visual center of the application.
+- Editing is direct wherever practical: select and manipulate components in 3D.
+- Numerical entry and sliders remain available for precision.
+- Results are visually connected to physical causes.
+- Optimization is reviewable and reversible.
+- Artistic design is protected by explicit locks.
+- Unknown/estimated parameters are visibly distinguished from measured values.
+
+24. DESIGN LANGUAGE
+Recommended initial visual direction:
+- clean workshop/engineering aesthetic;
+- dark or neutral viewport backdrop that makes wood and colored cars readable;
+- high-contrast status colors for compliant/warning/fail states;
+- large kid-friendly primary actions;
+- detailed information in collapsible secondary panels;
+- smooth transitions from Garage/Design to event-like Race mode.
+
+25. CORE NAVIGATION SUMMARY
+DESIGN -> COMPONENTS -> WHEELS -> OPTIMIZE -> RACE SETUP -> RACE -> ANALYZE -> BUILD
+
+At every stage before Race, the complete physical car should remain inspectable in orbit view or a closely related 3D view.

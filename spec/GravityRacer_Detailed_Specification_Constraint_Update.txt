@@ -1,0 +1,31 @@
+
+49. CONSTRAINT-AWARE DESIGN, GENERATION, OPTIMIZATION, AND EXPORT
+Rule compliance and frozen kit geometry shall not be treated merely as post-processing checks. One shared constraint service shall govern AI generation, manual editing, optimization, simulation readiness, and manufacturing export.
+
+49.1 Constraint classes
+- PUBLISHED RULE: explicitly stated by the selected event ruleset.
+- LOCAL/FROZEN CONSTRAINT: established for the event/project or confirmed physical kit geometry but not attributed to the current published rule source without verification.
+- DESIGN ADVISORY: stability, manufacturability, fragility, measurement uncertainty, or performance warning that does not alone make the car illegal.
+
+49.2 Starting-gate geometry
+For the current CCCS/AWANA ruleset, the front shall not come to a point or slope upward in a way that prevents proper retention behind the starting peg. A valid gate-contact region shall be preserved. Minimum contact height, allowable nose radius, pin diameter, and exact inspection method remain uncharacterized until measured or authoritatively specified.
+
+49.3 Axle datums and wheelbase
+Official-kit axle locations and the wheelbase derived from them shall be lockable. For this project, unchanged axle locations and wheelbase are LOCAL/FROZEN CONSTRAINTS pending an authoritative published rule stating otherwise. Store front/rear axle datums, nominal wheelbase, provenance, and measurement uncertainty. AI-generated and manually edited bodies shall form around locked chassis datums.
+
+49.4 Protected zones
+- starting-pin contact zone;
+- axle/slot structural zones;
+- official wheel swept envelopes;
+- minimum inside-wheel clearance envelope;
+- underside/guide-rail clearance envelope;
+- legal overall dimension envelope.
+
+49.5 Generator/editor/optimizer behavior
+AI generation shall receive active rules, local locks, protected zones, build capability, and design-intent locks before creating geometry. Manual editing shall prevent hard-lock violations or clearly enter a noncompliant state. Optimization shall not move locked axles, alter nominal wheelbase, modify immutable official-wheel properties, or violate protected zones.
+
+49.6 Export gate
+BUILD THIS CAR requires every published hard rule and active local/frozen constraint to pass. Exported build information shall distinguish published-rule compliance from local project constraints.
+
+50. EXPANDED TECHNICAL INSPECTION
+Inspection shall include KIT, GEOMETRY, CHASSIS/LOCAL LOCKS, START GATE, WHEELS, and WEIGHT sections. Each line shall expose its provenance class. Required checks include axle datums unchanged, wheelbase unchanged, wheel envelopes unobstructed, valid gate contact, no pointed starting nose, no upward-sloping retention-defeating nose, legal dimensions/clearances, preserved official-wheel restrictions, and total mass at or below the selected limit.

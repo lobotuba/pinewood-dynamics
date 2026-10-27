@@ -1,0 +1,32 @@
+GRAVITY RACER - EXTERNAL KNOWNS
+BESTTRACK CONFIGURATION BASELINE
+
+SOURCE
+BestTrack Pinewood Derby Track Specs
+https://www.besttrack.com/track_specs.html
+
+PUBLISHED TIMED DISTANCES
+Measured from the start-gate pins to the middle timing hole:
+- 35-ft configuration: 358 in (29 ft 10 in; derived SI conversion 9.0932 m)
+- 42-ft configuration: 442 in (36 ft 10 in; derived SI conversion 11.2268 m)
+- 49-ft configuration: 526 in (43 ft 10 in; derived SI conversion 13.3604 m)
+
+PUBLISHED POST-CURVE STRAIGHT-SECTION CONFIGURATIONS
+- 35-ft configuration: three 7-ft straight sections plus stop section.
+- 42-ft configuration: four 7-ft straight sections plus stop section.
+- 49-ft configuration: five 7-ft straight sections plus stop section.
+
+IMPORTANT DISTINCTION
+The named track configuration length is not the timed racing distance. The default finish trigger should use the published start-pin-to-middle-timing-hole distance unless a calibrated local track overrides it.
+
+NOT ESTABLISHED BY THE CAPTURED SOURCE
+- full vertical profile;
+- starting height;
+- transition radius/curve;
+- guide-rail dimensions;
+- lane width;
+- start-pin geometry or motion;
+- track surface/friction;
+- lane-specific differences.
+
+These remain UNKNOWN/UNCHARACTERIZED until authoritatively specified or measured.

@@ -1,0 +1,9 @@
+
+CLARIFICATION: STARTING NOSE AND WHEELBASE
+- Published fact: the front should not come to a point or slope upward so the car can be properly held behind the starting peg.
+- The source does not specify a minimum contact-face height, nose radius, starting-pin diameter, or formal geometric test. These remain UNKNOWN.
+- The source does not explicitly state that original axle locations or wheelbase must remain unchanged.
+- Gravity Racer therefore classifies unchanged official-kit axle locations and nominal wheelbase as LOCAL/FROZEN CONSTRAINTS unless another authoritative event source establishes them as published rules.
+
+IMPLEMENTATION CONSEQUENCE
+The rules inspector enforces the published starting-nose functional requirement. The project constraint system separately locks measured axle datums and derived wheelbase and labels their provenance.

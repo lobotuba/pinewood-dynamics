@@ -1,0 +1,907 @@
+PINEWOOD DYNAMICS
+CONTROLLING PRODUCT AND SYSTEM SPECIFICATION
+Revision: B
+Date: 2026-10-27
+Status: DRAFT. Owner decisions on Rev A Appendix B applied; full-document approval pending.
+Working product name: PINEWOOD DYNAMICS (subject to trademark-counsel clearance; see section 4)
+Former working name: GRAVITY RACER
+
+============================================================
+0. DOCUMENT CONTROL
+============================================================
+
+0.1 Purpose
+This is the single controlling specification for the product (GOV-001). It replaces the
+practice of reading a baseline plus amendments. Where this document and an earlier file
+disagree, this document governs. Earlier files remain as history and source evidence.
+
+0.2 Approval authority
+Product owner: lobotuba. Only the product owner approves revisions, promotes requirement
+lifecycle states, and accepts release gates.
+
+0.3 Incorporated documents (folded into this revision)
+- GravityRacer_Detailed_Specification.txt (baseline, sections 1-48)
+- GravityRacer_Detailed_Specification_Constraint_Update.txt (sections 49-50)
+- GravityRacer_GUI_Mockup.txt (baseline GUI, sections 1-25)
+- GravityRacer_GUI_Mockup_Constraint_Update.txt (GUI sections 26-29)
+- GravityRacer_GUI_Mockup_Standalone_Visual_Direction.txt (full visual direction)
+- GravityRacer_External_Knowns_Race_Rules.txt and its _Constraint_Update
+- GravityRacer_External_Knowns_Register.txt and its _Constraint_Update
+- GravityRacer_External_Knowns_BestTrack.txt
+- GravityRacer_Constraint_Update_Change_Log.txt
+- GravityRacer_Missing_and_Conflicting_Requirements_Assessment.txt (C-01..C-05, M-01..M-50)
+- GravityRacer_RTM_Findings_Incorporation_Changelog.txt
+- branding/Pinewood_Dynamics_Brand_Analysis_and_Direction.txt
+- branding/Pinewood_Dynamics_Preliminary_Brand_Clearance_Search.txt
+- spec/GravityRacer_Branding_Clearance_Preliminary_Search.txt
+- spec/Software Mockup - Light Mode.png (reviewed; corrections in section 17)
+
+0.4 Superseded as controlling text
+All GravityRacer_* specification, GUI and amendment files listed above are SUPERSEDED as
+controlling text. They are retained unchanged as history. The External Knowns files remain
+the SOURCE RECORDS for externally established facts; this document summarizes them but the
+source records hold the citations.
+
+0.5 Requirements traceability matrix
+GravityRacer_Requirements_Traceability_Matrix.txt (current RTM, unrevised) keeps its
+requirement IDs. This document cites those IDs and introduces new IDs listed in Appendix A.
+RTM Revision B shall add the Appendix A IDs and the lifecycle-state column (GOV-003). Until
+RTM Rev B exists, Appendix A is the record of new and changed requirements.
+
+0.6 Change control
+- Every change after approval is a numbered revision of this file (Rev B, Rev C, ...) with a
+  change summary in Appendix C. No separate amendment files.
+- Requirement IDs are never reused. A removed requirement is marked REJECTED or SUPERSEDED.
+- No requirement changes provenance class for implementation convenience (RTM governance rule).
+- The same IDs are used in code, tests, validation records and build/export checks (GOV-002).
+
+0.7 Provenance labels used throughout
+RULE (published event rule), MANUFACTURER, MEASURED, DERIVED, ESTIMATED, DEFAULT, UNKNOWN,
+LOCAL/FROZEN (project constraint), DES (product/design decision), PROPOSED (decision drafted
+in this revision awaiting owner approval). Never replace UNKNOWN with a plausible value
+without labelling it DEFAULT or ESTIMATED.
+
+============================================================
+1. PRODUCT IDENTITY, OWNERSHIP AND AUDIENCE
+============================================================
+
+1.1 Ownership (DES, owner decision 2026-10-27)
+The product, its source code, documents and brand assets are owned by lobotuba. It is not a
+product of Kestrel Corp or any other organization.
+- IPR-001: The canonical home of the source and documents shall be a private repository
+  controlled by lobotuba. Any other storage location is a working copy.
+- IPR-002: No Kestrel Corp name, logo, identity or asset shall appear in the product,
+  mockups, build outputs or marketing material.
+- IPR-003 (pre-public-release gate): The owner shall confirm that no employment or
+  invention-assignment agreement gives a third party a claim to the product, and shall keep
+  that confirmation with the release records.
+
+1.2 Audience and distribution (DES, owner decision 2026-10-27)
+The product is intended for public release and may be sold.
+- Audience: families (child and adult together), youth-organization derby participants,
+  educators, hobby and engineering-minded builders.
+- First ruleset: the CCCS church kit-car Grand Prix rules (section 9). The product is
+  organization-neutral and positioned for all gravity-car racing (D-08); rulesets are data.
+- Distribution channel and price: TBD (Appendix B, D-09). Candidates: own website, itch.io,
+  Steam (via a desktop wrapper).
+
+1.3 Independence (from visual-direction and brand documents)
+The product shall not imply sponsorship, endorsement, affiliation, official status,
+compatibility or common ownership with Scouting America/BSA, Awana, GrandPrix Race Manager,
+BestTrack, Pinewood Technologies/Pinewood.AI or any other third party (UI-003, BRD-003).
+GrandPrix Race Manager is a loose visual-context reference only; no data compatibility,
+shared files, timer integration or workflow integration is implied.
+
+============================================================
+2. PRODUCT VISION AND PRINCIPLES
+============================================================
+
+2.1 Vision
+A creativity-first 3D engineering game and design platform for gravity-powered derby cars.
+A player imagines a car, shapes an editable design, configures real physical components,
+simulates it against a modeled track and ruleset, analyzes and improves it while keeping its
+look, exports it for real construction, and compares the real race with the prediction.
+
+Core promise: Design what you imagine. Engineer it to race. Build it for real.
+Brand tagline (section 4): Real Physics. Real Creativity. Real Racers.
+
+2.2 Primary experience loop
+IMAGINE -> DESIGN -> CONFIGURE -> RACE -> ANALYZE -> OPTIMIZE -> RACE AGAIN -> BUILD ->
+MEASURE -> REAL-WORLD RACE -> COMPARE -> ITERATE
+
+2.3 Core principles (frozen)
+1. Creativity precedes optimization.
+2. Physics determines performance; no purchasable or assigned performance statistics (VIS-002).
+3. Rules constrain designs but do not define optimal designs.
+4. Optimization improves the player's car instead of replacing the idea.
+5. Every physical component has geometry, mass and position where material.
+6. Simulation results must be explainable from solver telemetry; never invent causes.
+7. Unknowns stay identified as unknown or estimated.
+8. The digital design must remain buildable by the selected build capability.
+9. As-designed and as-built states remain distinct.
+10. Real-world testing is the final authority.
+11. STL is an export, never the master design (GEO-001).
+12. One shared constraint service governs generation, editing, optimization, inspection,
+    simulation readiness and export (section 49 of the former baseline).
+13. Published rules and local/frozen constraints remain visibly distinct.
+14. A control exists only when the physics that gives it an effect exists (WHL-009).
+
+============================================================
+3. PLATFORM AND ARCHITECTURE (resolves PLT-001 / M-44)
+============================================================
+
+3.1 Platform (DES, owner decision 2026-10-27)
+- PLT-002: The application shall be a TypeScript application rendering 3D with Three.js in
+  a WebGL2-capable browser. A desktop wrapper (Tauri or Electron, TBD) may package the same
+  build for desktop stores.
+- PLT-003: The application shall run fully offline once loaded. No account, sign-in or
+  network service is required for any MVP feature.
+- PLT-004: The MVP shall collect no personal information and send no telemetry. Projects
+  are stored locally (browser storage plus user-initiated file save/load). This keeps
+  child-privacy obligations minimal until online features are deliberately added (PRV-001).
+- PLT-005: Supported browsers, minimum GPU and performance targets: TBD, to be baselined at
+  the Prototype gate from measured performance on owner-selected reference machines.
+
+3.2 Software structure (PROPOSED)
+Separate packages with one-way dependencies:
+- core/units, core/provenance: quantity types carrying unit and provenance.
+- kit: official-kit component library (block, wheel, axle) with provenance (KIT-001).
+- geometry: master car representation and solid evaluation (section 6).
+- mass: mass properties from geometry and components.
+- rules: data-driven rulesets and the shared constraint service.
+- track: track library and profiles.
+- physics: the authoritative deterministic solver. No dependency on rendering.
+- app: UI, Three.js renderer, race presentation.
+The physics, mass and rules packages shall run headless under unit tests.
+
+3.3 Key third-party components (PROPOSED)
+- Three.js (MIT licence): rendering.
+- manifold-3d (Apache-2.0 licence, WebAssembly): guaranteed-manifold solid Booleans, mass
+  properties support and STL output.
+- Licence notices of all bundled dependencies shall ship with the product.
+
+3.4 Determinism (refines PHY-005)
+Race results shall be reproducible bit-for-bit for the same build on the same JavaScript
+engine. Across engines, results shall agree within a stated tolerance, to be measured and
+frozen at the Physics Alpha gate. Transcendental math differences between engines are the
+known source of cross-engine variation.
+
+============================================================
+4. BRAND (from branding documents)
+============================================================
+
+- BRD-001: The working product name is PINEWOOD DYNAMICS. Descriptor: Gravity-Car Design &
+  Simulation. Tagline: Real Physics. Real Creativity. Real Racers.
+- BRD-002 (pre-public-release gate): The name shall not be used for public beta, filing,
+  marketing spend or store listings until attorney-led clearance is complete. The project's
+  own preliminary search rated likelihood-of-confusion risk MEDIUM-HIGH, chiefly from the
+  PINEWOOD DERBY registration (Scouting America, Reg. No. 2947271, Classes 028/041) and
+  PINEWOOD-branded automotive software. The owner chose the name because it spans all
+  gravity-car racing rather than one organization's event (D-08); counsel should confirm
+  that positioning before money is spent on the name.
+- BRD-003: Third-party names appear only in nominative/descriptive contexts (e.g. a ruleset
+  source citation) and visually subordinate to the product brand. No third-party logos or
+  trade dress.
+- BRD-007: The Awana brand is not used anywhere in the product, its shipped data, build
+  outputs, store listings or marketing: no name, logo, wheel marking or trade dress. Internal
+  source records (External Knowns files, this specification) keep the true source names
+  because they are evidence. (Owner decision 2026-10-27, resolves D-07.)
+- BRD-004: No checkered flag as the principal brand device. Preferred concept families:
+  vector PD mark, dynamic wood car, digital-to-physical, gravity line (exploratory only).
+- BRD-005: Final palette values shall be frozen after contrast/accessibility testing.
+  Conceptual dark palette: charcoal base, electric blue primary, cyan vectors, warm wood/gold
+  for physical/build, off-white text; green pass, amber estimated/warning, red fail.
+- BRD-006: All remaining "Gravity Racer" product-name references in mockups and UI text shall
+  be replaced before any external showing. (Repository and file names may keep a codename.)
+
+============================================================
+5. MODES (resolves the three overlapping mode sets)
+============================================================
+
+The former documents defined user modes, simulation modes and compliance modes, with
+"Engineering Test" appearing in two of them. They are replaced by three independent axes.
+Each has one job. (PROPOSED, MODE-001..004)
+
+5.1 Experience level (presentation only)  MODE-001
+KID / BUILDER / ENGINEERING. Controls which panels, labels, numbers and design modalities
+(section 12.7) are offered. It never changes the meaning of project data, the physics or
+the compliance result: the same car evaluates identically at every level.
+
+5.2 Compliance context (per project version)  MODE-002
+- CERTIFIED: a published ruleset is selected and all its hard rules and the active
+  local/frozen locks are enforced. Locked items (axle datums, wheelbase, official-wheel
+  properties) cannot be edited. Required for BUILD THIS CAR certified export (BLD-004).
+- SANDBOX: the ruleset still evaluates and reports every check, but nothing is blocked and
+  locks may be released. Every result, race and export is watermarked SANDBOX and the
+  compliance state is NONCOMPLIANT or SANDBOX/RULES DISABLED as applicable.
+The former "Engineering Test" compliance mode is SANDBOX. (Resolves C-04.)
+
+5.3 Simulation fidelity (per race run)  MODE-003
+- IDEAL: selected loss mechanisms switched off (used for verification and teaching).
+- REALISTIC: all implemented mechanisms on, using best-available provenance-labelled inputs.
+- VARIATION (later release): Monte Carlo over construction tolerances (OPT-004).
+The former "Engineering Test" simulation mode is removed; parameter sweeps belong to the
+ENGINEERING experience level.
+
+5.4 Recording  MODE-004
+Every saved race result records its compliance context, simulation fidelity, ruleset
+snapshot, track snapshot, solver version and seed (CMP-002, SIM-001, LOC-WB-008).
+
+============================================================
+6. MASTER CAR MODEL (resolves GEO-004 / M-08)
+============================================================
+
+6.1 Representation (PROPOSED, GEO-009)
+The authoritative body is a profile-intersection solid:
+
+  Body = Block
+         ∩ Extrude_Y(SideProfile)      (outline seen from the left, swept across the width)
+         ∩ Extrude_Z(TopProfile)       (outline seen from above, swept through the height)
+         [∩ Extrude_X(FrontProfile)]   (optional, later release)
+         − SubtractiveFeatures         (bores, pockets, plane/wedge cuts, axle slots kept)
+
+  Car = Body + Components              (wheels, axles, ballast, hardware, accessories)
+
+Profiles are closed 2D curves (polyline plus arcs and smooth splines). Components are
+separate rigid parts with their own geometry, material, mass and pose.
+
+Rationale:
+- Side and top cutting templates are the profiles themselves (BLD-002).
+- A kid with a coping saw can build what the profiles describe: two saw cuts, then drilling.
+- Mass properties and CG are computed from a guaranteed-manifold solid (GEO-002).
+- AI generation (later release) reduces to drawing two outlines around fixed axle datums
+  and protected zones, which is checkable (AI-002, LOC-AX-005, GATE-002).
+- STL is a direct export of the evaluated solid (BLD-001).
+
+Limits, stated openly: freeform sculpted shapes (such as the mockup's banana) are not
+representable. Fillets/roundovers are limited to edge-profile operations in a later
+release. Freeform sculpting stays a later-release candidate.
+
+6.2 Immutable reference block (GEO-005)
+The official kit block is stored separately from the derived body. Removed volume, operation
+history, undo and build sequence derive from block + profiles + features.
+
+6.3 Coordinate system and datums (adopted from C-03, PROPOSED for freeze, GEO-008/GEO-010)
+- Origin: centre of the nominal rear axle-slot axis, centred laterally.
+- +X toward the front; +Y toward the car's left; +Z up, normal to the nominal block bottom.
+- Front axle datum: nominal front axle-slot axis. Rear axle datum: origin.
+- Nominal wheelbase WB = X(front datum) − X(rear datum) (LOC-WB-001).
+- Datum coordinates come from measurement of the official kit (CHAR-002); until then they
+  are UNKNOWN and any placeholder is labelled DEFAULT (LOC-AX-004).
+
+6.4 Units (resolves GEO-006 / M-10, PROPOSED)
+- Internal master units: SI (metre, kilogram, second, radian).
+- Display units: METRIC (mm, g) by default; ENGLISH (in, oz) selectable at any time as a
+  user preference (owner decision 2026-10-27, D-04; GEO-011).
+- Conversion constants are exact: 1 in = 0.0254 m; 1 oz (avoirdupois) = 0.028349523125 kg.
+- Rule limits are stored in their source units and source precision, converted exactly.
+  Limits are displayed in the selected unit system with the source value alongside when the
+  two differ, e.g. "≥ 9.525 mm (3/8 in)". A converted limit that is not exact at display
+  precision is marked "≈", e.g. "≤ ≈141.748 g (5.000 oz)". PASS/FAIL always comes from the
+  unrounded comparison, and the section 9.7 rounding rules apply in both unit systems.
+- STL export writes millimetres by default and states the unit in the file name and build
+  sheet; the unit choice is explicit at export (section 35 former baseline).
+
+6.5 Valid-solid acceptance (GEO-002, GEO-003)
+Manifold, watertight, no self-intersection, consistent orientation, single connected body
+unless components are explicitly separate, no wheel/body interference, exportable. Minimum
+wall and feature sizes are TBD from manufacturing characterization (CHAR-007).
+
+6.6 Tolerances (GEO-007)
+Fields shall exist for datum lock, geometry comparison, tessellation, contact, mass
+precision and print scale. Values are TBD until characterized; no invented tolerances.
+
+============================================================
+7. COMPONENTS AND MASS
+============================================================
+
+7.1 Body mass (MAT-001, MAT-002)
+m_body = rho_body * V_body. Nominal density is DEFAULT/ESTIMATED. Measured mode derives
+effective density from the measured uncut block mass and block volume and is labelled
+DERIVED. This is a uniform-density approximation and does not establish exact finished CG.
+
+7.2 Component mass model
+m_total = m_body + m_wheels + m_axles + m_ballast + m_hardware + m_accessories + m_finish
+The player does not type total mass as a primary control. Paint, glue, decals and lubricant
+contribute with provenance and uncertainty where represented (MAT-004).
+
+7.3 Ballast (BAL-001..003)
+Physical components with material, density, geometry, dimensions, mass, pose, mounting
+method. Shapes: cylinder, disk, rectangular block, plate (MVP); sphere, washer, putty,
+custom (later). Mounting: top, underside, side, internal cavity, hybrid. External mounting
+is first class; the optimizer never assumes wood must be removed.
+
+7.4 Materials (BAL-002, MAT-005, SAF-001)
+MVP materials: tungsten, lead, steel, brass, zinc, tin, copper, aluminium, custom.
+Lead is INCLUDED (owner decision 2026-10-27, D-06). Because the product is child-facing,
+lead carries these content rules (SAF-003, implements SAF-001):
+- A safety notice appears whenever lead is selected or placed, and in the build package:
+  an adult handles lead, wash hands after handling, keep it away from mouths, do not sand.
+- The product gives no instructions for melting, casting, cutting, drilling, filing or
+  sanding lead. Lead is used only as whole pre-formed weights, inserted into a drilled
+  cavity or held by mounting hardware.
+- The build package marks every lead component "adult installs".
+- A non-lead alternative of equal mass (e.g. tungsten, with its volume) is shown beside
+  each lead component so the choice is informed.
+- Lead is available at every experience level; at KID level it carries the adult-install
+  tag.
+- The policy text is reviewed before public release (18.5); jurisdiction-specific warning
+  requirements are a counsel question.
+Each material record carries density source, alloy/grade, nominal vs measured status,
+safety class and generic/commercial status.
+
+7.5 Mass margin (MAT-006, CMP-007)
+The build target mass is set explicitly by the player and shown with its margin below the
+limit. No hidden default margin. If the predicted-mass uncertainty band reaches the limit,
+an ADVISORY is shown. A design at exactly the limit is never described as safe to build.
+
+7.6 Centre of gravity and inertia
+r_CG = sum(m_i r_i) / sum(m_i), shown as X from rear axle datum, Y, Z, updating live while
+dragging components. Inertia tensor computed for the solver where used.
+
+============================================================
+8. WHEELS AND AXLES
+============================================================
+
+8.1 Representation (WHL-001)
+LF, RF, LR, RR assemblies independently represented: wheel mass, diameter, width, bore,
+rotational inertia, runout; axle diameter, pose, straightness, friction properties.
+Official-wheel width, diameter and mass are protected (RUL-008).
+
+8.2 Wheel inertia (WHL-008)
+Measured or calculated with documented method and uncertainty. Mass and radius alone are not
+sufficient. Until CHAR-003 completes, inertia is ESTIMATED from geometry and labelled.
+
+8.3 Axle friction (FRI-001)
+MVP model: Coulomb friction at the axle-bore contact, torque = mu_a * N_i * r_axle per wheel,
+where N_i is the modeled wheel load. mu_a is a per-car value with provenance (ESTIMATED until
+calibrated by coast-down or track runs, CHAR-006), selectable by named preparation state
+(e.g. "polished + graphite"). The UI shall not show a per-wheel friction slider; a single
+calibrated value per preparation state is shown, with its provenance. Speed dependence and
+hub/head rubbing are later refinements.
+
+8.4 Alignment controls deferred (WHL-009, PROPOSED; modifies WHL-002 and the MVP list)
+Camber, toe, rail-riding and three-wheel setups shall not be offered as controls until the
+solver implements lateral dynamics and guide-rail contact (P6, P7). Until then a control
+would have no physical effect or a fabricated one, which violates VIS-002. Wheel contact
+state per wheel (WHL-004) is still modeled, and the inspector reports contact status.
+Legality of camber, bent axles, drilled wheels, modified slots and three-wheel running for
+the target event is UNKNOWN (WHL-005, WHL-004) and must be sourced from the event.
+
+8.5 Inside wheel spacing (WHL-007)
+Computed from actual installed wheel, axle and body geometry, not entered independently.
+
+8.6 Sidewall marking (RUL-009, WHL-003)
+The event rules require the kit maker's name to remain visible on the wheel sidewall. The
+model stores "required sidewall marking: preserved" as a protected wheel attribute and the
+inspector reports it in neutral words ("Wheel sidewall marking left intact"). Wheels are
+always drawn with a plain sidewall; no third-party mark is rendered (BRD-007).
+
+============================================================
+9. RULES AND COMPLIANCE
+============================================================
+
+9.1 Data-driven rulesets (CMP-002)
+Each ruleset stores name, organization/event, version or effective date, source reference,
+source provenance, local overrides, review status and date. An immutable snapshot is stored
+with every simulation and export.
+
+9.2 Initial ruleset: CCCS kit-car Grand Prix (source record: External_Knowns_Race_Rules)
+Source: https://cc-awana.weebly.com/rules--tips.html (one church's published event page,
+not an Awana-wide rule document).
+RULE values (source units and precision):
+- Maximum length 7.000 in (RUL-001); width 2.750 in (RUL-002); height 3.000 in (RUL-003).
+- Minimum underside clearance 0.375 in (3/8 in) (RUL-004).
+- Minimum inside wheel-to-wheel clearance 1.750 in (RUL-005).
+- Maximum mass 5.000 oz; the event's official scale decides (RUL-006).
+- Official Awana Grand Prix kit wood, wheels and axles required; additions allowed.
+- Wheel width, diameter and mass may not be reduced (RUL-008).
+- Awana name stays visible on wheel sidewall (RUL-009).
+- Front shall not come to a point or slope upward so as to prevent retention behind the
+  starting peg (RUL-007).
+- Process rules (entrant present, car built for this race and not previously raced, no
+  changes after check-in, child takes part in design and build) are shown as an event
+  checklist in the build package (CMP-008). The software cannot verify them and does not
+  claim to.
+LOCAL/FROZEN (not in the published source; never labelled RULE): official axle locations
+and nominal wheelbase unchanged (LOC-AX-*, LOC-WB-*).
+UNKNOWN: starting-pin geometry, minimum contact-face height, nose radius, formal gate test;
+whether camber/three-wheel/slot changes are permitted.
+ADVISORY (the page's speed tips): shown as tips, never as rules.
+
+Event confirmation (pre-Ruleset-Beta, CHAR-008): the owner shall confirm that the target
+event uses these rules and a 35-ft BestTrack, and obtain any written rules sheet.
+
+9.3 Product-facing ruleset wording (BRD-007; owner decision 2026-10-27, resolves D-07)
+The shipped ruleset is named neutrally, e.g. "CCCS Grand Prix (kit car), 2026 rules". The
+kit is "the event's official kit" and the kit library entry is named generically (e.g.
+"Event kit K1: block, wheels, axles"). Rule text in the UI is paraphrased without the Awana
+name. The full citation stays in the project's source records; the product shows
+"Source: CCCS event rules page, accessed <date>".
+
+9.4 Compliance states (CMP-001, RUL-010, resolves C-02)
+NOT EVALUATED, PARTIALLY EVALUATED, PROVISIONALLY COMPLIANT, CERTIFIED COMPLIANT,
+NONCOMPLIANT, SANDBOX/RULES DISABLED.
+CERTIFIED COMPLIANT requires every applicable hard rule and active local lock to be defined
+and passed, including the starting-gate test. While the gate geometry is UNKNOWN the best
+achievable state is PROVISIONALLY COMPLIANT. The UI shall never show a binary "Legal"
+badge.
+
+9.5 Constraint classes and precedence (section 49.1, CMP-003)
+Classes: PUBLISHED RULE, LOCAL/FROZEN CONSTRAINT, DESIGN ADVISORY.
+Precedence: geometry validity; safety/structural; published rules; local/frozen; build
+capability; player design locks; optimizer objectives; aesthetics. Infeasible combinations
+are reported, never silently relaxed.
+
+9.6 Protected zones (section 49.4)
+Starting-pin contact zone; axle/slot structural zones; official wheel swept envelopes;
+minimum inside-wheel envelope; underside/guide-rail clearance envelope; overall dimension
+envelope.
+
+9.7 Inspection measurement definitions (CMP-004)
+Every published racing rule is enforced (owner decision 2026-10-27, D-11). Where the
+event's measuring method is not published, the inspector uses the strictest reasonable
+reading and says so on the inspection line (CMP-009). Only the event's written method
+(CHAR-008) replaces that reading.
+- Overall dimensions: axis-aligned in the car frame, including wheels, axles, ballast and
+  every attached part, at the car's longest, widest and tallest points (the measurement
+  box sees everything).
+- Underside clearance: minimum height above the wheel contact plane of any point of the car
+  other than the wheel treads, over the full length of the car rather than only between
+  the axles, because the guide rail runs the whole length.
+- Inside wheel spacing: minimum distance between inner faces of opposing wheels as installed.
+- Pass/fail is evaluated on unrounded values at full precision (CMP-005).
+- Limits are displayed exactly as the source states them: "≥ 0.375 in", never "≥ 0.38".
+  (CMP-006)
+- Measured values are displayed rounded toward failure: a minimum-type value rounds down, a
+  maximum-type value rounds up. A failing value can never display as a passing number.
+- A value equal to the limit passes ("at least", "maximum").
+- When provenance or uncertainty means the true value may straddle the limit, the line is
+  PROVISIONAL with an ADVISORY.
+
+9.8 Expanded inspection (section 50)
+Sections: KIT, GEOMETRY, CHASSIS/LOCAL LOCKS, START GATE, WHEELS, WEIGHT. Each line shows
+its provenance class. Checks include axle datums unchanged, wheelbase unchanged, wheel
+envelopes clear, gate contact valid, no pointed nose, no upward-sloping nose, legal
+dimensions and clearances, official-wheel properties preserved, total mass ≤ limit.
+
+9.9 Starting gate (RUL-007, GATE-001..004)
+Published functional rule enforced as a protected gate-contact region at the front. Exact
+pin geometry, contact height, nose radius and test method remain UNKNOWN (CHAR-004). Gate
+check and axle/wheelbase locks are independent and fail independently.
+
+============================================================
+10. TRACKS
+============================================================
+
+10.1 Track data (TRK-001..004, LANE-001)
+Tracks are data: named configuration, lane centerline elevation profile z(s), timed
+distance, lanes, start gate, guide rail, transition, surface, finish plane, provenance.
+
+10.2 BestTrack (source record: External_Knowns_BestTrack)
+MANUFACTURER: timed distance start-pin to middle timing hole: 35 ft 358 in; 42 ft 442 in;
+49 ft 526 in. Post-curve straights: three/four/five 7-ft sections plus stop section.
+UNKNOWN: vertical profile, start height, transition curve, rail and lane dimensions, pin
+geometry/motion, surface friction, lane differences.
+
+10.3 Profile status (TRK-004)
+The 35-ft BestTrack ships with an ESTIMATED profile labelled as such in the UI and in every
+result. A MEASURED profile from the owner's track survey (CHAR-005) replaces it as a
+calibrated local track instance. An IDEALIZED TEST RAMP (exact analytic profile) ships for
+verification. 42/49-ft and Custom Track follow the same rules.
+
+10.4 Start and finish (GATE-004, TIM-001, PROPOSED for MVP)
+- Start: car at rest with the front contact face against the pin; t = 0 at release; pin
+  motion not modeled in MVP (stated as a model limitation).
+- Finish: elapsed time stops when the car's foremost point crosses the finish plane located
+  at the timed distance from the pin. CG crossing is never used as a substitute.
+
+============================================================
+11. PHYSICS
+============================================================
+
+11.1 Authority (section 19)
+Race outcomes come from a transparent, testable, deterministic solver. The renderer only
+visualizes solver state. Game physics engines are not used for race outcomes.
+
+11.2 MVP solver (PROPOSED, PHY-009; freezes PHY-004 for the MVP)
+- The car is a rigid body whose front and rear axle contact points both stay on the lane
+  profile. Pitch is therefore kinematic, set by the profile and the wheelbase.
+- One generalized coordinate: rear-axle arc position s along the lane. Speed v = ds/dt.
+- Wheels roll without slip: omega_i = v / r_i.
+- Equation of motion from Newton-Euler with rolling constraints (equivalent to Lagrange), with
+  gravity acting on the actual CG position (so CG height and rearward CG matter, which is
+  the mechanism behind rear-weighting), translational and pitch kinetic energy, wheel
+  rotational energy sum(1/2 I_i omega_i^2), and the loss mechanisms below. Acceleration and
+  axle loads are solved together each instant. Derivation and verification:
+  docs/physics-model.md.
+- Loss mechanisms (each separable and switchable, PHY-003):
+  axle-bore Coulomb friction (section 8.3) using wheel loads N_i;
+  rolling/tread loss (coefficient ESTIMATED);
+  aerodynamic drag F = 1/2 rho_air Cd A v^2 with Cd*A ESTIMATED by shape class and
+  reported with sensitivity bounds (AERO-001).
+- Wheel loads N_i come from the rigid-body balance on the actual track slope and curvature,
+  including centripetal loading in the transition and the longitudinal acceleration term
+  (PHY-007).
+- Validity monitor: if a computed axle load goes negative (wheel lift) or the body would
+  touch the track, the run is flagged OUTSIDE MODEL VALIDITY rather than continued as if
+  valid.
+- Lateral motion, yaw, roll, camber, toe and guide-rail contact are NOT modeled in the MVP
+  and the UI says so in ENGINEERING level.
+
+11.3 Numerics (PHY-005)
+Integrator, step control and event localization are chosen at implementation and recorded;
+convergence is demonstrated by step-halving; the energy ledger residual is reported for
+every run. Thresholds are frozen at the Physics Alpha gate from measured convergence, not
+guessed.
+
+11.4 Energy ledger (ANA-001)
+Potential -> translational + wheel rotational + axle loss + rolling loss + aero loss (+ rail
+loss later) + numerical residual. Shown in results and engineering views.
+
+11.5 Validation gates (section 22, GOV-006)
+P0 track geometry; P1 ideal gravity and energy conservation; P2 wheel inertia; P3 axle
+friction; P4 aerodynamics and limiting cases; P5 CG and rigid-body (pitch, loads);
+P6 lateral dynamics; P7 guide-rail interaction; P8 manufacturing variation.
+MVP requires P0-P5. Each stage needs analytic verification cases (e.g. frictionless ramp
+time, rolling-cylinder inertia factor, constant-friction deceleration) before it is
+treated as authoritative.
+
+11.6 Real-world validation (PROPOSED, VAL-001)
+Before comparing any prediction with a real run, the owner freezes the acceptance criterion
+(e.g. predicted vs measured elapsed time error) in writing. The comparison is then run once
+and recorded as pass or fail. Coefficients calibrated on one set of runs are validated on a
+different set (calibration and validation data stay separate).
+
+============================================================
+12. DESIGN WORKSPACE (3D)
+============================================================
+
+12.1 Viewport (UI-001, UI-002)
+Large interactive 3D viewport, the dominant UI element. Perspective orbit default; orbit,
+zoom, pan, focus selection, fit, reset. One-click Perspective, Top, Bottom, Front, Rear,
+Left, Right. Bottom view is mandatory for clearance and underside inspection.
+
+12.2 Display modes
+Solid, X-ray, wireframe, body only, ballast only, wheels/axles only, CG and mass properties,
+rules envelope. Datum overlays: axle datums, wheelbase dimension, gate contact zone, wheel
+swept envelopes, axle structural zones, guide-rail clearance (LOC-AX-009, LOC-WB-006).
+
+12.3 Shape editing (MVP)
+- Side and top profile editors: 2D panels docked beside the 3D view; edits update the 3D
+  solid live. Profiles cannot cross protected zones in CERTIFIED context.
+- Subtractive features: cylindrical bore, rectangular pocket, plane/wedge cut.
+- Undo/redo; paint colour per body.
+Later: edge roundovers, front profile, mirror tools, decals, accessories library.
+
+12.4 Components (MVP)
+Add Weight dialog: material, shape, size or target mass (other dimension calculated),
+mounting. Placed ballast is selectable and draggable in 3D with live CG, mass and
+compliance updates. Mounting hardware may be included and contributes mass.
+
+12.5 Design Constraints panel (GUI 26, Visual 30)
+Persistent in Design, Components and Build:
+  [LOCK] Axle locations       LOCAL/FROZEN
+  [LOCK] Wheelbase            LOCAL/FROZEN
+  [ -- ] Starting-gate face   PUBLISHED RULE (provisional: pin geometry unknown)
+  [PASS] Wheel envelopes      PROTECTED
+  [PASS] Guide-rail clearance PUBLISHED RULE
+  [PASS] Rules envelope       PUBLISHED RULE
+Colours: red for published-rule violations, lock icon for local locks, amber for
+advisories and estimated values; never colour alone (ACC-001).
+
+12.6 Build capability (resolves MFG-001 and the three tier lists, MFG-002; accepted in
+principle by the owner, D-10)
+Four tiers: BASIC (hand tools: coping saw, hand drill, sandpaper), INTERMEDIATE (adds
+power drill, scroll/band saw), ADVANCED (drill press, precise layout, multi-setup work),
+CNC/DIGITAL. Exact tool lists, minimum feature size and precision per tier are TBD from
+characterization. MVP: the side+top profile model is buildable at BASIC by construction;
+pockets and bores flag the tier they require. "Easy/Medium" labels are retired.
+
+12.7 Design modalities (MODE-005, DSN-001..006; owner decision 2026-10-27, D-05)
+Two separate ways to design. Both write into the same project, and one car can use both.
+A. SHAPE BY REMOVAL. Start from the kit block and take wood away: side and top outlines,
+   bores, pockets, plane cuts (6.1, 12.3). At KID level this is presented as picking a cut
+   shape or drawing a saw line and drilling holes, on the same underlying model.
+B. BUILD BY ADDING PARTS. The KID-level modality, also available at BUILDER and
+   ENGINEERING. Snap pieces onto the body from a parts library, for example building-brick
+   style blocks, windows and canopies, trees, figures, fins, wings, lights. Library content
+   is open and grows over time (D-12).
+Requirements for added parts:
+- DSN-001: Every part is a physical component with geometry, material, mass with
+  provenance, attachment method (glue, pin, screw, double-sided tape) and a real-world
+  source: a craft item to buy, a 3D-printable STL, or a hand-made piece with a template.
+- DSN-002: Parts attach to snap points on the body surface or on other parts. In CERTIFIED
+  context they cannot be placed into protected zones (wheel envelopes, gate-contact zone,
+  underside clearance, overall envelope).
+- DSN-003: Parts count fully toward mass, CG, overall dimensions, clearance and the
+  aerodynamic estimate. They have no performance values of their own (VIS-002): a tree on
+  the roof costs time only through the mass, CG and drag the solver computes.
+- DSN-004: Part names and shapes are generic. No third-party brands or trade dress (for
+  example no LEGO name or stud logo, no licensed characters).
+- DSN-005: The build package lists every added part with how to get or make it; printable
+  parts export as STL; hand-made parts get a 1:1 template.
+- DSN-006: A part that cannot be made with the selected build capability is flagged.
+
+============================================================
+13. RACE (3D)
+============================================================
+
+13.1 Race setup
+Car (version), ruleset, track, lane, compliance context (shown, not chosen here),
+simulation fidelity, opponents/ghosts from saved versions under identical conditions
+(SIM-001). Readiness shows model readiness separately from compliance state.
+
+13.2 Race presentation (section 23-24)
+Event feel distinct from the design workspace: gate countdown and release, 3D cars on the
+track model, large elapsed-time readout, finish order, replay with 0.25x/1x/4x and pause.
+MVP cameras: full track, chase, finish line. Later: overhead, wheel close-up, rail view,
+free engineering camera. Camera choice never affects solver results.
+
+13.3 Results (section 26)
+Elapsed time, finish speed, maximum speed, energy ledger with residual, velocity vs
+distance and vs time; validity flags; profile provenance (ESTIMATED/MEASURED) on the result.
+
+============================================================
+14. BUILD OUTPUTS
+============================================================
+
+14.1 Build package (section 35, BLD-001/002, LOC-WB-009)
+MVP: side and top cutting templates at 1:1 as printable SVG/PDF with a printed scale-check
+bar (print-scale tolerance, GEO-007); drill/pocket positions; ballast list and positions;
+target mass with margin; target CG; wheelbase stated as LOCAL/FROZEN; body STL (unit
+explicit); project file.
+Later: dimensioned build sheet with operation sequence and adult-supervision notes (BLD-003),
+jigs.
+
+14.2 Export gate (BLD-004, section 49.6)
+"BUILD THIS CAR" certified export requires every published hard rule and every active local
+lock to pass and no required check to be unevaluated. SANDBOX exports are always possible
+and always watermarked SANDBOX. Exports distinguish published-rule compliance from local
+constraints.
+
+============================================================
+15. PROJECT DATA
+============================================================
+
+- DAT-001: Versioned project schema (JSON) holding schema version, units, coordinate
+  convention, block reference, profiles, features, components, materials, rules snapshot,
+  track snapshot, locks and provenance, solver version, saved race results, as-designed and
+  (later) as-built state.
+- DAT-002: Migrations are explicit; historical results are never silently rewritten; re-run
+  with a newer solver is offered and labelled.
+- DAT-003: Dirty state, autosave to local storage, crash recovery, named versions
+  (e.g. Banana V1, V2 rear ballast), duplicate, save-as to file.
+- Named versions may be compared and ghost-raced (section 41).
+
+============================================================
+16. EXPERIENCE LEVELS IN DETAIL
+============================================================
+
+- KID: two design modalities, Shape It (removal) and Add Parts (12.7), plus Add Weight,
+  Race, Why?, Build It. Large labels, numbers hidden by default, plain-language
+  diagnostics. (Release 2 proposed; D-05.)
+- BUILDER: metric or English units, materials, ballast, dimensions, CG, legality, build outputs.
+  (MVP default level.)
+- ENGINEERING: solver state, provenance of every parameter, energy residual, sweeps,
+  uncertainty, CSV telemetry. (MVP: provenance and residual views only.)
+
+============================================================
+17. CORRECTIONS TO EXISTING MOCKUPS
+============================================================
+
+The following items in the text mockups and the light-mode PNG conflict with this
+specification and shall be corrected in any new mockup or UI:
+
+17.1 Optimizer screens (GUI 9, Visual 15): "Wheel locations" appears as an optional,
+unchecked Protect item. In CERTIFIED context axle locations are locked and are not an
+optimizer option (LOC-WB-004). Remove the checkbox; show "Axle locations: locked
+(LOCAL/FROZEN)" as fixed text. "Wheel alignment" is removed from May Change until P6/P7.
+
+17.2 PNG and GUI status: binary "Legal for AWANA", "LEGAL: YES", "CAR STATUS LEGAL",
+"Status: LEGAL", "Ready to race!" are replaced by the section 9.4 compliance state plus a
+separate simulation-readiness indicator.
+
+17.3 PNG mass: "5.00 / 5.00" with no margin. Show build target, margin below the limit and
+uncertainty (section 7.5).
+
+17.4 PNG clearance limit "≥ 0.38": display "≥ 0.375" (CMP-006).
+
+17.5 PNG: Awana logo on the car body and on the wheels, and "Keep within AWANA rules" /
+"AWANA - CCCS" labels. Remove all of them; use neutral ruleset wording (BRD-007, 8.6, 9.3).
+
+17.6 PNG: wheel and axle masses shown as plain numbers. Show provenance (MEASURED /
+ESTIMATED / DEFAULT) on every mass line.
+
+17.7 PNG gallery and banana: the banana, rocket and shark have pointed noses that would
+fail RUL-007, and the sculpted banana cannot be made from side and top profiles. Example
+cars must be profile-buildable and have a valid gate-contact face; any noncompliant example
+is labelled as such.
+
+17.8 PNG: "Gravity Racer" name and checkered-flag logo. Replace per BRD-006 / BRD-004.
+
+17.9 Build-difficulty labels: Easy/Medium/Advanced (GUI 3, PNG) and Easy/Intermediate/
+Advanced (Visual 9) are replaced by the four tiers in 12.6.
+
+17.10 Wheel editor (GUI 7, Visual 13): camber/toe sliders and a per-wheel "Axle friction"
+slider are removed for the MVP (sections 8.3, 8.4).
+
+17.11 Race Setup "Engineering Test" simulation mode: removed (section 5.3).
+
+17.12 The first clearance search reports Kestrel Corp identity in a mockup reference;
+remove any such reference (IPR-002).
+
+17.13 Example numbers in mockups (2.984 s, 4.82 oz, CG values, etc.) are illustrative only
+and shall never be shipped as defaults or presented as measured.
+
+============================================================
+18. RELEASE PLAN
+============================================================
+
+18.1 MVP (3D) scope (replaces section 44 MVP list)
+IN:
+- 3D design workspace: orbit and preset views, display modes, datum overlays.
+- Kit block; side and top profile editing; bores, pockets, plane cuts; undo/redo; paint.
+- Ballast components (all listed materials, lead with SAF-003 notices) with live mass, CG
+  and compliance.
+- Metric display by default, English selectable.
+- CCCS kit-car ruleset (neutral naming, 9.3) with compliance states, inspection panel, constraint panel, locks.
+- BestTrack 35-ft (ESTIMATED profile), measured local-track instance, idealized ramp.
+- MVP solver (11.2) with energy ledger and validity monitor; P0-P5 verified.
+- 3D race: up to 4 lanes, ghosts of saved versions, 3 cameras, replay, results.
+- Build package: 1:1 side/top templates, drill/ballast positions, STL, project file.
+- Local projects with named versions; BUILDER level with ENGINEERING provenance views.
+- Measured-data entry for kit, track and car, with provenance.
+OUT (moved later): AI generation; optimizer; camber/toe/rail physics and controls;
+Why Did I Lose; KID level and the add-parts modality with its parts library; Monte Carlo;
+as-built workflow; community and accounts; cloud anything.
+The MVP component model (ballast, hardware) is built so that added parts reuse it.
+
+18.2 Milestones and gates (GOV-004..009)
+M0 Foundations: repo, units/provenance types, schema v1, coordinate convention frozen,
+   kit library with UNKNOWN/DEFAULT placeholders.
+M1 Physics core, headless: P0-P5 analytic tests on the idealized ramp.
+   -> PHYSICS ALPHA gate (GOV-006).
+M2 3D design workspace: profiles, solid evaluation, ballast, mass/CG, inspection.
+   -> PROTOTYPE gate (GOV-005).
+M3 3D race and results.
+M4 Build outputs. -> BUILDER ALPHA gate (GOV-007).
+M5 Real-world validation (VAL-001) on the measured track with filmed runs.
+Ruleset Beta (GOV-008): needs CHAR-004 gate geometry and CHAR-008 event confirmation.
+
+18.3 Release 2 (after MVP validation)
+Lateral dynamics, guide-rail contact, wheel contact states with camber/toe/rail-riding
+controls (P6-P7); ballast optimizer with reviewable proposals (OPT-001..003); Why Did I
+Lose; KID level with both design modalities and a first parts library (12.7); additional
+cameras.
+
+18.4 Release 3 and later
+AI outline generation within constraints (AI-001..006); robust/Monte Carlo optimization
+(P8, OPT-004); as-built digital twin and real-race results (DT-001, MAT-003); calibrated
+lane-specific tracks; parts catalog; jigs; challenges; classroom mode; community (only with
+PRV-001 requirements).
+
+18.5 Public Release gate (GOV-009) checklist
+- BRD-002 trademark clearance for name and logo; counsel review of BestTrack nominative
+  use and of the CCCS ruleset citation.
+- BRD-007 audit: no Awana brand anywhere. DSN-004 audit: no third-party brands in parts.
+- IPR-003 ownership confirmation.
+- Privacy: confirm no personal data collected (PLT-004) or write the policy for what is.
+- AI-004 content controls, if AI ships in the release.
+- SAF-003 lead content rules reviewed (lead ships from the MVP).
+- ACC-001 accessibility test.
+- DAT-002 migration and regression evidence.
+- Terms of use/EULA, third-party licence notices, payment/distribution setup (D-09).
+
+============================================================
+19. PHYSICAL CHARACTERIZATION PLAN (CHAR-001..008)
+============================================================
+
+These measurements resolve most open technical items. Record each value with unit, method,
+instrument and date; provenance MEASURED.
+
+CHAR-001 Block: length, width, height, slot positions; mass of 3-5 uncut blocks (scale to
+  0.01 g or better).
+CHAR-002 Axle datums: slot centre positions relative to block rear and bottom; derive WB.
+CHAR-003 Wheels and axles: mass, outer diameter, tread width, bore, hub geometry for 3-5 of
+  each; wheel inertia by bifilar/trifilar pendulum or spin-down; axle diameter and mass.
+CHAR-004 Start gate: pin diameter, height above track, position, release motion (photos
+  with scale, slow-motion video).
+CHAR-005 Track: elevation of the lane surface every ~1 ft (closer through the transition)
+  from start pin to finish; rail height and width; lane width; timer sensor position.
+CHAR-006 Friction: coast-down or track runs at two or more car masses with known
+  preparation state; phone slow-motion video for position vs time.
+CHAR-007 Tolerances: repeatability of the owner's measurements and of a typical home build.
+CHAR-008 Event: written rules from the actual target event; confirm track model and length;
+  ask whether camber, bent axles, three-wheel running and slot changes are allowed.
+
+The register's note that race-manager software was "placed in OneDrive" is not borne out:
+no such file is in the project folder. No race-manager facts are recorded.
+
+============================================================
+APPENDIX A. NEW AND CHANGED REQUIREMENT IDS (for RTM Rev B)
+============================================================
+
+NEW
+IPR-001 canonical private repository owned by lobotuba
+IPR-002 no Kestrel identity in product or materials
+IPR-003 ownership confirmation before public release
+PLT-002 TypeScript + Three.js, WebGL2 browser; optional desktop wrapper
+PLT-003 fully offline; no account for MVP features
+PLT-004 no personal data, no telemetry in MVP
+PLT-005 browser/GPU/performance targets TBD at Prototype gate
+BRD-001..006 brand name, clearance gate, nominative use, device, palette, name replacement
+MODE-001..004 experience level, compliance context, simulation fidelity, recording
+GEO-009 profile-intersection master representation
+GEO-010 coordinate system and datums (freezes C-03 proposal on approval)
+SAF-003 lead content rules (implements SAF-001)
+BRD-007 no Awana brand in product, shipped data, outputs or marketing
+GEO-011 metric display default, English selectable
+CMP-008 event process rules shown as a checklist, not claimed as verified
+CMP-009 strictest reasonable reading where the event's method is unpublished
+MODE-005 two design modalities: shape by removal, build by adding parts
+DSN-001..006 added-parts requirements
+CMP-006 limits displayed at source precision; values rounded toward failure
+CMP-007 explicit build target mass and displayed margin
+WHL-009 alignment/rail controls withheld until P6/P7 physics exists
+MFG-002 four build-capability tiers
+PHY-009 MVP solver definition
+VAL-001 frozen real-world acceptance criterion before comparison
+CHAR-008 event rules and track confirmation
+
+CHANGED
+SAF-002 (Rev A "lead excluded from MVP") REJECTED by owner; lead included under SAF-003
+MODE-001 experience level also selects the design modalities offered
+WHL-002 camber/toe controls: P1/P2 -> Release 2 (gated by WHL-009)
+AI-001, AI-003 priority P1 -> Release 3
+OPT-001 priority P1 -> Release 2
+MFG-001 superseded by MFG-002
+PHY-004 frozen for MVP by PHY-009
+GOV-001 satisfied by this document on approval
+
+============================================================
+APPENDIX B. OPEN DECISIONS FOR THE OWNER
+============================================================
+
+Owner responses to Rev A, recorded 2026-10-27.
+
+D-01 Mode model (section 5), Engineering Test folded into SANDBOX: APPROVED.
+D-02 Profile-intersection master geometry (6.1): APPROVED.
+D-03 Coordinate convention (6.3): APPROVED.
+D-04 Units: internal SI; display METRIC by default, ENGLISH selectable (6.4): DECIDED.
+D-05 KID level has two separate design modalities, shape by removal and build by adding
+     parts (12.7): DECIDED. Still OPEN: whether KID ships in the MVP or in Release 2.
+     Proposed: Release 2, so the MVP proves the physics first.
+D-06 Lead: INCLUDED, under the SAF-003 content rules (7.4): DECIDED.
+D-07 Awana brand: NOT USED anywhere in the product (BRD-007, 9.3): DECIDED.
+D-08 Name: Pinewood Dynamics, chosen because it spans all gravity-car racing: DECIDED,
+     subject to counsel clearance (BRD-002).
+D-09 Distribution channel, desktop wrapper (Tauri vs Electron) and price: OPEN. Not needed
+     until Public Release.
+D-10 Four build-capability tiers (12.6): ACCEPTED IN PRINCIPLE; tier definitions TBD.
+D-11 Every published racing rule enforced; the strictest reasonable reading applies where
+     the event's measuring method is unpublished (9.7): DECIDED.
+D-12 Parts library content (12.7): OPEN. Owner to name the first parts. Proposed starting
+     categories: building-brick style blocks, windows/canopies, trees, figures, fins and
+     wings, lights, number plates.
+
+============================================================
+APPENDIX C. REVISION HISTORY
+============================================================
+
+Rev A, 2026-10-27: First controlling merged specification. Folds in both baselines, five
+constraint amendments, the assessment, the RTM findings and the branding direction. Applies
+owner decisions of 2026-10-27 (public release, possibly sold; owned by lobotuba; 3D MVP;
+TypeScript + Three.js; Pinewood Dynamics as working name). Resolves conflicts C-01..C-05 and
+the review findings on the optimizer wheel-location checkbox, mockup compliance display,
+mass margin, limit rounding, Awana marks, provenance display, pointed gallery noses,
+overlapping modes, build-tier lists, per-wheel friction slider, and the stale manifest.
+
+Rev B, 2026-10-27: Owner responses to Appendix B applied. D-01..D-03 approved. Metric
+display default with English selectable (GEO-011). KID level gains two design modalities,
+shape by removal and build by adding parts, with added-parts requirements DSN-001..006
+(12.7). Lead included under new content rules SAF-003. Awana brand removed from all
+product-facing text, data and rendering (BRD-007); ruleset renamed neutrally. Name
+rationale recorded (spans all gravity racing). Every racing rule enforced, with the
+strictest reasonable reading where the event's method is unpublished (CMP-009); event
+process rules shown as a checklist (CMP-008). D-05 timing, D-09 and D-12 remain open.

@@ -1,0 +1,49 @@
+PINEWOOD DYNAMICS (formerly GRAVITY RACER) - DOCUMENT SET MANIFEST
+Updated: 2026-10-27
+
+CONTROLLING DOCUMENT
+1. PinewoodDynamics_Controlling_Specification.txt
+   Rev A, draft for owner approval. The single controlling specification. Supersedes the
+   baselines and amendments below as controlling text. Appendix A lists new/changed
+   requirement IDs pending RTM Rev B; Appendix B lists open owner decisions.
+
+TRACEABILITY
+2. GravityRacer_Requirements_Traceability_Matrix.txt
+   RTM (unrevised). Requirement IDs remain valid; Rev B to add the controlling
+   specification's Appendix A IDs and lifecycle states.
+
+SOURCE RECORDS (external facts; still current)
+3. GravityRacer_External_Knowns_Register.txt
+4. GravityRacer_External_Knowns_Register_Constraint_Update.txt
+5. GravityRacer_External_Knowns_Race_Rules.txt
+6. GravityRacer_External_Knowns_Race_Rules_Constraint_Update.txt
+7. GravityRacer_External_Knowns_BestTrack.txt
+   Note: the register's mention of race-manager software "placed in OneDrive" is not
+   borne out; no such file is in the project folder.
+
+BRANDING (folder ../branding)
+8. Pinewood_Dynamics_Brand_Analysis_and_Direction.txt
+9. Pinewood_Dynamics_Preliminary_Brand_Clearance_Search.txt
+10. GravityRacer_Branding_Clearance_Preliminary_Search.txt (earlier search on the former name)
+
+SUPERSEDED AS CONTROLLING TEXT (retained as history)
+11. GravityRacer_Detailed_Specification.txt
+12. GravityRacer_Detailed_Specification_Constraint_Update.txt
+13. GravityRacer_GUI_Mockup.txt
+14. GravityRacer_GUI_Mockup_Constraint_Update.txt
+15. GravityRacer_GUI_Mockup_Standalone_Visual_Direction.txt
+16. GravityRacer_Constraint_Update_Change_Log.txt
+17. GravityRacer_Missing_and_Conflicting_Requirements_Assessment.txt
+18. GravityRacer_RTM_Findings_Incorporation_Changelog.txt
+19. Software Mockup - Light Mode.png (corrections listed in controlling spec section 17)
+
+SOURCE LINKS
+CCCS Awana Grand Prix rules page:
+https://cc-awana.weebly.com/rules--tips.html
+
+BestTrack specifications:
+https://www.besttrack.com/track_specs.html
+
+GrandPrix Race Manager video index, loose visual-context research only, not a functional
+integration requirement:
+https://grandprix-software-central.com/index.php?view=article&id=200

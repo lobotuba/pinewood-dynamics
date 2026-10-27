@@ -1,0 +1,18 @@
+
+CONSTRAINT PROVENANCE UPDATE
+PUBLISHED RULE
+- Front should not come to a point or slope upward in a manner that prevents retention behind the starting peg.
+
+UNKNOWN
+- Starting-pin dimensions.
+- Exact required gate-contact geometry.
+- Minimum nose radius/contact height and formal test method.
+
+LOCAL/FROZEN PROJECT CONSTRAINT
+- Official axle locations remain fixed.
+- Nominal wheelbase derived from measured axle datums remains fixed.
+
+The current CCCS/AWANA source does not explicitly state the unchanged-wheelbase requirement. Gravity Racer must not cite that source as proof of the local constraint.
+
+SYSTEM-WIDE DATA RULE
+The same classified constraints shall feed AI generation, manual editing, optimization, inspection, simulation readiness, and manufacturing export. LOCAL/FROZEN shall never be relabeled RULE without an authoritative source.

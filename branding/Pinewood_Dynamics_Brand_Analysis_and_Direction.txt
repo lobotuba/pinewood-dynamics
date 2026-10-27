@@ -1,0 +1,170 @@
+PINEWOOD DYNAMICS
+BRAND ANALYSIS AND CREATIVE DIRECTION
+Status: Selected working/public brand direction, subject to final professional trademark clearance
+
+1. BRAND DECISION
+Selected name: PINEWOOD DYNAMICS
+
+Product category descriptor:
+Gravity-car design, physics simulation, optimization, and build software.
+
+Primary tagline:
+Real Physics. Real Creativity. Real Racers.
+
+Supporting workflow line:
+Design. Simulate. Optimize. Build. Race.
+
+2. STRATEGIC POSITION
+Pinewood Dynamics is intended to serve multiple gravity-car communities rather than bind the product to one sponsoring organization. The core product is organization-neutral; event-specific rules are data/configuration layered above the common design and physics platform.
+
+Potential audiences include families, youth organizations, educators, hobby racers, engineering-minded builders, and event participants.
+
+3. CORE BRAND PROMISE
+Imagine a car, engineer the physical design, test it against modeled physics, improve it without destroying the creative concept, export a buildable physical car, and compare real-world race performance with the prediction.
+
+4. BRAND ATTRIBUTES
+- Creative
+- Engineering credible
+- Family approachable
+- Experimental
+- Physical / buildable
+- Precise without being intimidating
+- Race-oriented without becoming generic motorsport branding
+
+5. VISUAL IDENTITY DIRECTION
+Recommended visual language:
+- Dark charcoal technical base
+- Electric/racing blue for simulation, vectors, active states, and selected controls
+- Warm natural wood/gold tone for the physical car, manufacturing, and real-world build side
+- Warm silver/white typography
+- Subtle engineering grids and vector geometry
+
+Avoid relying on generic checkered flags as the principal device. Prefer a distinctive symbol connected to gravity, center of gravity, vectors, digital-to-physical transformation, or a recognizable gravity-car silhouette.
+
+6. LOGO CONCEPT FAMILIES
+A. VECTOR PD MARK
+A monogram combining P/D geometry with a vertical gravity vector and center-of-gravity/wheel target. Best for a compact app icon and technical identity.
+
+B. DYNAMIC WOOD CAR
+A stylized wooden racer crossed by velocity/acceleration vectors. Most immediately understandable to new users.
+
+C. DIGITAL TO PHYSICAL
+A car transitioning from wireframe geometry to warm wood. Strongest expression of the unique virtual-to-real product proposition.
+
+D. GRAVITY LINE
+An abstract downhill trajectory incorporating a wheel/CG target and gravity vector. Strongest minimal/technical device for a scalable corporate identity.
+
+7. RECOMMENDED BRAND ARCHITECTURE
+Master brand:
+PINEWOOD DYNAMICS
+
+Application spaces/features may use descriptive names rather than separate sub-brands:
+- Design Studio
+- Components
+- Wheel Setup
+- Optimize
+- Test Track
+- Race Analysis
+- Build Shop
+- Engineering Lab
+
+8. ORGANIZATION / RULESET POSITIONING
+Pinewood Dynamics remains independent from Scouting America/BSA, AWANA, GrandPrix Race Manager, BestTrack, Pinewood Technologies/Pinewood.AI, and other third parties.
+
+Do not imply sponsorship, endorsement, affiliation, official status, compatibility, or common ownership unless separately authorized.
+
+Rule implementations should preserve source provenance and may use neutral names where permissions are unresolved. Third-party names should be used only in legally appropriate nominative/descriptive contexts.
+
+9. TRADEMARK CLEARANCE STATUS
+A broad preliminary search found no exact clearly relevant established PINEWOOD DYNAMICS software/product/company result. However, final legal clearance remains necessary because adjacent rights include the PINEWOOD DERBY field for wooden hobby automobile kits/competitions and PINEWOOD-branded automotive software/technology.
+
+The brand should therefore be treated as selected for product development while still carrying a final trademark-counsel clearance gate before launch, filing, or major external marketing investment.
+
+10. BRANDING RISK CONTROLS
+- Preserve preliminary and final clearance records.
+- Clear the final wordmark and final device/logo separately.
+- Do not reuse protected third-party logos or proprietary visual assets.
+- Avoid an interface or logo likely to imply a third-party relationship.
+- Keep third-party rule names visually subordinate to the Pinewood Dynamics brand.
+- Maintain a clear independent publisher/company identifier.
+
+11. PRODUCT NAMING CONVENTION
+Recommended UI title:
+PINEWOOD DYNAMICS
+
+Recommended subtitle:
+Real Physics. Real Creativity. Real Racers.
+
+Recommended product-description copy:
+Design, simulate, optimize, and build gravity-powered race cars using real engineering principles.
+
+Recommended compact descriptor:
+Gravity-Car Design & Simulation
+
+12. DARK-MODE PALETTE DIRECTION
+Recommended conceptual palette:
+- Deep charcoal background
+- Very dark blue-black secondary panels
+- Electric blue primary highlight
+- Lighter cyan technical/vector highlight
+- Warm wood/gold physical-build highlight
+- Warm off-white/silver text
+- Green compliance/pass
+- Amber warning/estimated
+- Red fail/contact/error
+
+Final HEX/RGB values should be frozen after accessibility/contrast testing rather than treated as externally sourced requirements.
+
+13. UI BRAND APPLICATION
+The Design workspace should prominently display the Pinewood Dynamics identity without consuming the large central Orbit View.
+
+Brand cues should appear in:
+- startup/project selection
+- top application chrome
+- splash/loading appearance
+- app icon
+- primary action color
+- technical overlays
+- race presentation
+- build-package covers/headers
+
+The 3D car remains visually dominant during design and engineering work.
+
+14. BRAND-ASSET REQUIREMENTS
+Final production asset set should include:
+- primary horizontal wordmark
+- stacked wordmark
+- icon-only mark
+- monochrome light mark
+- monochrome dark mark
+- small-app icon
+- favicon/browser icon if web-delivered
+- transparent PNG versions
+- scalable vector master files
+- dark-background version
+- light-background version
+- minimum-size rules
+- clear-space rules
+- color specifications
+- font/typography specifications
+- prohibited-use examples
+
+15. CURRENT CREATIVE CONCEPT
+The initial generated brand board explores four original visual directions:
+1. Vector PD monogram with gravity/CG symbolism.
+2. Wooden car silhouette with motion vectors.
+3. Wireframe-to-wood transformation.
+4. Downhill gravity trajectory with CG/wheel target.
+
+This board is exploratory, not the final production logo. Final selected artwork should be redrawn as precise vector geometry and separately searched/cleared if sufficiently distinctive to function as a mark.
+
+16. NEXT BRAND FREEZE
+Before naming is marked FINAL for public launch:
+- attorney-led word-mark clearance;
+- final goods/services definition;
+- domain/handle determination;
+- final device/logo selection and clearance;
+- accessibility-tested color palette;
+- production vector assets;
+- brand-usage guide;
+- replacement of remaining Gravity Racer product-name references in controlling project documents.
