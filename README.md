@@ -17,12 +17,16 @@ npm test          # verification suite (P0-P5, numerics, timing, provenance)
 npm run typecheck
 npm run race      # demo races on BestTrack 35 ft (manufacturer drawing, estimated curve shape)
 npm run compare:mann2012   # blind comparison with Mann, Gibbs and Sah (2012)
+npm run survey -- file.csv # fit a track survey and race on it (docs/track-survey.md)
+npm run survey:precision   # how precisely a track must be surveyed
 ```
 
 ## Layout
 
 - `src/core`: units (exact conversions, SI internally), provenance labels, 2D vectors
-- `src/track`: lane profiles built from lines and arcs, wheel-centre offset paths, track library
+- `src/track`: lane profiles from lines and arcs or from survey points (smoothing spline), wheel-centre
+  offset paths, track library
+- `data/surveys`: track survey files (the EXAMPLE file is synthetic)
 - `src/physics`: car description, kinematics, dynamics, race simulation with energy ledger
 - `src/kit`: event-kit record (UNKNOWN until measured) and labelled typical-kit estimates
 - `src/validation`: published comparison datasets, every value labelled published or assumed

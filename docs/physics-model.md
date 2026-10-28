@@ -33,14 +33,26 @@ contact, wheel slip, and track or car flexibility.
 
 ## 2. Geometry and kinematics (`src/track/path.ts`, `src/physics/kinematics.ts`)
 
-**Lane surface.** The lane is a chain of constant-curvature pieces: straight lines and circular
-arcs. Each piece is joined smoothly, so position and tangent are continuous; curvature can jump
-at a join. Position, unit tangent `t`, normal `n` (pointing up off the surface) and signed
-curvature `κ` are exact everywhere.
+**Lane surface.** The solver accepts any surface that supplies position, unit tangent `t`, normal
+`n` (pointing up off the surface) and signed curvature `κ` at each arc length (`src/track/curve.ts`).
+There are two kinds:
+
+- **Lines and arcs** (`path.ts`): a chain of constant-curvature pieces, joined smoothly so position
+  and tangent are continuous. Curvature can jump at a join. Everything is exact.
+- **Survey fits** (`spline.ts`, `docs/track-survey.md`): `z(x)` as a cubic smoothing spline, so slope
+  and curvature are continuous. Arc length comes from 8-point Gauss–Legendre quadrature per interval,
+  accurate to 1e-13 m.
 
 **Wheel-centre paths.** For a wheel of radius `r`, the centre path is the surface offset by `r`
-along `n`. An offset arc has curvature `κ/(1−κr)` and length `L(1−κr)`, so the centre path is also
-lines plus arcs and stays exact. A wheel that is too large for a concave arc is rejected.
+along `n`.
+
+- On lines and arcs, an offset arc has curvature `κ/(1−κr)` and length `L(1−κr)`, so the centre
+  path is also lines plus arcs and stays exact.
+- On a survey fit, the centre-path arc length above surface arc length `u` is
+  `σ(u) = u − r(θ(u) − θ(0))`, exact because `dσ/du = 1 − κr`. Points are found by Newton's method
+  on `σ`.
+
+A wheel too large for a concave stretch of lane, `1 − κr ≤ 0`, is rejected.
 
 **Body frame** (GEO-010). The origin is the rear axle axis, `+X` points along the chord to the
 front axle axis, and `+Z` is up. Both axle slots sit at the same body height, so the chord is the

@@ -3,6 +3,9 @@
 // Every quantity is analytic, so position, tangent and curvature are exact everywhere.
 
 import { type Vec2, add, leftNormal, scale, v2 } from "../core/vec2.js";
+import type { CentrePath, PathPoint, Surface } from "./curve.js";
+
+export type { PathPoint } from "./curve.js";
 
 /** Input description: a straight line, or an arc turning by `turn` radians (counterclockwise positive). */
 export type SegmentSpec =
@@ -17,21 +20,15 @@ interface Piece {
   readonly kappa: number; // signed curvature, counterclockwise positive
 }
 
-export interface PathPoint {
-  readonly p: Vec2;
-  /** Unit tangent in the direction of increasing arc length. */
-  readonly t: Vec2;
-  /** Unit normal, tangent rotated +90 deg: points up off the surface for travel in +x. */
-  readonly n: Vec2;
-  readonly kappa: number;
-}
-
-export class Path {
+export class Path implements Surface, CentrePath {
   readonly length: number;
   private readonly pieces: readonly Piece[];
+  /** The surface this path was offset from, if any. */
+  private readonly base: Path | null;
 
-  private constructor(pieces: readonly Piece[]) {
+  private constructor(pieces: readonly Piece[], base: Path | null = null) {
     this.pieces = pieces;
+    this.base = base;
     const last = pieces[pieces.length - 1]!;
     this.length = last.s0 + last.length;
   }
@@ -74,7 +71,12 @@ export class Path {
       out.push({ s0, length, p0: add(pc.p0, scale(n0, r)), heading0: pc.heading0, kappa: pc.kappa / shrink });
       s0 += length;
     }
-    return new Path(out);
+    return new Path(out, this);
+  }
+
+  fromSurface(u: number): number {
+    if (this.base === null) throw new Error("fromSurface needs a path built by offset()");
+    return this.base.mapToOffset(u, this);
   }
 
   /** Arc lengths of the joins between pieces, where curvature may jump. */

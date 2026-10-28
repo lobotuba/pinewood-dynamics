@@ -3,6 +3,7 @@
 import { type Sourced, sourced } from "../core/provenance.js";
 import { degrees, inches } from "../core/units.js";
 import { v2 } from "../core/vec2.js";
+import type { Surface } from "./curve.js";
 import { Path, type SegmentSpec } from "./path.js";
 
 /** TRK-004: how much of the lane profile is known. */
@@ -11,7 +12,7 @@ export type ProfileStatus = "IDEALIZED" | "ESTIMATED" | "MEASURED";
 export interface Track {
   readonly name: string;
   /** Lane surface in the vertical plane, arc length from the top of the lane. */
-  readonly surface: Path;
+  readonly surface: Surface;
   readonly profileStatus: ProfileStatus;
   readonly profileSource: string;
   /** Surface arc length of the start-pin contact plane (plane through the surface point, normal to the lane). */

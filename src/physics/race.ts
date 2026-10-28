@@ -104,7 +104,7 @@ export function simulateRace(spec: CarSpec, track: Track, env: Environment, opts
   // Gate: nose on the pin plane (through the pin's surface point, normal to the lane).
   const pin = track.surface.at(track.pinS);
   const pinGap = (s: number): number => dot(sub(kin.pose(s).nose, pin.p), pin.t);
-  const sPinCentre = track.surface.mapToOffset(track.pinS, rearPath);
+  const sPinCentre = rearPath.fromSurface(track.pinS);
   const s0 = bisect(pinGap, sPinCentre - car.wheelbase - norm(car.nose) - 1, sPinCentre + 1);
 
   // Finish: nose crosses the sensor plane (TIM-001).

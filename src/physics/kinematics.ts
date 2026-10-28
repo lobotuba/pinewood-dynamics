@@ -5,7 +5,7 @@
 // All first and second derivatives with respect to s are analytic (docs/physics-model.md, 2).
 
 import { type Vec2, add, cross, dot, rotate, scale, sub, v2 } from "../core/vec2.js";
-import type { Path, PathPoint } from "../track/path.js";
+import type { Curve, PathPoint } from "../track/curve.js";
 import type { CarModel } from "./car.js";
 
 export interface AxleState {
@@ -35,8 +35,8 @@ export interface Pose {
 export class CarKinematics {
   constructor(
     private readonly car: CarModel,
-    private readonly rearPath: Path,
-    private readonly frontPath: Path,
+    private readonly rearPath: Curve,
+    private readonly frontPath: Curve,
   ) {}
 
   /** Front-axle arc length for a given rear-axle arc length; `guess` speeds up the solve. */
