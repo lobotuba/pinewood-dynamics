@@ -4,10 +4,13 @@
 //   a    = d^2 s / dt^2 (rear-axle arc acceleration)
 //   N_i  = normal contact force on axle i's wheels (both wheels together)
 //   T_i  = tangential contact force on axle i's wheels, along the direction of travel
-// Equations (all linear in u for a given state):
+// Equations:
 //   2 wheel-spin equations, 2 whole-car force equations, 1 whole-car moment equation about the CG.
+// All are linear in u except the axle friction torque mu * rho * |R_i|, where R_i is the force the
+// axle exerts on its wheels. R_i follows from the wheel pair's own Newton equation and is linear in
+// u, so |R_i| = e_i . R_i with e_i its direction; e_i is found by Newton iteration.
 
-import { type Vec2, cross, dot, norm, scale } from "../core/vec2.js";
+import { type Vec2, add, cross, dot, norm, scale, sub } from "../core/vec2.js";
 import type { AxleModel, CarModel } from "./car.js";
 import type { AxleState, Pose } from "./kinematics.js";
 
@@ -32,6 +35,9 @@ export interface Dynamics {
   readonly Nf: number;
   readonly Tr: number;
   readonly Tf: number;
+  /** Magnitude of the axle-bore contact force on each axle's wheels, N. */
+  readonly boreR: number;
+  readonly boreF: number;
   /** Dissipated power by mechanism, W (ANA-001). */
   readonly pAxle: number;
   readonly pRolling: number;
@@ -41,7 +47,22 @@ export interface Dynamics {
   readonly omegaF: number;
   /** CG velocity, m/s. */
   readonly vCg: Vec2;
+  /**
+   * False when sliding Coulomb friction has no consistent solution (Painleve-type: friction arm
+   * mu r_axle / r near or above 1). At rest this means friction holds the car.
+   */
+  readonly converged: boolean;
 }
+
+/** Axle force on a wheel pair as an affine function of the unknowns: R = da a - n N - t T + r0. */
+interface BoreForce {
+  readonly da: Vec2;
+  readonly n: Vec2;
+  readonly t: Vec2;
+  readonly r0: Vec2;
+}
+
+const MAX_BORE_ITERATIONS = 20;
 
 export function dynamics(car: CarModel, pose: Pose, v: number, env: DynamicsEnv): Dynamics {
   const { rear: R, front: F } = car;
@@ -56,14 +77,12 @@ export function dynamics(car: CarModel, pose: Pose, v: number, env: DynamicsEnv)
   const pitchCw = -pose.dTheta * v;
   // Axle friction opposes wheel rotation relative to the body. At rest the car can only start forward.
   const sigma = (w: number): number => (w > 0 ? 1 : w < 0 ? -1 : 1);
-  const sR = sigma(omegaR - pitchCw);
-  const sF = sigma(omegaF - pitchCw);
 
   const mu = (ax: AxleModel): number => (L.axleFriction ? ax.mu : 0);
   const crr = (ax: AxleModel): number => (L.rollingResistance ? ax.crr : 0);
-  // Resisting torque on a wheel per newton of normal load.
-  const lossArmR = sR * mu(R) * R.axleRadius + crr(R) * R.r;
-  const lossArmF = sF * mu(F) * F.axleRadius + crr(F) * F.r;
+  // Friction torque on a wheel per newton of bore load, signed to oppose relative rotation.
+  const fricR = sigma(omegaR - pitchCw) * mu(R) * R.axleRadius;
+  const fricF = sigma(omegaF - pitchCw) * mu(F) * F.axleRadius;
 
   const vCg = scale(pose.dCg, v);
   const speedCg = norm(vCg);
@@ -82,10 +101,22 @@ export function dynamics(car: CarModel, pose: Pose, v: number, env: DynamicsEnv)
   const spinR = R.spinInertia / R.r;
   const spinF = F.spinInertia / F.r;
 
+  // Wheel pair i: m_w (C_i' a + C_i'' v^2) = m_w g + N n + T t + R, with C_i' = J t and
+  // C_i'' = kappa J^2 n + K t for the axle centre on its path.
+  const bore = (ax: AxleState, mw: number): BoreForce => {
+    const { t, n, kappa } = ax.pt;
+    const c2 = add(scale(n, kappa * ax.J * ax.J), scale(t, ax.K));
+    return { da: scale(t, mw * ax.J), n, t, r0: sub(scale(c2, mw * v2), scale(grav, mw)) };
+  };
+  const boreAt = (bf: BoreForce, a: number, N: number, T: number): Vec2 =>
+    add(add(scale(bf.da, a), bf.r0), add(scale(bf.n, -N), scale(bf.t, -T)));
+  const bR = bore(pose.rear, R.wheelMass);
+  const bF = bore(pose.front, F.wheelMass);
+
   // Rows: rear wheel, front wheel, force x, force z, moment (clockwise) about CG.
   const A: number[][] = [
-    [spinR * pose.rear.J, lossArmR, 0, R.r, 0],
-    [spinF * pose.front.J, 0, lossArmF, 0, F.r],
+    [spinR * pose.rear.J, crr(R) * R.r, 0, R.r, 0],
+    [spinF * pose.front.J, 0, crr(F) * F.r, 0, F.r],
     [m * pose.dCg.x, -nR.x, -nF.x, -tR.x, -tF.x],
     [m * pose.dCg.z, -nR.z, -nF.z, -tR.z, -tF.z],
     [
@@ -103,14 +134,59 @@ export function dynamics(car: CarModel, pose: Pose, v: number, env: DynamicsEnv)
     m * grav.z + aero.z - m * pose.ddCg.z * v2,
     Ip * pose.ddTheta * v2 - (spinR * pose.rear.K + spinF * pose.front.K) * v2,
   ];
-  const [a, Nr, Nf, Tr, Tf] = solveLinear(A, b) as [number, number, number, number, number];
+
+  // Friction torque f |R| linearized as f (e . R(u)) in the wheel row; columns a, N_i, T_i.
+  const withFriction = (eR: Vec2, eF: Vec2): number[] => {
+    const M = A.map((row) => [...row]);
+    const rhs = [...b];
+    const addRow = (row: number, f: number, e: Vec2, bf: BoreForce, colN: number, colT: number): void => {
+      const r = M[row]!;
+      r[0] = r[0]! + f * dot(e, bf.da);
+      r[colN] = r[colN]! - f * dot(e, bf.n);
+      r[colT] = r[colT]! - f * dot(e, bf.t);
+      rhs[row] = rhs[row]! - f * dot(e, bf.r0);
+    };
+    addRow(0, fricR, eR, bR, 1, 3);
+    addRow(1, fricF, eF, bF, 2, 4);
+    return solveLinear(M, rhs);
+  };
+
+  // Start from the static direction (axle pushes its wheels down into the track).
+  let eR = scale(nR, -1);
+  let eF = scale(nF, -1);
+  let u = withFriction(eR, eF);
+  let converged = true;
+  if (fricR !== 0 || fricF !== 0) {
+    for (let it = 0; ; it++) {
+      const nextR = unitOr(boreAt(bR, u[0]!, u[1]!, u[3]!), eR);
+      const nextF = unitOr(boreAt(bF, u[0]!, u[2]!, u[4]!), eF);
+      const change = Math.max(norm(sub(nextR, eR)), norm(sub(nextF, eF)));
+      eR = nextR;
+      eF = nextF;
+      // |R| - e.R is second order in the direction error, so 1e-10 leaves ~1e-20 relative error.
+      if (change < 1e-10) break;
+      if (it >= MAX_BORE_ITERATIONS || !u.every(Number.isFinite)) {
+        converged = false;
+        break;
+      }
+      u = withFriction(eR, eF);
+    }
+  }
+  const [a, Nr, Nf, Tr, Tf] = u as [number, number, number, number, number];
+  const boreR = norm(boreAt(bR, a, Nr, Tr));
+  const boreF = norm(boreAt(bF, a, Nf, Tf));
 
   const pAxle =
-    mu(R) * R.axleRadius * Nr * Math.abs(omegaR - pitchCw) + mu(F) * F.axleRadius * Nf * Math.abs(omegaF - pitchCw);
+    mu(R) * R.axleRadius * boreR * Math.abs(omegaR - pitchCw) + mu(F) * F.axleRadius * boreF * Math.abs(omegaF - pitchCw);
   const pRolling = crr(R) * R.r * Nr * Math.abs(omegaR) + crr(F) * F.r * Nf * Math.abs(omegaF);
   const pAero = -dot(aero, vCg);
 
-  return { a, Nr, Nf, Tr, Tf, pAxle, pRolling, pAero, omegaR, omegaF, vCg };
+  return { a, Nr, Nf, Tr, Tf, boreR, boreF, pAxle, pRolling, pAero, omegaR, omegaF, vCg, converged };
+}
+
+function unitOr(x: Vec2, fallback: Vec2): Vec2 {
+  const l = norm(x);
+  return l > 0 ? scale(x, 1 / l) : fallback;
 }
 
 /** Gaussian elimination with partial pivoting. Small dense systems only. */

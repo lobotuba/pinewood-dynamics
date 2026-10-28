@@ -1,13 +1,13 @@
-// Run demo races on the estimated 35-ft BestTrack profile and print results with provenance.
+// Run demo races on the 35-ft BestTrack profile (manufacturer drawing, estimated curve shape) and print results with provenance.
 // Usage: npm run race
 
 import { toInches, toOunces } from "../src/core/units.js";
 import { DEFAULT_ENVIRONMENT, demoCar } from "../src/kit/kit.js";
 import { NO_LOSSES } from "../src/physics/dynamics.js";
 import { type RaceResult, simulateRace } from "../src/physics/race.js";
-import { bestTrack35Estimated } from "../src/track/track.js";
+import { bestTrack } from "../src/track/track.js";
 
-const track = bestTrack35Estimated();
+const track = bestTrack(35);
 const env = DEFAULT_ENVIRONMENT;
 
 function show(label: string, r: RaceResult): void {

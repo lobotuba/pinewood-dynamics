@@ -1,8 +1,10 @@
 # Physics model, MVP solver (PHY-009)
 
-Status: milestone M1, physics core with no graphics. Gates P0–P5 pass against analytic solutions
-(section 7). The solver has **not** been checked against real races: the track profile and every
-kit and friction value are ESTIMATED (section 8).
+Status: milestone M1, physics core with no graphics, solver `phy-009/0.2.0`. Gates P0–P5 pass
+against analytic solutions (section 7). The solver has been compared with one published experiment
+(`docs/validation.md`): it gets the overall time right, but not the size of the mass and CG
+effects. It has not been validated against the owner's track. The kit and friction values are still
+ESTIMATED (section 8).
 
 Controlling requirements: spec sections 8, 10 and 11; PHY-001…009, ANA-001, TIM-001, GATE-004,
 AERO-001, FRI-001, WHL-004, TRK-003/004.
@@ -19,7 +21,7 @@ Included:
 - gravity acting on the actual CG position;
 - translational and pitch kinetic energy;
 - wheel spin inertia;
-- Coulomb friction at the axle and bore;
+- Coulomb friction at the axle and bore, under the actual axle–wheel contact force;
 - rolling resistance;
 - aerodynamic drag;
 - wheel loads from the full rigid-body balance on the slope and transition, including centripetal
@@ -81,13 +83,17 @@ solved together:
 
 | Equation | Content |
 |---|---|
-| Wheel spin, rear and front | `(I_i/r_i)(s_i' s̈ + s_i'' ṡ²) = −r_i T_i − σ_i μ_i ρ_i N_i − C_rr,i r_i N_i` |
+| Wheel spin, rear and front | `(I_i/r_i)(s_i' s̈ + s_i'' ṡ²) = −r_i T_i − σ_i μ_i ρ_i \|R_i\| − C_rr,i r_i N_i` |
 | Whole-car force (x, z) | `m P_cg'' terms = m g + Σ(N_i n_i + T_i t_i) + F_aero` |
 | Whole-car moment about the CG (clockwise) | `I_p θ̈_cw + Σ I_i ω̇_i = Σ[−ρ_ci × (N_i n_i + T_i t_i) − C_rr,i r_i N_i]` |
 
 Where:
 
 - `ρ_i` is the axle radius at the bore contact.
+- `R_i` is the force the axle exerts on axle `i`'s wheels. It comes from the wheel pair's own
+  Newton equation, `R_i = m_wi (C_i' s̈ + C_i'' ṡ²) − m_wi g − N_i n_i − T_i t_i`, where `m_wi` is the
+  wheels' mass and `C_i` is the axle centre. The track carries the wheels' weight directly, so the
+  bore load is less than `N_i`.
 - `σ_i` is the sign of the wheel's spin relative to the body. At rest it is +1, because the car
   can only start forward.
 - `ρ_ci` is the vector from the CG to the contact point.
@@ -98,16 +104,24 @@ Where:
 **Losses (power).**
 
 ```
-P_axle = Σ μ_i ρ_i N_i |ω_i − θ̇_cw|
+P_axle = Σ μ_i ρ_i |R_i| |ω_i − θ̇_cw|
 P_roll = Σ C_rr,i N_i r_i |ω_i|
 P_aero = ½ ρ_air C_d A |v_cg|³
 ```
 
+**Solving with exact bore load.** `R_i` is linear in the unknowns, but `|R_i|` is not. Writing
+`|R_i| = e_i · R_i` with `e_i` the unit direction of `R_i` makes the system linear for a given `e_i`.
+`e_i` is then updated from the solution until it changes by less than 1e-10. That takes 2–3
+iterations, because the friction arm `μρ/r` is about 0.01–0.03. The remaining error in `|R_i|` is
+second order in the direction error, about 1e-20 relative.
+
+**Friction with no consistent solution.** If `μ ρ / r` approaches 1, sliding Coulomb friction has
+no consistent solution, a Painlevé-type paradox, and the iteration does not converge. At the gate
+this means friction holds the car (`STALLED`). While moving, the run ends as
+`OUTSIDE_MODEL_VALIDITY`. Real derby axles are around 0.01–0.03.
+
 **Approximations.**
 
-- The axle–bore load is taken as the contact normal load `N_i`. This ignores the wheel's own
-  weight and tangential force, which are about 4% of the load for a 2.6 g wheel. The calibrated
-  `μ` absorbs it.
 - `μ`, `C_rr` and `C_d A` are constants.
 - Aerodynamic drag acts at the CG and produces no pitching moment.
 
@@ -165,7 +179,9 @@ Every input is a `Sourced<T>` value carrying its provenance. The result record h
 | P1 | Frictionless car with weightless wheels on an incline | `t = √(2D/(g sin α))` | 5e-11 s |
 | P1 | Energy through the curved transition, including pitch | Ledger residual | < 1e-8 J |
 | P2 | Wheel inertia on an incline | `a = m g sin α / (m + ΣI/r²)`, plus the KE split | 5e-11 s |
-| P3 | Axle friction and rolling loss on an incline | `a = [m g sin α − (μρ/r + C_rr) m g cos α] / (m + ΣI/r²)`, loss work, `N_r+N_f = m g cos α` | 5e-11 s, 5e-10 J |
+| P3 | Axle friction and rolling loss on an incline, exact bore load | `\|R\| = βN`, `β = [kc + √(k²c² + (1−k²)(1+c²))]/(1−k²)`, `k = μρ/r`, `c = C_rr`; `a = g sin α − (kβ + c) g cos α`; loss work; `N_r+N_f = m g cos α` | 5e-11 s, 5e-10 J |
+| P3 | Bore load with wheel mass | Wheel pair's Newton equation rebuilt from the trace; bore load below `N` | 1e-12 N |
+| P3 | Ledger with every loss and massive wheels, through the transition | Residual at every sample | < 1e-8 J |
 | P3 | Friction holds the car | `STALLED` | – |
 | P4 | Drag only, incline | `s(t) = (v_t²/g sin α) ln cosh(g sin α t / v_t)` | 5e-10 s |
 | P5 | Static load split on an incline | `N_f = m g cos α x_cg/WB` | 5e-11 N |
@@ -180,9 +196,10 @@ Every input is a `Sourced<T>` value carrying its provenance. The result record h
 The solver is verified: it solves its equations correctly. It is not yet validated, meaning it has
 not been shown to match real races. Validation needs:
 
-1. **CHAR-005 track survey** to replace the ESTIMATED BestTrack profile (a 25° slope and 2.0 m
-   transition were placeholders). Measured points will need a smooth fitted profile; the path
-   module currently takes only lines and arcs.
+1. **CHAR-005 track survey** to replace the estimated curve shape. The BestTrack lengths, 26° slope
+   and pin position now come from the manufacturer drawing (`bestTrack()`); the curved lane is
+   assumed to have uniform curvature (`docs/validation.md`, section 2). Measured points will need a
+   smooth fitted profile; the path module currently takes only lines and arcs.
 2. **CHAR-001/002/003 kit measurements:** wheel radius, mass and spin inertia, axle radius, block,
    and axle datums.
 3. **CHAR-006 friction calibration:** `μ` and `C_rr` from filmed runs or coast-downs, using a set
@@ -190,18 +207,28 @@ not been shown to match real races. Validation needs:
 4. **A written acceptance criterion** for predicted versus measured time, frozen before the
    comparison is made.
 
-## 9. Demo output on the estimated track (`npm run race`)
+## 9. Demo output on BestTrack 35 ft (`npm run race`)
 
-These numbers illustrate the model's sensitivities. They are not predictions: every input is
-ESTIMATED.
+The track is built from the manufacturer drawing with an estimated curve shape. These numbers
+illustrate the model's sensitivities. They are not predictions, because the car inputs are ESTIMATED.
+The Duke comparison (`docs/validation.md`) suggests the real mass and CG effects are several times
+larger than shown here.
 
 | Car (4.9 oz unless stated) | Time | Finish speed |
 |---|---|---|
-| No losses | 2.612 s | 4.43 m/s |
-| CG 1.0 in ahead of the rear axle | 2.718 s | 4.04 m/s |
-| CG 0.5 in | 2.714 s | 4.05 m/s |
-| CG 2.0 in | 2.727 s | 4.02 m/s |
-| CG 3.0 in | 2.736 s | 3.99 m/s |
+| No losses | 2.532 s | 4.61 m/s |
+| CG 1.0 in ahead of the rear axle | 2.623 s | 4.26 m/s |
+| CG 0.5 in | 2.619 s | 4.27 m/s |
+| CG 2.0 in | 2.631 s | 4.23 m/s |
+| CG 3.0 in | 2.639 s | 4.21 m/s |
 | CG 0.25 in | front wheels lift in the transition | – |
-| 4.0 oz, CG 1.0 in | 2.735 s | 4.01 m/s |
-| Unlubricated axles (μ 0.35), CG 1.0 in | 2.824 s | 3.71 m/s |
+| 4.0 oz, CG 1.0 in | 2.639 s | 4.22 m/s |
+| Unlubricated axles (μ 0.35), CG 1.0 in | 2.708 s | 3.96 m/s |
+
+## 10. Environment (AERO-001)
+
+`environmentFrom()` derives air density from the room's temperature, pressure and relative humidity.
+It treats dry air and water vapour as ideal gases, with the Buck (1996) saturation vapour pressure.
+The result is 1.2041 kg/m³ for dry air at 20 °C and 101325 Pa. Humid air is lighter. Over a normal
+range of room conditions, density varies by about ±5%. That changes drag by the same proportion,
+which is worth a few milliseconds.

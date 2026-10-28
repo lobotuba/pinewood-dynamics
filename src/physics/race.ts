@@ -7,7 +7,7 @@ import { type CarSpec, type Environment, carModel, inputProvenance } from "./car
 import { ALL_LOSSES, type LossSwitches, dynamics } from "./dynamics.js";
 import { CarKinematics, type Pose } from "./kinematics.js";
 
-export const SOLVER_VERSION = "phy-009/0.1.0";
+export const SOLVER_VERSION = "phy-009/0.2.0";
 
 export interface RaceOptions {
   /** Fixed RK4 step, s. Convergence is demonstrated by step halving (PHY-005). */
@@ -28,8 +28,17 @@ export interface TraceSample {
   readonly theta: number;
   readonly cg: Vec2;
   readonly nose: Vec2;
+  /** Rear-axle arc acceleration, m/s^2. */
+  readonly a: number;
   readonly Nr: number;
   readonly Nf: number;
+  readonly Tr: number;
+  readonly Tf: number;
+  /** Axle-bore contact force magnitudes, N. */
+  readonly boreR: number;
+  readonly boreF: number;
+  /** False if the friction model had no consistent solution at this instant. */
+  readonly frictionConsistent: boolean;
   /** Energy-ledger residual at this instant, J (ANA-001). */
   readonly residual: number;
 }
@@ -141,8 +150,14 @@ export function simulateRace(spec: CarSpec, track: Track, env: Environment, opts
       theta: pose.theta,
       cg: pose.cg,
       nose: pose.nose,
+      a: d.a,
       Nr: d.Nr,
       Nf: d.Nf,
+      Tr: d.Tr,
+      Tf: d.Tf,
+      boreR: d.boreR,
+      boreF: d.boreF,
+      frictionConsistent: d.converged,
       residual: ledgerAt(y).residual,
     };
   };
@@ -193,12 +208,24 @@ export function simulateRace(spec: CarSpec, track: Track, env: Environment, opts
   let t = 0;
   let maxSpeed = 0;
   const first = dynamics(car, pose0, 0, denv);
-  if (!(first.a > 0)) return finish("STALLED", "Car does not start: friction holds it at the gate.", y, null, 0);
+  if (!first.converged || !(first.a > 0)) {
+    return finish("STALLED", "Car does not start: friction holds it at the gate.", y, null, 0);
+  }
 
   for (let step = 0; t < maxTime; step++) {
     const s = sample(t, y);
     if (step % traceEvery === 0) trace.push(s);
     maxSpeed = Math.max(maxSpeed, s.speedCg);
+    if (!s.frictionConsistent) {
+      trace.push(s);
+      return finish(
+        "OUTSIDE_MODEL_VALIDITY",
+        `Axle friction has no consistent sliding solution at t=${t.toFixed(4)} s (friction arm too large).`,
+        y,
+        null,
+        maxSpeed,
+      );
+    }
     if (s.Nr <= 0 || s.Nf <= 0) {
       trace.push(s);
       const which = s.Nf <= 0 ? "front" : "rear";

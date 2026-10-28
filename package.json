@@ -7,7 +7,8 @@
   "scripts": {
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "race": "tsx scripts/run-race.ts"
+    "race": "tsx scripts/run-race.ts",
+    "compare:mann2012": "tsx scripts/compare-mann2012.ts"
   },
   "license": "UNLICENSED",
   "devDependencies": {

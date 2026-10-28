@@ -6,7 +6,7 @@ import { v2 } from "../src/core/vec2.js";
 import { DEFAULT_ENVIRONMENT, demoCar } from "../src/kit/kit.js";
 import { NO_LOSSES } from "../src/physics/dynamics.js";
 import { simulateRace } from "../src/physics/race.js";
-import { bestTrack35Estimated, finishS, idealRamp } from "../src/track/track.js";
+import { bestTrack, finishS, idealRamp } from "../src/track/track.js";
 import { sourced } from "../src/core/provenance.js";
 import { G, straightIncline, testCar, testEnv } from "./helpers.js";
 
@@ -23,7 +23,7 @@ describe("P1 ideal gravity and energy conservation (PHY-001)", () => {
   });
 
   it("conserves energy through a curved transition, including pitch (ANA-001)", () => {
-    const r = simulateRace(testCar({ spinInertia: 2e-7 }), bestTrack35Estimated(), testEnv(), { losses: NO_LOSSES });
+    const r = simulateRace(testCar({ spinInertia: 2e-7 }), bestTrack(35), testEnv(), { losses: NO_LOSSES });
     const l = r.ledger;
     expect(r.status).toBe("FINISHED");
     expect(Math.abs(l.residual)).toBeLessThan(1e-8);
@@ -49,22 +49,52 @@ describe("P2 wheel rotational inertia (PHY-002)", () => {
 });
 
 describe("P3 axle friction and rolling loss (PHY-003, FRI-001)", () => {
-  it("matches a = [m g sin a - (mu r_axle / r + Crr) m g cos a] / (m + sum I / r^2)", () => {
+  // Massless, spinless wheels: the axle force R = -(N n + T t) and T = -(k|R| + c N), with
+  // k = mu r_axle / r and c = Crr. So |R| = beta N, beta = [kc + sqrt(k^2 c^2 + (1-k^2)(1+c^2))] / (1-k^2),
+  // and a = g sin a - (k beta + c) g cos a whatever the load split.
+  it("matches the exact Coulomb bore-load solution on an incline", () => {
     const m = 0.14;
-    const I = 4e-7;
     const rw = 0.015;
     const rAx = 0.0011;
     const mu = 0.15;
     const crr = 0.003;
-    const a = (m * G * sin - ((mu * rAx) / rw + crr) * m * G * cos) / (m + (2 * I) / (rw * rw));
-    const car = testCar({ mass: m, spinInertia: I, wheelRadius: rw, axleRadius: rAx, mu, crr });
+    const k = (mu * rAx) / rw;
+    const beta = (k * crr + Math.sqrt(k * k * crr * crr + (1 - k * k) * (1 + crr * crr))) / (1 - k * k);
+    const a = G * sin - (k * beta + crr) * G * cos;
+    const car = testCar({ mass: m, wheelRadius: rw, axleRadius: rAx, mu, crr });
     const r = simulateRace(car, straightIncline(alpha, D), testEnv(0), { traceEvery: 1 });
     expect(r.elapsedTime!).toBeCloseTo(Math.sqrt((2 * D) / a), 10);
-    // Losses equal the friction work: (mu r_axle / r + Crr) m g cos a * D.
-    const axleWork = ((mu * rAx) / rw) * m * G * cos * D;
-    expect(r.ledger.axleLoss).toBeCloseTo(axleWork, 9);
+    // Loss work: friction torque times wheel turn angle D / r, and Crr N r times the same.
+    expect(r.ledger.axleLoss).toBeCloseTo(k * beta * m * G * cos * D, 9);
     expect(r.ledger.rollingLoss).toBeCloseTo(crr * m * G * cos * D, 9);
-    for (const s of r.trace) expect(s.Nr + s.Nf).toBeCloseTo(m * G * cos, 10);
+    for (const s of r.trace) {
+      expect(s.Nr + s.Nf).toBeCloseTo(m * G * cos, 10);
+      expect(s.boreR).toBeCloseTo(beta * s.Nr, 12);
+    }
+  });
+
+  it("takes the bore load from the wheel pair's own Newton equation, so the track carries the wheel weight", () => {
+    const mw = 0.0052;
+    const rw = 0.015;
+    const car = testCar({ wheelMass: mw, wheelRadius: rw, spinInertia: 4e-7, mu: 0.15, crr: 0.003 });
+    const r = simulateRace(car, straightIncline(alpha, D), testEnv(0), { traceEvery: 25 });
+    const t = { x: cos, z: -sin };
+    const n = { x: sin, z: cos };
+    for (const s of r.trace) {
+      for (const [N, T, bore] of [[s.Nr, s.Tr, s.boreR], [s.Nf, s.Tf, s.boreF]] as const) {
+        // R = m_w (a t - g) - N n - T t, with g = (0, -G).
+        const Rx = mw * s.a * t.x - N * n.x - T * t.x;
+        const Rz = mw * s.a * t.z + mw * G - N * n.z - T * t.z;
+        expect(bore).toBeCloseTo(Math.hypot(Rx, Rz), 12);
+        expect(bore).toBeLessThan(N); // N includes the wheel weight; the axle does not carry it
+      }
+    }
+  });
+
+  it("closes the energy ledger with massive wheels and every loss through the transition (ANA-001)", () => {
+    const r = simulateRace(demoCar(), bestTrack(35), DEFAULT_ENVIRONMENT, { traceEvery: 10 });
+    expect(r.status).toBe("FINISHED");
+    for (const s of r.trace) expect(Math.abs(s.residual)).toBeLessThan(1e-8);
   });
 
   it("reports a car that friction holds at the gate as STALLED", () => {
@@ -106,7 +136,7 @@ describe("P5 CG and rigid-body loads (PHY-007)", () => {
   });
 
   it("makes a more rearward CG faster on a track with a transition (higher start, longer drop)", () => {
-    const track = bestTrack35Estimated();
+    const track = bestTrack(35);
     const times = [0.04, 0.03, 0.02].map(
       (x) => simulateRace(testCar({ cg: v2(x, 0.008), spinInertia: 2e-7 }), track, testEnv(), { losses: NO_LOSSES }).elapsedTime!,
     );
@@ -115,7 +145,7 @@ describe("P5 CG and rigid-body loads (PHY-007)", () => {
   });
 
   it("flags front-wheel lift in the transition instead of reporting a time", () => {
-    const r = simulateRace(demoCar({ cgX: 0.25 * 0.0254 }), bestTrack35Estimated(), DEFAULT_ENVIRONMENT);
+    const r = simulateRace(demoCar({ cgX: 0.25 * 0.0254 }), bestTrack(35), DEFAULT_ENVIRONMENT);
     expect(r.status).toBe("OUTSIDE_MODEL_VALIDITY");
     expect(r.message).toMatch(/front wheels lift/);
     expect(r.elapsedTime).toBeNull();
@@ -123,7 +153,7 @@ describe("P5 CG and rigid-body loads (PHY-007)", () => {
 });
 
 describe("PHY-005 numerics: convergence, determinism", () => {
-  const track = bestTrack35Estimated();
+  const track = bestTrack(35);
   const car = demoCar();
 
   it("gives the same time to 1e-8 s when the step is halved, with residual below 1e-8 J", () => {
@@ -170,7 +200,7 @@ describe("TIM-001 / GATE-004 start and finish events", () => {
 
 describe("MODE-004 result record", () => {
   it("records solver version, track profile status and the weakest input", () => {
-    const r = simulateRace(demoCar(), bestTrack35Estimated(), DEFAULT_ENVIRONMENT);
+    const r = simulateRace(demoCar(), bestTrack(35), DEFAULT_ENVIRONMENT);
     expect(r.record.solverVersion).toMatch(/^phy-009\//);
     expect(r.record.trackProfile).toBe("ESTIMATED");
     expect(r.record.weakestInput).toBe("ESTIMATED");

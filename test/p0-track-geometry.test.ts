@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { inches } from "../src/core/units.js";
 import { dot, norm, sub, v2 } from "../src/core/vec2.js";
 import { Path } from "../src/track/path.js";
-import { bestTrack35Estimated, finishS } from "../src/track/track.js";
+import { bestTrack, finishS } from "../src/track/track.js";
 
 const ramp = () =>
   Path.build(v2(0, 1), -Math.PI / 6, [
@@ -55,10 +55,29 @@ describe("P0 track geometry", () => {
   });
 
   it("TRK-001: BestTrack 35 ft puts the finish 358 in from the pin and labels the profile ESTIMATED (TRK-004)", () => {
-    const t = bestTrack35Estimated();
+    const t = bestTrack(35);
     expect(t.timedDistance.provenance).toBe("MANUFACTURER");
     expect(finishS(t) - t.pinS).toBeCloseTo(inches(358), 12);
     expect(t.profileStatus).toBe("ESTIMATED");
     expect(finishS(t)).toBeLessThan(t.surface.length);
+  });
+
+  it("reproduces the manufacturer drawing's independent dimensions", () => {
+    for (const [len, overall, footprint] of [[35, 417, 407], [42, 501, 491], [49, 585, 575]] as const) {
+      const t = bestTrack(len);
+      // Overall lane length 34'9", 41'9", 48'9"; footprint 33'11", 40'11", 47'11" (to the inch).
+      expect(t.surface.length).toBeCloseTo(inches(overall), 12);
+      const end = t.surface.at(t.surface.length).p;
+      expect(Math.abs(end.x - inches(footprint))).toBeLessThan(inches(0.5));
+      // Middle timer hole 11 in from the end of the last 7 ft section, before the 40 in stop section.
+      expect(t.surface.length - inches(40) - finishS(t)).toBeCloseTo(inches(11), 12);
+    }
+    // Curve top 11-3/8 in above the floor and pin about 45 in above it imply flat lanes about
+    // 2.2 in above the floor: the drop from the curve top to the flat must be under 11-3/8 in.
+    const t = bestTrack(35);
+    const curveTop = t.surface.at(inches(84)).p.z;
+    const pinHeightAboveCurveTop = t.surface.at(t.pinS).p.z - curveTop;
+    expect(curveTop).toBeLessThan(inches(11.375));
+    expect(Math.abs(pinHeightAboveCurveTop - inches(45 - 11.375))).toBeLessThan(inches(0.5));
   });
 });

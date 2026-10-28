@@ -64,30 +64,51 @@ export function idealRamp(p: RampParams, name = "Idealized test ramp"): Track {
   };
 }
 
+export type BestTrackLength = 35 | 42 | 49;
+
+const BESTTRACK_SPECS = "https://www.besttrack.com/track_specs.html";
+const BESTTRACK_DRAWING = "https://www.besttrack.com/tracklayoutsketch2.pdf";
+/** Start pin to the middle timer hole, in (MANUFACTURER, BESTTRACK_SPECS). */
+const BESTTRACK_TIMED_IN: Record<BestTrackLength, number> = { 35: 358, 42: 442, 49: 526 };
+/** 7-ft straight lane sections after the curved lane (MANUFACTURER). */
+const BESTTRACK_STRAIGHTS: Record<BestTrackLength, number> = { 35: 3, 42: 4, 49: 5 };
+
 /**
- * BestTrack 35-ft configuration with an ESTIMATED lane profile.
+ * BestTrack aluminium track built from the manufacturer's layout drawing and specification page.
  *
- * MANUFACTURER: timed distance 358 in from start-gate pin to middle timing hole, and three
- * 7-ft straights plus a stop section after the curve (External_Knowns_BestTrack).
- * ESTIMATED: everything else below. Slope angle, slope length, transition radius and pin
- * position were chosen to be plausible (about 1 m total drop, post-curve flat close to the
- * published 21 ft of straights) and are placeholders until the CHAR-005 track survey.
- * The along-surface interpretation of the timed distance is also an assumption.
+ * MANUFACTURER: a 7 ft start lane at 26 deg; a curved lane 41 in long; 7 ft straight lanes plus a
+ * 40 in stop section; the start pin 8 in down the start lane from its top end; the timed distance
+ * from the pin to the middle timer hole (358, 442 or 526 in).
+ *
+ * ESTIMATED: the curved lane has uniform curvature, turning 26 deg over 41 in (radius 90.35 in).
+ * The drawing labels it "4 ft radius", but a 41 in arc of 48 in radius would turn 49 deg, not 26.
+ * Uniform curvature fits the drawing's other numbers: the curve top at 11-3/8 in, the track top
+ * at about 48 in and the pin at about 45 in above the floor, and the 33 ft 11 in footprint of the
+ * 35 ft track. It also gives a 1.17 m drop from the start lane top, matching the 26 deg aluminium
+ * track in Mann, Gibbs and Sah (2012). The real curve shape needs the CHAR-005 survey. The drawing
+ * does not say whether the 8 in is to the pin's centre or its face; the lane is taken as one smooth
+ * surface with no joint steps.
  */
-export function bestTrack35Estimated(): Track {
-  const params: RampParams = {
-    slope: degrees(25),
-    slopeLength: 2.2,
-    transitionRadius: 2.0,
-    flatLength: 7.5,
-    pinS: 0.3,
-    timedDistance: sourced(inches(358), "MANUFACTURER", "https://www.besttrack.com/track_specs.html"),
-  };
+export function bestTrack(length: BestTrackLength = 35): Track {
+  const slope = degrees(26);
+  const startLane = inches(84);
+  const curve = inches(41);
+  const radius = curve / slope;
+  const flat = BESTTRACK_STRAIGHTS[length] * inches(84) + inches(40);
+  const top = startLane * Math.sin(slope) + radius * (1 - Math.cos(slope));
+  const surface = Path.build(v2(0, top), -slope, [
+    { kind: "line", length: startLane },
+    { kind: "arc", radius, turn: slope },
+    { kind: "line", length: flat },
+  ]);
   return {
-    ...idealRamp(params, "BestTrack 35 ft (estimated profile)"),
+    name: `BestTrack ${length} ft (manufacturer drawing, estimated curve shape)`,
+    surface,
     profileStatus: "ESTIMATED",
     profileSource:
-      "Placeholder geometry: 25 deg slope, 2.0 m transition radius, pin 0.3 m below slope top. " +
-      "Replace with CHAR-005 survey before comparing with real races.",
+      `Lengths, 26 deg slope and pin position from the manufacturer drawing (${BESTTRACK_DRAWING}); ` +
+      "curved lane assumed uniform (41 in turning 26 deg, radius 90.35 in) pending the CHAR-005 survey.",
+    pinS: inches(8),
+    timedDistance: sourced(inches(BESTTRACK_TIMED_IN[length]), "MANUFACTURER", BESTTRACK_SPECS),
   };
 }

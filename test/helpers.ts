@@ -17,6 +17,7 @@ export interface TestCarParams {
   nose?: Vec2;
   dragArea?: number;
   wheelRadius?: number;
+  wheelMass?: number; // per axle (both wheels)
   spinInertia?: number; // per axle (both wheels)
   axleRadius?: number;
   mu?: number;
@@ -26,6 +27,7 @@ export interface TestCarParams {
 export function testCar(p: TestCarParams = {}): CarSpec {
   const axle = (): AxleSpec => ({
     wheelRadius: d(p.wheelRadius ?? 0.015),
+    wheelMass: d(p.wheelMass ?? 0),
     spinInertia: d(p.spinInertia ?? 0),
     axleRadius: d(p.axleRadius ?? 0.0011),
     axleFriction: d(p.mu ?? 0),

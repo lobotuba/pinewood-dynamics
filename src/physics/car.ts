@@ -10,6 +10,8 @@ import type { Vec2 } from "../core/vec2.js";
 export interface AxleSpec {
   /** Wheel outer radius, m. */
   readonly wheelRadius: Sourced<number>;
+  /** Mass of both wheels on this axle, kg. Already included in the car's total mass. */
+  readonly wheelMass: Sourced<number>;
   /** Spin inertia of both wheels on this axle about the axle, kg m^2 (WHL-008). */
   readonly spinInertia: Sourced<number>;
   /** Radius of the axle at the bore contact, m. */
@@ -26,7 +28,10 @@ export interface CarSpec {
   readonly mass: Sourced<number>;
   /** Centre of gravity in the body frame, m. */
   readonly cg: Sourced<Vec2>;
-  /** Pitch moment of inertia about the CG, kg m^2, excluding the wheels' spin inertia. */
+  /**
+   * Pitch moment of inertia of the whole car about its CG, kg m^2, counting the wheels as point
+   * masses at their axles. Wheel spin inertia is separate (AxleSpec.spinInertia).
+   */
   readonly pitchInertia: Sourced<number>;
   /** Distance between axle axes, m (LOC-WB-001). */
   readonly wheelbase: Sourced<number>;
@@ -46,6 +51,7 @@ export interface Environment {
 /** Plain numbers extracted from a spec, in SI units. */
 export interface AxleModel {
   readonly r: number;
+  readonly wheelMass: number;
   readonly spinInertia: number;
   readonly axleRadius: number;
   readonly mu: number;
@@ -65,6 +71,7 @@ export interface CarModel {
 
 const axleModel = (a: AxleSpec): AxleModel => ({
   r: a.wheelRadius.value,
+  wheelMass: a.wheelMass.value,
   spinInertia: a.spinInertia.value,
   axleRadius: a.axleRadius.value,
   mu: a.axleFriction.value,
@@ -98,6 +105,7 @@ export function inputProvenance(spec: CarSpec, env: Environment): Record<string,
   };
   for (const [axle, a] of [["rear", spec.rear], ["front", spec.front]] as const) {
     out[`${axle}.wheelRadius`] = a.wheelRadius.provenance;
+    out[`${axle}.wheelMass`] = a.wheelMass.provenance;
     out[`${axle}.spinInertia`] = a.spinInertia.provenance;
     out[`${axle}.axleRadius`] = a.axleRadius.provenance;
     out[`${axle}.axleFriction`] = a.axleFriction.provenance;

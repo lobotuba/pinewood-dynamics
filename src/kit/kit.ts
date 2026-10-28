@@ -90,6 +90,7 @@ export function demoCar(o: DemoCarOptions = {}): CarSpec {
   const wb = k.frontAxleFromRear.value - k.rearAxleFromRear.value;
   const axle = (): AxleSpec => ({
     wheelRadius: k.wheelRadius,
+    wheelMass: est(2 * k.wheelMass.value, `${EST} Two wheels.`),
     spinInertia: est(2 * k.wheelSpinInertia.value, `${EST} Two wheels.`),
     axleRadius: k.axleRadius,
     axleFriction: est(o.axleFriction ?? 0.15, "Polished axle with graphite: guess pending CHAR-006."),
