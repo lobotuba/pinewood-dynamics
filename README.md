@@ -17,6 +17,7 @@ npm test          # verification suite (P0-P5, numerics, timing, provenance)
 npm run typecheck
 npm run race      # demo races on BestTrack 35 ft (manufacturer drawing, estimated curve shape)
 npm run compare:mann2012   # blind comparison with Mann, Gibbs and Sah (2012)
+npm run screen:mann2012    # which loss mechanisms could explain that experiment (about 2 min)
 npm run survey -- file.csv # fit a track survey and race on it (docs/track-survey.md)
 npm run survey:precision   # how precisely a track must be surveyed
 ```

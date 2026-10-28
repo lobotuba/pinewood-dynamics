@@ -1,6 +1,6 @@
 # Physics model, MVP solver (PHY-009)
 
-Status: milestone M1, physics core with no graphics, solver `phy-009/0.2.0`. Gates P0–P5 pass
+Status: milestone M1, physics core with no graphics, solver `phy-009/0.3.0`. Gates P0–P5 pass
 against analytic solutions (section 7). The solver has been compared with one published experiment
 (`docs/validation.md`): it gets the overall time right, but not the size of the mass and CG
 effects. It has not been validated against the owner's track. The kit and friction values are still
@@ -134,8 +134,25 @@ this means friction holds the car (`STALLED`). While moving, the run ends as
 
 **Approximations.**
 
-- `μ`, `C_rr` and `C_d A` are constants.
+- `μ`, `C_rr` and `C_d A` are constants, unless one of the friction refinements below is given.
 - Aerodynamic drag acts at the CG and produces no pitching moment.
+
+**Friction refinements (FRI-001; off unless given).** Two optional axle inputs exist so that
+mechanisms can be tested against data (`docs/validation.md`, section 5). No default car uses them.
+
+- *Hub drag* `Q_i` (`AxleSpec.hubDrag`): a fixed torque on axle `i`'s wheels, opposing their rotation
+  relative to the body, whatever the load. It stands for hub-face rubbing with a fixed preload, a
+  seal or a viscous film. It adds `−σ_i Q_i` to the wheel-spin equation and `Q_i |ω_i − θ̇_cw|` to
+  `P_axle`.
+- *Load-dependent coefficient* (`AxleSpec.frictionLaw`): `μ_i = μ_ref (W_i / W_ref)^(n−1)`, with
+  `W_i = |R_i|/2` the load per wheel. The friction force then goes as `W^n`. `n = 1` is Coulomb;
+  `n = 2/3` is elastic Hertz contact with constant interfacial shear strength (Bowden and Tabor).
+  The coefficient is updated from `|R_i|` inside the same iteration as the direction `e_i`. That
+  converges geometrically with ratio `|1 − n|`, so the iteration limit is 60.
+
+The second matters for calibration. A spin-down test loads the bore with one wheel's weight,
+about 0.026 N for a kit wheel, while racing loads it with about 0.45 N. A coefficient measured one
+way carries over to the other only if friction is Coulomb (CHAR-006).
 
 ## 4. Energy ledger (ANA-001)
 
@@ -202,6 +219,9 @@ Every input is a `Sourced<T>` value carrying its provenance. The result record h
 | PHY-005 | Halving the step | Δt < 1e-8 s, residual < 1e-8 J | – |
 | PHY-005 | Same inputs twice | Bit-identical | – |
 | TIM-001 | Clock stops on the nose | Nose on the finish plane | 1e-9 m |
+| FRI-001 | Hub drag on an incline (`test/p6-mechanisms.test.ts`) | `a = g sin α − 2Q/(m r)`; loss `2QD/r` | 5e-11 s, 5e-11 J |
+| FRI-001 | Load-dependent coefficient | `n = 1` identical to Coulomb; `T_i = −μ(W_i) ρ \|R_i\|/r` at every sample | bit-identical; 5e-13 N |
+| VAL-001 | Scaling: every mass, inertia and hub torque × 1.7, no air, Coulomb | Time unchanged; changes with air or `n = 2/3` | 1e-9 s |
 
 ## 8. Before predictions mean anything (VAL-001)
 
@@ -209,14 +229,18 @@ The solver is verified: it solves its equations correctly. It is not yet validat
 not been shown to match real races. Validation needs:
 
 1. **CHAR-005 track survey** to replace the estimated curve shape. The BestTrack lengths, 26° slope
-   and pin position now come from the manufacturer drawing (`bestTrack()`); the curved lane is
-   assumed to have uniform curvature (`docs/validation.md`, section 2). Measured points will need a
-   smooth fitted profile; the path module currently takes only lines and arcs.
+   and pin position come from the manufacturer drawing (`bestTrack()`); the curved lane is assumed
+   to have uniform curvature (`docs/validation.md`, section 2). Surveyed points can be raced on
+   directly (`docs/track-survey.md`).
 2. **CHAR-001/002/003 kit measurements:** wheel radius, mass and spin inertia, axle radius, block,
    and axle datums.
-3. **CHAR-006 friction calibration:** `μ` and `C_rr` from filmed runs or coast-downs, using a set
-   of runs separate from the validation runs.
-4. **A written acceptance criterion** for predicted versus measured time, frozen before the
+3. **CHAR-006 friction calibration:** `μ` and `C_rr` from filmed runs or coast-downs at race load,
+   using a set of runs separate from the validation runs. A spin-down at one wheel's weight is not
+   enough unless friction is shown to be Coulomb (section 3).
+4. **Lateral dynamics and guide-rail contact (P6, P7).** The Duke screen rules out every planar loss
+   mechanism tried (`docs/validation.md`, section 5), which leaves these as the main physics
+   candidates.
+5. **A written acceptance criterion** for predicted versus measured time, frozen before the
    comparison is made.
 
 ## 9. Demo output on BestTrack 35 ft (`npm run race`)

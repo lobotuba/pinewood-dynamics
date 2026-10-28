@@ -8,7 +8,9 @@
 //   2 wheel-spin equations, 2 whole-car force equations, 1 whole-car moment equation about the CG.
 // All are linear in u except the axle friction torque mu * rho * |R_i|, where R_i is the force the
 // axle exerts on its wheels. R_i follows from the wheel pair's own Newton equation and is linear in
-// u, so |R_i| = e_i . R_i with e_i its direction; e_i is found by Newton iteration.
+// u, so |R_i| = e_i . R_i with e_i its direction; e_i is found by Newton iteration. When friction
+// depends on load (AxleModel.frictionExponent), the coefficient is updated from |R_i| in the same loop.
+// Hub drag is a fixed torque and enters the wheel equations directly.
 
 import { type Vec2, add, cross, dot, norm, scale, sub } from "../core/vec2.js";
 import type { AxleModel, CarModel } from "./car.js";
@@ -38,7 +40,7 @@ export interface Dynamics {
   /** Magnitude of the axle-bore contact force on each axle's wheels, N. */
   readonly boreR: number;
   readonly boreF: number;
-  /** Dissipated power by mechanism, W (ANA-001). */
+  /** Dissipated power by mechanism, W (ANA-001). pAxle includes hub drag. */
   readonly pAxle: number;
   readonly pRolling: number;
   readonly pAero: number;
@@ -62,7 +64,9 @@ interface BoreForce {
   readonly r0: Vec2;
 }
 
-const MAX_BORE_ITERATIONS = 20;
+// Direction alone converges in a few steps. A load-dependent coefficient converges geometrically with
+// ratio |1 - exponent|: 2/3 needs about 20 steps to reach 1e-10.
+const MAX_BORE_ITERATIONS = 60;
 
 export function dynamics(car: CarModel, pose: Pose, v: number, env: DynamicsEnv): Dynamics {
   const { rear: R, front: F } = car;
@@ -78,11 +82,18 @@ export function dynamics(car: CarModel, pose: Pose, v: number, env: DynamicsEnv)
   // Axle friction opposes wheel rotation relative to the body. At rest the car can only start forward.
   const sigma = (w: number): number => (w > 0 ? 1 : w < 0 ? -1 : 1);
 
-  const mu = (ax: AxleModel): number => (L.axleFriction ? ax.mu : 0);
+  // Friction coefficient at bore load |R| (both wheels). Load is floored so mu stays finite as |R| -> 0.
+  const mu = (ax: AxleModel, load: number): number => {
+    if (!L.axleFriction) return 0;
+    if (ax.frictionExponent === 1) return ax.mu;
+    const perWheel = Math.max(load / 2, 1e-6 * ax.frictionReferenceLoad);
+    return ax.mu * (perWheel / ax.frictionReferenceLoad) ** (ax.frictionExponent - 1);
+  };
   const crr = (ax: AxleModel): number => (L.rollingResistance ? ax.crr : 0);
-  // Friction torque on a wheel per newton of bore load, signed to oppose relative rotation.
-  const fricR = sigma(omegaR - pitchCw) * mu(R) * R.axleRadius;
-  const fricF = sigma(omegaF - pitchCw) * mu(F) * F.axleRadius;
+  const sR = sigma(omegaR - pitchCw);
+  const sF = sigma(omegaF - pitchCw);
+  const hubR = L.axleFriction ? R.hubDrag : 0;
+  const hubF = L.axleFriction ? F.hubDrag : 0;
 
   const vCg = scale(pose.dCg, v);
   const speedCg = norm(vCg);
@@ -128,15 +139,18 @@ export function dynamics(car: CarModel, pose: Pose, v: number, env: DynamicsEnv)
     ],
   ];
   const b: number[] = [
-    -spinR * pose.rear.K * v2,
-    -spinF * pose.front.K * v2,
+    -spinR * pose.rear.K * v2 - sR * hubR,
+    -spinF * pose.front.K * v2 - sF * hubF,
     m * grav.x + aero.x - m * pose.ddCg.x * v2,
     m * grav.z + aero.z - m * pose.ddCg.z * v2,
     Ip * pose.ddTheta * v2 - (spinR * pose.rear.K + spinF * pose.front.K) * v2,
   ];
 
-  // Friction torque f |R| linearized as f (e . R(u)) in the wheel row; columns a, N_i, T_i.
-  const withFriction = (eR: Vec2, eF: Vec2): number[] => {
+  // Friction torque f |R| linearized as f (e . R(u)) in the wheel row; columns a, N_i, T_i. f is the
+  // torque per newton of bore load, signed to oppose rotation relative to the body.
+  const withFriction = (eR: Vec2, eF: Vec2, muR: number, muF: number): number[] => {
+    const fricR = sR * muR * R.axleRadius;
+    const fricF = sF * muF * F.axleRadius;
     const M = A.map((row) => [...row]);
     const rhs = [...b];
     const addRow = (row: number, f: number, e: Vec2, bf: BoreForce, colN: number, colT: number): void => {
@@ -151,38 +165,56 @@ export function dynamics(car: CarModel, pose: Pose, v: number, env: DynamicsEnv)
     return solveLinear(M, rhs);
   };
 
-  // Start from the static direction (axle pushes its wheels down into the track).
+  // Start from the static direction (axle pushes its wheels down into the track) and the reference
+  // coefficient.
   let eR = scale(nR, -1);
   let eF = scale(nF, -1);
-  let u = withFriction(eR, eF);
+  let muR = mu(R, 2 * R.frictionReferenceLoad);
+  let muF = mu(F, 2 * F.frictionReferenceLoad);
+  let u = withFriction(eR, eF, muR, muF);
   let converged = true;
-  if (fricR !== 0 || fricF !== 0) {
+  if (muR !== 0 || muF !== 0) {
     for (let it = 0; ; it++) {
-      const nextR = unitOr(boreAt(bR, u[0]!, u[1]!, u[3]!), eR);
-      const nextF = unitOr(boreAt(bF, u[0]!, u[2]!, u[4]!), eF);
-      const change = Math.max(norm(sub(nextR, eR)), norm(sub(nextF, eF)));
+      const boreVecR = boreAt(bR, u[0]!, u[1]!, u[3]!);
+      const boreVecF = boreAt(bF, u[0]!, u[2]!, u[4]!);
+      const nextR = unitOr(boreVecR, eR);
+      const nextF = unitOr(boreVecF, eF);
+      const nextMuR = mu(R, norm(boreVecR));
+      const nextMuF = mu(F, norm(boreVecF));
+      const change = Math.max(
+        norm(sub(nextR, eR)),
+        norm(sub(nextF, eF)),
+        relChange(nextMuR, muR),
+        relChange(nextMuF, muF),
+      );
       eR = nextR;
       eF = nextF;
+      muR = nextMuR;
+      muF = nextMuF;
       // |R| - e.R is second order in the direction error, so 1e-10 leaves ~1e-20 relative error.
       if (change < 1e-10) break;
       if (it >= MAX_BORE_ITERATIONS || !u.every(Number.isFinite)) {
         converged = false;
         break;
       }
-      u = withFriction(eR, eF);
+      u = withFriction(eR, eF, muR, muF);
     }
   }
   const [a, Nr, Nf, Tr, Tf] = u as [number, number, number, number, number];
   const boreR = norm(boreAt(bR, a, Nr, Tr));
   const boreF = norm(boreAt(bF, a, Nf, Tf));
 
+  const slipR = Math.abs(omegaR - pitchCw);
+  const slipF = Math.abs(omegaF - pitchCw);
   const pAxle =
-    mu(R) * R.axleRadius * boreR * Math.abs(omegaR - pitchCw) + mu(F) * F.axleRadius * boreF * Math.abs(omegaF - pitchCw);
+    (mu(R, boreR) * R.axleRadius * boreR + hubR) * slipR + (mu(F, boreF) * F.axleRadius * boreF + hubF) * slipF;
   const pRolling = crr(R) * R.r * Nr * Math.abs(omegaR) + crr(F) * F.r * Nf * Math.abs(omegaF);
   const pAero = -dot(aero, vCg);
 
   return { a, Nr, Nf, Tr, Tf, boreR, boreF, pAxle, pRolling, pAero, omegaR, omegaF, vCg, converged };
 }
+
+const relChange = (next: number, prev: number): number => (prev === 0 ? Math.abs(next) : Math.abs(next - prev) / prev);
 
 function unitOr(x: Vec2, fallback: Vec2): Vec2 {
   const l = norm(x);

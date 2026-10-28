@@ -7,7 +7,7 @@ import { type CarSpec, type Environment, carModel, inputProvenance } from "./car
 import { ALL_LOSSES, type LossSwitches, dynamics } from "./dynamics.js";
 import { CarKinematics, type Pose } from "./kinematics.js";
 
-export const SOLVER_VERSION = "phy-009/0.2.0";
+export const SOLVER_VERSION = "phy-009/0.3.0";
 
 export interface RaceOptions {
   /** Fixed RK4 step, s. Convergence is demonstrated by step halving (PHY-005). */

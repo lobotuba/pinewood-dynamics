@@ -89,7 +89,7 @@ describe("survey spline surface", () => {
       const t = simulateRace(demoCar(), surveyedTrack(bestTrackSurvey(h)).track, DEFAULT_ENVIRONMENT).elapsedTime!;
       expect(Math.abs(t - exact)).toBeLessThan(tol);
     }
-  });
+  }, 30_000); // four full races at the default 0.1 ms step
 
   it("closes the energy ledger on a surveyed lane (ANA-001)", () => {
     const r = simulateRace(demoCar(), surveyedTrack(bestTrackSurvey(0.05, 0.0005)).track, DEFAULT_ENVIRONMENT, {

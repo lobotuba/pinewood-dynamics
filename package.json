@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit",
     "race": "tsx scripts/run-race.ts",
     "compare:mann2012": "tsx scripts/compare-mann2012.ts",
+    "screen:mann2012": "tsx scripts/screen-mann2012.ts",
     "survey": "tsx scripts/fit-survey.ts",
     "survey:precision": "tsx scripts/survey-precision.ts"
   },

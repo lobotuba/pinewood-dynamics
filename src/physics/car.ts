@@ -20,6 +20,19 @@ export interface AxleSpec {
   readonly axleFriction: Sourced<number>;
   /** Rolling-resistance coefficient: resisting couple = Crr * N * wheelRadius. */
   readonly rollingResistance: Sourced<number>;
+  /**
+   * How axle friction depends on bore load (FRI-001). Omitted: Coulomb, axleFriction at every load.
+   * Given: axleFriction is the coefficient at referenceLoad per wheel, and the friction force goes as
+   * load^exponent. Exponent 1 is Coulomb; 2/3 is elastic (Hertz) contact with constant interfacial
+   * shear strength (Bowden and Tabor). Needed to carry a spin-down coefficient, measured under one
+   * wheel's weight, to race loads about twenty times larger.
+   */
+  readonly frictionLaw?: { readonly exponent: Sourced<number>; readonly referenceLoad: Sourced<number> };
+  /**
+   * Load-independent drag torque on both wheels of this axle, N m, opposing their rotation relative
+   * to the body: hub-face rubbing with a fixed preload, a seal, a viscous film. Omitted: zero.
+   */
+  readonly hubDrag?: Sourced<number>;
 }
 
 export interface CarSpec {
@@ -56,6 +69,10 @@ export interface AxleModel {
   readonly axleRadius: number;
   readonly mu: number;
   readonly crr: number;
+  /** Friction force goes as bore load^frictionExponent; mu applies at frictionReferenceLoad per wheel, N. */
+  readonly frictionExponent: number;
+  readonly frictionReferenceLoad: number;
+  readonly hubDrag: number;
 }
 
 export interface CarModel {
@@ -76,6 +93,9 @@ const axleModel = (a: AxleSpec): AxleModel => ({
   axleRadius: a.axleRadius.value,
   mu: a.axleFriction.value,
   crr: a.rollingResistance.value,
+  frictionExponent: a.frictionLaw?.exponent.value ?? 1,
+  frictionReferenceLoad: a.frictionLaw?.referenceLoad.value ?? 1,
+  hubDrag: a.hubDrag?.value ?? 0,
 });
 
 export function carModel(spec: CarSpec): CarModel {
@@ -110,6 +130,11 @@ export function inputProvenance(spec: CarSpec, env: Environment): Record<string,
     out[`${axle}.axleRadius`] = a.axleRadius.provenance;
     out[`${axle}.axleFriction`] = a.axleFriction.provenance;
     out[`${axle}.rollingResistance`] = a.rollingResistance.provenance;
+    if (a.frictionLaw) {
+      out[`${axle}.frictionLaw.exponent`] = a.frictionLaw.exponent.provenance;
+      out[`${axle}.frictionLaw.referenceLoad`] = a.frictionLaw.referenceLoad.provenance;
+    }
+    if (a.hubDrag) out[`${axle}.hubDrag`] = a.hubDrag.provenance;
   }
   return out;
 }
