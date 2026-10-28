@@ -61,6 +61,19 @@ export const TYPICAL_KIT_ESTIMATE = {
   // 0.6 m r^2: most of a derby wheel's mass is in the tread ring.
   wheelSpinInertia: est(0.6 * grams(2.6) * (inches(1.18) / 2) ** 2, `${EST} Taken as 0.6 m r^2.`),
   axleRadius: est(inches(0.087) / 2),
+  // Solid-model geometry (GEO-009). Same status: typical values, not measured on the event kit.
+  wheelWidth: est(inches(0.38)),
+  /** Gap between the body side and the wheel hub, per side. */
+  wheelBodyGap: est(inches(0.03)),
+  /** Axle axis above the block's bottom face (sets the slot depth and the underside clearance). */
+  axleAboveBlockBottom: est(inches(3 / 16)),
+  axleShaftLength: est(inches(1.2)),
+  axleHeadDiameter: est(inches(0.2)),
+  axleHeadThickness: est(inches(0.04)),
+  steelDensity: sourced(7850, "DEFAULT", "Carbon steel, handbook value"),
+  /** Pine; real kit blocks vary by roughly +-15 %. Weigh the block to replace this (MAT-001). */
+  woodDensity: est(420, `${EST} Pine, 0.42 g/cm^3.`),
+  woodDensityRelativeUncertainty: est(0.15, `${EST} Spread of pine densities.`),
 } as const;
 
 export const DEFAULT_ENVIRONMENT: Environment = {

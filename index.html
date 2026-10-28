@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pinewood Dynamics — Design</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M3 22h26l-4-8H11z' fill='%23c8a46e'/%3E%3Ccircle cx='9' cy='24' r='4' fill='%23222'/%3E%3Ccircle cx='24' cy='24' r='4' fill='%23222'/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="/src/app/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">Pinewood Dynamics</div>
+      <input id="design-name" class="design-name" aria-label="Design name" />
+      <div class="tools">
+        <button id="undo" title="Undo (Ctrl+Z)">Undo</button>
+        <button id="redo" title="Redo (Ctrl+Y)">Redo</button>
+        <select id="new-design" aria-label="New design">
+          <option value="">New…</option>
+          <option value="wedge">Wedge starter</option>
+          <option value="uncut">Uncut block</option>
+        </select>
+        <button id="open">Open</button>
+        <button id="save">Save</button>
+        <input id="open-file" type="file" accept=".json,application/json" hidden />
+        <label class="units">Units
+          <select id="units">
+            <option value="metric">Metric (mm, g)</option>
+            <option value="english">English (in, oz)</option>
+          </select>
+        </label>
+      </div>
+    </header>
+    <div id="status" class="status" role="alert" hidden></div>
+    <main class="workspace">
+      <section class="view3d">
+        <div class="viewbar" role="toolbar" aria-label="View">
+          <span class="group">
+            <button data-view="perspective">Perspective</button><button data-view="top">Top</button><button data-view="bottom">Bottom</button><button data-view="front">Front</button><button data-view="rear">Rear</button><button data-view="left">Left</button><button data-view="right">Right</button><button id="fit">Fit</button>
+          </span>
+          <span class="group">
+            <button data-display="solid" aria-pressed="true">Solid</button><button data-display="xray" aria-pressed="false">X-ray</button><button data-display="wireframe" aria-pressed="false">Wireframe</button>
+          </span>
+          <span class="group toggles">
+            <label><input type="checkbox" data-show="body" />Body</label>
+            <label><input type="checkbox" data-show="wheels" />Wheels</label>
+            <label><input type="checkbox" data-show="ballast" />Weights</label>
+            <label><input type="checkbox" data-show="cg" />CG</label>
+            <label><input type="checkbox" data-show="datums" />Datums</label>
+            <label><input type="checkbox" data-show="envelope" />Rules envelope</label>
+          </span>
+        </div>
+        <div id="viewport" class="viewport"></div>
+      </section>
+      <section class="editors">
+        <div class="editor"><h3>Side profile</h3><div id="side-editor" class="editor-host"></div></div>
+        <div class="editor"><h3>Top profile</h3><div id="top-editor" class="editor-host"></div></div>
+        <p class="hint editors-hint">Drag a point to move it, click an edge to add a point, double-click a point to delete it. Alt turns off the 0.25 mm snap.</p>
+      </section>
+      <aside id="panels" class="panels"></aside>
+    </main>
+    <script type="module" src="/src/app/main.ts"></script>
+  </body>
+</html>
