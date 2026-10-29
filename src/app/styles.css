@@ -47,6 +47,8 @@ h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: 
 .tools { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-left: auto; }
 .units { display: flex; gap: 6px; align-items: center; color: var(--muted); }
 .status { margin: 8px 16px; padding: 8px 12px; border: 1px solid var(--fail); border-radius: 6px; background: #3a1f1d; }
+.status.ok { border-color: var(--pass); background: #1d3324; }
+.workspace[hidden] { display: none; }
 
 .workspace {
   flex: 1; min-height: 0;
@@ -168,10 +170,85 @@ h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: 
 
 #p-race.running .big { opacity: 0.5; }
 
+/* Mode tabs */
+.modes { display: flex; gap: 0; }
+.modes button { border-radius: 0; }
+.modes button:first-child { border-radius: 6px 0 0 6px; }
+.modes button:last-child { border-radius: 0 6px 6px 0; border-left: none; }
+.modes button[aria-selected="true"] { background: #1f3d5c; border-color: var(--accent); }
+body.racing .design-name, body.racing #design-tools > :not(.units) { display: none; }
+button.primary { background: #1f3d5c; border-color: var(--accent); width: 100%; padding: 8px; font-weight: 600; margin-top: 4px; }
+
+/* Race mode (spec 13). Lane colours: categorical slots 1-4 for the dark surface, validated together
+   on #1d2228 (lightness band, chroma, CVD and normal-vision separation, 3:1 contrast). */
+.race {
+  flex: 1; min-height: 0; overflow-y: auto;
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  grid-template-rows: minmax(420px, 68vh) auto;
+  gap: 10px; padding: 10px 16px 16px;
+}
+.race[hidden] { display: none; }
+.race-setup { grid-column: 1; grid-row: 1 / span 2; }
+.race-setup section, .race-results section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+.race-stage { grid-column: 2; grid-row: 1; display: flex; flex-direction: column; min-height: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.race-stage .hint { margin-left: auto; }
+.race-view-wrap { position: relative; flex: 1; min-height: 0; }
+.race-view-wrap .viewport { position: absolute; inset: 0; }
+.race-results { grid-column: 2; grid-row: 2; min-width: 0; }
+.lane-pick { border-top: 1px solid var(--line); padding: 8px 0 4px; display: grid; grid-template-columns: 14px 1fr; gap: 4px 8px; align-items: center; }
+.lane-pick label { display: flex; gap: 8px; align-items: center; justify-content: space-between; font-size: 13px; }
+.lane-pick select { max-width: 200px; }
+.lane-state { grid-column: 2; font-size: 12px; display: flex; flex-direction: column; gap: 2px; }
+.lane-state .compliance { font-size: 12px; margin: 0; }
+.lane-state .prov { margin: 0; }
+.swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: baseline; }
+
+.race-overlay { position: absolute; inset: 0; pointer-events: none; font-variant-numeric: tabular-nums; }
+.race-overlay .clock { position: absolute; top: 10px; right: 14px; font-size: 44px; font-weight: 700; text-shadow: 0 2px 8px #000a; }
+.race-overlay .clock .unit { font-size: 18px; color: var(--muted); margin-left: 4px; }
+.race-overlay .countdown { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 120px; font-weight: 800; text-shadow: 0 4px 16px #000c; }
+.race-overlay .countdown.go { color: var(--pass); }
+.race-overlay .lanes { position: absolute; left: 10px; bottom: 10px; margin: 0; padding: 6px 10px; list-style: none; background: #15191ecc; border-radius: 8px; font-size: 13px; }
+.race-overlay .lanes li { display: grid; grid-template-columns: 16px minmax(120px, 220px) 90px 80px; gap: 4px; align-items: center; padding: 1px 0; }
+.race-overlay .lname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.race-overlay .lval { text-align: right; }
+.race-overlay .muted { color: var(--muted); }
+.race-overlay .order { position: absolute; top: 72px; right: 14px; margin: 0; padding: 6px 10px; list-style: none; background: #15191ecc; border-radius: 8px; font-size: 14px; }
+.race-overlay .order b { display: inline-block; width: 18px; }
+.race-overlay .replay-state { position: absolute; top: 14px; left: 14px; color: var(--muted); font-size: 12px; }
+.race-overlay .race-idle { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--muted); }
+
+.results { width: 100%; border-collapse: collapse; font-size: 13px; }
+.results th { text-align: left; color: var(--muted); font-weight: 400; border-bottom: 1px solid var(--line); padding: 4px 8px 4px 0; }
+.results td { padding: 4px 8px 4px 0; vertical-align: top; }
+.results .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.results .flags { font-size: 12px; color: var(--muted); }
+.ledger { max-width: 640px; font-size: 13px; }
+.ledger td, .ledger thead th { text-align: right; padding-left: 12px; }
+.charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 12px; margin: 8px 0 12px; }
+.charts figure { margin: 0; }
+.charts figcaption { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+.chart { position: relative; }
+.chart svg { width: 100%; height: auto; display: block; background: #171b20; border-radius: 6px; }
+.chart .grid { stroke: #2c333c; stroke-width: 1; }
+.chart .axis { stroke: #4a5561; stroke-width: 1; }
+.chart .tick, .chart .unit { fill: var(--muted); font-size: 11px; }
+.chart .end { fill: var(--text); font-size: 11px; }
+.chart .series { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.chart .cross { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
+.chart .hit { fill: transparent; cursor: crosshair; }
+.chart .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--muted); margin-top: 4px; }
+.chart .tip { position: absolute; background: #0f1216ee; border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; font-size: 12px; pointer-events: none; min-width: 150px; }
+.chart .tip-head { color: var(--muted); margin-bottom: 2px; }
+
 @media (max-width: 1100px) {
   body { height: auto; }
   .workspace { grid-template-columns: 1fr; grid-template-rows: auto; }
   .view3d { grid-row: auto; height: 60vh; }
   .editors { grid-row: auto; grid-template-columns: 1fr; }
   .panels { grid-column: 1; grid-row: auto; overflow: visible; }
+  .race { grid-template-columns: 1fr; grid-template-rows: auto; }
+  .race-setup, .race-stage, .race-results { grid-column: 1; grid-row: auto; }
+  .race-stage { height: 60vh; }
 }

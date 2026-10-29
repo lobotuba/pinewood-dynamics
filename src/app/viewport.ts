@@ -6,10 +6,10 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { inches } from "../core/units.js";
 import type { Ballast, CarDesign, Feature, V3 } from "../geometry/design.js";
 import type { BodySolid } from "../geometry/solid.js";
-import { wheelCentres } from "../geometry/solid.js";
 import { TYPICAL_KIT_ESTIMATE as K } from "../kit/kit.js";
 import type { CarEvaluation } from "../mass/carModel.js";
 import { CCCS_KIT_CAR_2026 } from "../rules/cccs.js";
+import { bodyMeshes, wheelSet } from "./carMesh.js";
 import type { Store } from "./store.js";
 
 export type PresetView = "perspective" | "top" | "bottom" | "front" | "rear" | "left" | "right";
@@ -149,27 +149,8 @@ export class Viewport {
 
   private buildStatic(): void {
     const r = K.wheelRadius.value;
-    const ww = K.wheelWidth.value;
-    const wheelGeo = new THREE.CylinderGeometry(r, r, ww, 64, 1);
-    const hubGeo = new THREE.CylinderGeometry(r * 0.42, r * 0.42, ww * 1.02, 32, 1);
-    const wheelMat = new THREE.MeshStandardMaterial({ color: 0x23272b, roughness: 0.55 });
-    const hubMat = new THREE.MeshStandardMaterial({ color: 0x3a4148, roughness: 0.5 });
-    const axleMat = new THREE.MeshStandardMaterial({ color: 0xb9bec4, metalness: 0.8, roughness: 0.3 });
-    const outer = K.blockWidth.value / 2 + K.wheelBodyGap.value + ww;
-    for (const c of wheelCentres()) {
-      const wheel = new THREE.Mesh(wheelGeo, wheelMat);
-      wheel.position.set(...c);
-      const hub = new THREE.Mesh(hubGeo, hubMat);
-      hub.position.set(...c);
-      const s = Math.sign(c[1]);
-      const L = K.axleShaftLength.value;
-      const shaft = new THREE.Mesh(new THREE.CylinderGeometry(K.axleRadius.value, K.axleRadius.value, L, 16), axleMat);
-      shaft.position.set(c[0], s * (outer - L / 2), 0);
-      const th = K.axleHeadThickness.value;
-      const head = new THREE.Mesh(new THREE.CylinderGeometry(K.axleHeadDiameter.value / 2, K.axleHeadDiameter.value / 2, th, 24), axleMat);
-      head.position.set(c[0], s * (outer + th / 2), 0);
-      this.groups.wheels.add(wheel, hub, shaft, head);
-    }
+    const outer = K.blockWidth.value / 2 + K.wheelBodyGap.value + K.wheelWidth.value;
+    this.groups.wheels.add(wheelSet().group);
 
     // Datums (12.2): axle axes and the wheelbase dimension on the contact plane.
     const datum = new THREE.LineDashedMaterial({ color: 0x5fb3ff, dashSize: 0.004, gapSize: 0.003 });
@@ -212,18 +193,8 @@ export class Viewport {
     const g = this.groups.body;
     for (const ch of g.children) (ch as THREE.Mesh).geometry.dispose();
     g.clear();
-    if (!body.empty) {
-      const geo = new THREE.BufferGeometry();
-      geo.setAttribute("position", new THREE.BufferAttribute(body.positions, 3));
-      geo.setIndex(new THREE.BufferAttribute(body.indices, 1));
-      const flat = geo.toNonIndexed();
-      geo.dispose();
-      flat.computeVertexNormals();
-      this.bodyMaterial.color.set(design.paint);
-      g.add(new THREE.Mesh(flat, this.bodyMaterial));
-      const edges = new THREE.LineSegments(new THREE.EdgesGeometry(flat, 25), new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.35 }));
-      g.add(edges);
-    }
+    this.bodyMaterial.color.set(design.paint);
+    for (const m of bodyMeshes(body, this.bodyMaterial)) g.add(m);
 
     const bg = this.groups.ballast;
     for (const ch of bg.children) (ch as THREE.Mesh).geometry.dispose();

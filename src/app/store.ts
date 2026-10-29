@@ -1,5 +1,6 @@
-// Workspace state: the design with undo/redo (spec 12.3), display preferences, and local
-// persistence (PLT-004: browser storage and user-initiated files only, no network).
+// Workspace state: the design with undo/redo (spec 12.3), named versions (DAT-003), display
+// preferences, and local persistence (PLT-004: browser storage and user-initiated files only, no
+// network).
 
 import type { UnitSystem } from "../core/display.js";
 import { type CarDesign, wedgeDesign } from "../geometry/design.js";
@@ -14,6 +15,15 @@ export interface View {
   readonly selection: Selection;
 }
 
+/** A saved snapshot of a design (DAT-003), for comparing and ghost-racing (13.1). */
+export interface SavedVersion {
+  readonly id: string;
+  readonly name: string;
+  /** ISO 8601. */
+  readonly savedAt: string;
+  readonly design: CarDesign;
+}
+
 const KEY = "pinewood-dynamics.workspace.v1";
 
 type Listener = (why: "design" | "view") => void;
@@ -26,10 +36,12 @@ export class Store {
   private committed: CarDesign;
   design: CarDesign;
   view: View;
+  versions: SavedVersion[];
 
   constructor() {
     const saved = load();
     this.design = saved?.design ?? wedgeDesign();
+    this.versions = saved?.versions ?? [];
     this.committed = this.design;
     this.view = {
       units: saved?.units ?? "metric",
@@ -92,6 +104,24 @@ export class Store {
     return this.future.length > 0;
   }
 
+  /** Save the committed design as a named version: its name with the next free V number. */
+  saveVersion(): SavedVersion {
+    const base = this.committed.name;
+    let n = 1;
+    while (this.versions.some((v) => v.name === `${base} V${n}`)) n++;
+    const v: SavedVersion = { id: `v${Date.now().toString(36)}${n}`, name: `${base} V${n}`, savedAt: new Date().toISOString(), design: this.committed };
+    this.versions = [...this.versions, v];
+    this.save();
+    this.emit("design");
+    return v;
+  }
+
+  deleteVersion(id: string): void {
+    this.versions = this.versions.filter((v) => v.id !== id);
+    this.save();
+    this.emit("design");
+  }
+
   setView(patch: Partial<View>): void {
     this.view = { ...this.view, ...patch };
     if (patch.units) this.save();
@@ -100,20 +130,21 @@ export class Store {
 
   private save(): void {
     try {
-      localStorage.setItem(KEY, JSON.stringify({ design: this.committed, units: this.view.units }));
+      localStorage.setItem(KEY, JSON.stringify({ design: this.committed, units: this.view.units, versions: this.versions }));
     } catch {
       // Storage can be unavailable (private mode, blocked site data); the session still works.
     }
   }
 }
 
-function load(): { design: CarDesign; units: UnitSystem } | null {
+function load(): { design: CarDesign; units: UnitSystem; versions: SavedVersion[] } | null {
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return null;
-    const x = JSON.parse(raw) as { design?: CarDesign; units?: UnitSystem };
+    const x = JSON.parse(raw) as { design?: CarDesign; units?: UnitSystem; versions?: SavedVersion[] };
     if (x.design?.schema !== 1) return null;
-    return { design: x.design, units: x.units === "english" ? "english" : "metric" };
+    const versions = Array.isArray(x.versions) ? x.versions.filter((v) => v?.design?.schema === 1) : [];
+    return { design: x.design, units: x.units === "english" ? "english" : "metric", versions };
   } catch {
     return null;
   }

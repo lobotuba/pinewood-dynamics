@@ -1,6 +1,6 @@
-// Design workspace entry point (M2). One evaluation pipeline drives every view:
+// Workspace entry point (M2 design, M3 race). One evaluation pipeline drives every view:
 //   design -> body solid (manifold-3d) -> mass, CG, extents -> inspection -> 3D, profiles, panels
-// and, debounced, the solver in a worker.
+// and, debounced, the solver in a worker. Race mode evaluates each lane's design the same way.
 
 import wasmUrl from "manifold-3d/manifold.wasm?url";
 import { type CarDesign, uncutDesign, wedgeDesign } from "../geometry/design.js";
@@ -10,7 +10,8 @@ import { evaluateCar } from "../mass/carModel.js";
 import { inspect } from "../rules/cccs.js";
 import { Panels } from "./panels.js";
 import { ProfileEditor } from "./profileEditor.js";
-import type { RaceReply, RaceRequest } from "./race.worker.js";
+import { type EvaluatedCar, RacePanel } from "./racePanel.js";
+import type { RaceReply, RaceRequest, SessionReply } from "./race.worker.js";
 import { type DisplayMode, Store, designFromFile, designToFile } from "./store.js";
 import { type PresetView, Viewport } from "./viewport.js";
 
@@ -29,7 +30,44 @@ async function start(): Promise<void> {
     cut: (preset, id, size, x) => newCut(w, store.design, preset, id, size, x),
   });
   const worker = new Worker(new URL("./race.worker.ts", import.meta.url), { type: "module" });
-  worker.onmessage = (e: MessageEvent<RaceReply>) => panels.renderRace(e.data);
+  let race: RacePanel | null = null;
+  worker.onmessage = (e: MessageEvent<RaceReply | SessionReply>) => {
+    if (e.data.kind === "session") race?.onSession(e.data);
+    else panels.renderRace(e.data);
+  };
+
+  // Race mode: each design evaluated once (designs are immutable, so the object is the key).
+  const evaluated = new WeakMap<CarDesign, EvaluatedCar | null>();
+  const evaluateFor = (d: CarDesign): EvaluatedCar | null => {
+    if (!evaluated.has(d)) {
+      const body = evaluateBody(w, d);
+      if (body.empty) evaluated.set(d, null);
+      else {
+        const ev = evaluateCar(d, body);
+        evaluated.set(d, { spec: ev.spec, body, compliance: inspect(ev).state });
+      }
+    }
+    return evaluated.get(d)!;
+  };
+  let racing = false;
+  const setMode = (toRace: boolean): void => {
+    racing = toRace;
+    $("design-main").hidden = toRace;
+    $("race-main").hidden = !toRace;
+    document.body.classList.toggle("racing", toRace);
+    $("mode-design").setAttribute("aria-selected", String(!toRace));
+    $("mode-race").setAttribute("aria-selected", String(toRace));
+    if (toRace && !race)
+      race = new RacePanel(
+        { setup: $("race-setup"), view: $("race-view"), results: $("race-results"), overlay: $("race-overlay"), bar: $("race-bar") },
+        store,
+        evaluateFor,
+        worker,
+      );
+    race?.setActive(toRace);
+  };
+  $("mode-design").onclick = () => setMode(false);
+  $("mode-race").onclick = () => setMode(true);
 
   let raced = "";
   let raceTimer = 0;
@@ -60,7 +98,7 @@ async function start(): Promise<void> {
       raced = key;
       clearTimeout(raceTimer);
       raceTimer = window.setTimeout(() => {
-        const req: RaceRequest = { seq: panels.raceStarted(), spec: ev.spec };
+        const req: RaceRequest = { kind: "preview", seq: panels.raceStarted(), spec: ev.spec };
         worker.postMessage(req);
       }, 120);
     }
@@ -69,6 +107,9 @@ async function start(): Promise<void> {
     if (!frame) frame = requestAnimationFrame(refresh);
   };
   store.on(schedule);
+  store.on(() => {
+    if (racing) race?.renderSetup();
+  });
   window.addEventListener("resize", schedule);
 
   // Toolbar.
@@ -83,6 +124,17 @@ async function start(): Promise<void> {
     if (s.value === "wedge") store.update(wedgeDesign());
     if (s.value === "uncut") store.update(uncutDesign());
     s.value = "";
+  };
+  $("save-version").onclick = () => {
+    const v = store.saveVersion();
+    const s = $("status");
+    s.textContent = `Saved ${v.name}. Race it against other versions in Race mode.`;
+    s.classList.add("ok");
+    s.hidden = false;
+    window.setTimeout(() => {
+      s.hidden = true;
+      s.classList.remove("ok");
+    }, 3000);
   };
   $("save").onclick = () => {
     const a = document.createElement("a");
@@ -118,6 +170,7 @@ async function start(): Promise<void> {
   }
 
   window.addEventListener("keydown", (e) => {
+    if (racing) return;
     const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement;
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && !typing) {
       e.preventDefault();

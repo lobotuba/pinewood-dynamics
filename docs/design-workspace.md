@@ -213,8 +213,8 @@ In the browser, headless Edge was driven through these paths with no page errors
   Nothing yet requires CNC/DIGITAL.
 - **Editing.** A cut can be turned in the profiles only when seen edge-on; front-view cuts are
   edited by number. There is no front profile yet (later release, 6.1).
-- **Races.** The race preview is one lane on BestTrack 35 ft. The 3D race, multiple lanes and
-  ghosts are M3.
+- **Races.** The panel's race preview is one lane on BestTrack 35 ft. The 3D race, with up to four
+  lanes and saved versions as ghosts, is race mode (`docs/race.md`).
 - **Kit values.** Every kit dimension is still ESTIMATED. Measuring the event kit (CHAR-001..003)
   replaces them in one place: `TYPICAL_KIT_ESTIMATE` in `src/kit/kit.ts`.
 - **Licence notices.** Three.js and manifold-3d ship in `public/THIRD_PARTY_NOTICES.txt` (spec 3.3).
