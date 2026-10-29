@@ -171,9 +171,11 @@ describe("P7 axial play in whole races", () => {
 
   it("approaches the fixed-wheel model as the play goes to zero", () => {
     // Not exactly: with play a rail strike is two impacts, the rail on the light wheel and the wheel
-    // on its head, which lose a little less than one strike of the rigid car.
+    // on its head, which lose a little less than one strike of the rigid car. Inelastic hubs: a
+    // bouncing hub a micrometre from both faces rattles between them within a step, and each strike
+    // rubs a face, so with bouncing hubs the limit is not the fixed wheel's.
     const fixed = simulateRace(car(lateralSpec({ toeF: 0.004, play: 0 })), bestTrack(35), DEFAULT_ENVIRONMENT, OPTS).elapsedTime!;
-    const err = [1e-4, 1e-5, 1e-6].map((p) => Math.abs(simulateRace(car(lateralSpec({ toeF: 0.004, play: p })), bestTrack(35), DEFAULT_ENVIRONMENT, OPTS).elapsedTime! - fixed));
+    const err = [1e-4, 1e-5, 1e-6].map((p) => Math.abs(simulateRace(car(lateralSpec({ toeF: 0.004, play: p, e: 0 })), bestTrack(35), DEFAULT_ENVIRONMENT, OPTS).elapsedTime! - fixed));
     expect(err[1]!).toBeLessThan(err[0]!);
     expect(err[2]!).toBeLessThan(err[1]!);
     expect(err[2]!).toBeLessThan(1.5e-4);

@@ -167,6 +167,41 @@ describe("Mass model and solver bridge (7.6, MAT-001)", () => {
     };
     expect(time(inches(0.3))).toBeLessThan(time(inches(3)));
   });
+
+  it("maps the underside for the clearance monitor: the block's flat bottom, and a weight hung below it", () => {
+    const base = uncutDesign();
+    const ev = evaluateCar(base, evaluateBody(w, base));
+    const pts = ev.spec.underbody!.value;
+    // Every cell of the block's footprint, each at the block's bottom: rows at cell-centre x within the
+    // block, columns of every cell the block's width overlaps.
+    const C = 0.002;
+    const rows = Math.floor(B.max[0] / C - 0.5) - Math.ceil(B.min[0] / C - 0.5) + 1;
+    const cols = Math.floor(B.max[1] / C) - Math.floor(B.min[1] / C) + 1;
+    expect(pts.length).toBe(rows * cols);
+    // At the block's bottom, except over the axle slots cut up into it.
+    const axleX = [0, K.frontAxleFromRear.value - K.rearAxleFromRear.value];
+    const raised = pts.filter((p) => p.z > B.min[2] + 1e-7);
+    expect(raised.length).toBeGreaterThan(0);
+    for (const p of raised) expect(axleX.some((x) => Math.abs(p.x - x) < 0.003)).toBe(true);
+    for (const p of pts) expect(p.z).toBeGreaterThan(B.min[2] - 1e-7);
+    // The uncut block clears the rail by its underside height less the rail's 1/4 in on the straights.
+    // In the transition (radius R) the lane comes up under the nose by x (x - WB) / (2R), x its
+    // distance from the rear axle: 1.5 mm for the block's 44 mm overhang.
+    const r = simulateRace(ev.spec, bestTrack(35), DEFAULT_ENVIRONMENT, { dt: 1e-3 });
+    expect(r.status).toBe("FINISHED");
+    const flat = ev.extents.underside.height - inches(0.25);
+    const R = inches(41) / ((26 * Math.PI) / 180);
+    const WBk = K.frontAxleFromRear.value - K.rearAxleFromRear.value;
+    const nose = (B.max[0] * (B.max[0] - WBk)) / (2 * R);
+    expect(r.clearance!.rail).toBeLessThan(flat - 0.9 * nose);
+    expect(r.clearance!.rail).toBeGreaterThan(flat - 1.1 * nose);
+    const hung: CarDesign = {
+      ...base,
+      ballast: [{ id: "u", material: "steel", shape: { kind: "block", size: [0.02, 0.01, 0.002] }, center: [0.03, 0, B.min[2] - 0.001], mounting: "underside" }],
+    };
+    const low = evaluateCar(hung, evaluateBody(w, hung)).spec.underbody!.value;
+    expect(Math.min(...low.map((p) => p.z))).toBeCloseTo(B.min[2] - 0.002, 9);
+  });
 });
 
 describe("Inspection (CMP-004..006, spec 9.7)", () => {

@@ -48,9 +48,11 @@ import {
   type RailContact,
   type StopContact,
   type WheelAxles,
+  type RollForce,
   axles,
   bodyPoint,
   candidates,
+  rollLoads,
   solveSmall,
 } from "./lateral.js";
 
@@ -265,10 +267,12 @@ export function playStep(L: LateralModel, s: LateralState, inp: LateralInput): L
     const scale = 1e-12 * (1 + Math.abs(inp.v1[i]!));
     if (play.travel[i] > 0)
       for (const k of [2 * i, 2 * i + 1]) {
-        // The slide moves the tread across its own rolling direction at side cos(gamma).
+        // The slide moves the tread across its own rolling direction at side cos(gamma). Each tread's
+        // limit is its own wheel's load: half the axle's, shifted by roll.
         const row = [...base];
         row[idx[k]!] = sideOf(k) * Math.cos(L.camber[i]);
-        boxes.push({ key: `t${k}`, row, target, limit: limit / 2, scale, axle: i, wheel: k });
+        const own = L.muT * Math.max(inp.N[i] / 2 + (inp.roll?.[k] ?? 0), 0) * h;
+        boxes.push({ key: `t${k}`, row, target, limit: own, scale, axle: i, wheel: k });
       }
     else boxes.push({ key: `a${i}`, row: base, target, limit, scale, axle: i, wheel: -1 });
   }
@@ -501,6 +505,14 @@ export function playStep(L: LateralModel, s: LateralState, inp: LateralInput): L
     forces.push({ kind: "rail", axle: c.axle, onWheel: true, side: c.side, at: c.at, f: { t: f.t * F, n: f.n * F }, y: f.y * F, spin: f.spin * F });
   }
 
+  const rails: RollForce[] = unis.flatMap((u) => {
+    const p = sol.uni.get(u.key) ?? 0;
+    if (!u.cand || p === 0) return [];
+    const F = p / h;
+    return [{ y: u.cand.y, z: L.radius[u.cand.axle] + u.cand.at.n, Fy: u.cand.force.y * F, Fz: u.cand.force.n * F }];
+  });
+  const roll = rollLoads(L, Ym, (V[0]! - V0[0]!) / h, inp.N, rails);
+
   const slip: [number, number] = [0, 0];
   for (const b of boxes) if (b.axle >= 0 && slip[b.axle as 0 | 1] === 0) slip[b.axle as 0 | 1] = sol.modes.get(b.key)!;
   return {
@@ -517,7 +529,7 @@ export function playStep(L: LateralModel, s: LateralState, inp: LateralInput): L
       boreSlide: wBore,
       heave: h * dot(Fh, Vmid),
     },
-    wheels: withPlay(L, axles(L, Ym, pm, [V[0]! - V0[0]!, V[1]! - V0[1]!], h), thrust, spinShare),
+    wheels: withPlay(L, axles(L, Ym, pm, [V[0]! - V0[0]!, V[1]! - V0[1]!], h, roll), thrust, spinShare),
     slip,
     consistent: sol.score <= 0,
     penetration,

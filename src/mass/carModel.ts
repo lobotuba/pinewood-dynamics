@@ -9,7 +9,7 @@ import type { BodySolid, MountState } from "../geometry/solid.js";
 import { wheelCentres } from "../geometry/solid.js";
 import { TYPICAL_KIT_ESTIMATE } from "../kit/kit.js";
 import { type BuildPlan, planBuild } from "../build/tiers.js";
-import type { AxleSpec, CarSpec } from "../physics/car.js";
+import type { AxleSpec, CarSpec, UnderbodyPoint } from "../physics/car.js";
 import { type Mat3, type MassPart, ZERO3, boxInertia, combine, cylinderInertia, meshMassProperties, scaleMat } from "./inertia.js";
 import { MATERIALS } from "./materials.js";
 
@@ -227,5 +227,64 @@ function carSpec(design: CarDesign, body: BodySolid, total: MassPart, pitch: Mas
     dragArea: derived(DRAG_COEFFICIENT.value * body.frontalArea, "C_D 0.45 (estimate) times the silhouette area"),
     rear: axle(),
     front: axle(),
+    underbody: derived(underbody(design, body), "lowest point of the solid and hung weights in each 2 mm cell of the plan view"),
   };
+}
+
+const CELL = 0.002;
+
+/**
+ * The underside: in each 2 mm by 2 mm cell of the plan view, the lowest point of the body or of a
+ * weight mounted outside it. The body is cut by the plane through each cell row's centre x; along
+ * each triangle's cut segment the lowest point within a cell is at one of the segment's ends there.
+ */
+export function underbody(design: CarDesign, body: BodySolid): UnderbodyPoint[] {
+  const cells = new Map<string, UnderbodyPoint>();
+  const put = (ix: number, iy: number, z: number): void => {
+    const k = `${ix},${iy}`;
+    const old = cells.get(k);
+    if (!old || z < old.z) cells.set(k, { x: (ix + 0.5) * CELL, y: (iy + 0.5) * CELL, z });
+  };
+  const P = body.positions;
+  const I = body.indices;
+  for (let t = 0; t < I.length; t += 3) {
+    const v = [I[t]!, I[t + 1]!, I[t + 2]!].map((i) => [P[3 * i]!, P[3 * i + 1]!, P[3 * i + 2]!] as const);
+    const xs = v.map((q) => q[0]);
+    for (let ix = Math.ceil(Math.min(...xs) / CELL - 0.5); ix <= Math.floor(Math.max(...xs) / CELL - 0.5); ix++) {
+      const x = (ix + 0.5) * CELL;
+      // Where the triangle's edges cross the plane.
+      const cut: [number, number][] = [];
+      for (let e = 0; e < 3; e++) {
+        const a = v[e]!;
+        const b = v[(e + 1) % 3]!;
+        if ((a[0] - x) * (b[0] - x) > 0) continue;
+        if (a[0] === b[0]) cut.push([a[1], a[2]], [b[1], b[2]]);
+        else {
+          const u = (x - a[0]) / (b[0] - a[0]);
+          cut.push([a[1] + u * (b[1] - a[1]), a[2] + u * (b[2] - a[2])]);
+        }
+      }
+      if (cut.length < 2) continue;
+      // The segment's ends: the two cut points farthest apart, ordered by y.
+      let [lo, hi] = [cut[0]!, cut[1]!];
+      for (const a of cut) for (const c of cut) if (Math.hypot(c[0] - a[0], c[1] - a[1]) > Math.hypot(hi[0] - lo[0], hi[1] - lo[1])) [lo, hi] = [a, c];
+      if (hi[0] < lo[0]) [lo, hi] = [hi, lo];
+      // A segment straight up and down (a vertical face) has its lowest point at its lower end.
+      const zAt = (y: number) => (hi[0] === lo[0] ? Math.min(lo[1], hi[1]) : lo[1] + ((y - lo[0]) / (hi[0] - lo[0])) * (hi[1] - lo[1]));
+      for (let iy = Math.floor(lo[0] / CELL); iy * CELL <= hi[0]; iy++) {
+        const y0 = Math.max(lo[0], iy * CELL);
+        const y1 = Math.min(hi[0], (iy + 1) * CELL);
+        if (y1 < y0) continue;
+        put(ix, iy, Math.min(zAt(y0), zAt(y1)));
+      }
+    }
+  }
+  for (const bl of design.ballast) {
+    if (bl.mounting === "cavity") continue;
+    const h = shapeHalfSize(bl.shape);
+    const c = bl.center;
+    for (let ix = Math.ceil((c[0] - h[0]) / CELL - 0.5); (ix + 0.5) * CELL <= c[0] + h[0]; ix++)
+      for (let iy = Math.floor((c[1] - h[1]) / CELL); iy * CELL <= c[1] + h[1]; iy++) put(ix, iy, c[2] - h[2]);
+  }
+  return [...cells.values()];
 }

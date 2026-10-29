@@ -1,9 +1,10 @@
 # Physics model, MVP solver (PHY-009)
 
-Status: physics core, solver `phy-009/0.6.0`. Gates P0–P7 pass against analytic solutions
+Status: physics core, solver `phy-009/0.7.0`. Gates P0–P7 pass against analytic solutions
 (section 7). P6 and P7, lateral dynamics and guide-rail contact, are in section 11, with camber and
 the thrust faces that hold each wheel on its axle. Axial play, wheels sliding along their axles
-between those faces, is in section 12. The solver has been compared with one published experiment
+between those faces, is in section 12; roll and the underside's clearance over the lane and rail in
+section 13. The solver has been compared with one published experiment
 (`docs/validation.md`): it gets the overall time right, but not the size of the mass and CG
 effects. It has not been validated against the owner's track. The kit and friction values are still
 ESTIMATED (section 8).
@@ -34,8 +35,9 @@ car has a lateral description and the lane a guide rail (section 11), and axial 
 gives it (section 12); otherwise the car is raced in the vertical plane only, and the result record
 says which (`record.lateral`).
 
-Not modelled: roll, three-wheel running, start-pin motion, body–track contact, wheel slip along the
-direction of travel, and track or car flexibility.
+Not modelled: roll as a degree of freedom (its load transfer is, section 13), three-wheel running,
+start-pin motion, body–track contact (it is detected and ends the run, section 13), wheel slip along
+the direction of travel, and track or car flexibility.
 
 ## 2. Geometry and kinematics (`src/track/path.ts`, `src/physics/kinematics.ts`)
 
@@ -209,9 +211,10 @@ residual measures the integration error; it is reported in the result and in eve
   `OUTSIDE_MODEL_VALIDITY` with no time, because the model assumes all wheels are in contact.
   The one exception is a step carrying a guide-rail impact (a contact closing with an impulse; with
   axial play, a hub striking its face too), where friction at the rail can briefly exceed an axle's
-  load. The run continues, and the hop's estimated height and airtime are recorded
-  in `hops` (section 11). A car that cannot leave the gate, or stops before the finish, ends as
-  `STALLED`.
+  load. The run continues, and the hop's estimated height and airtime are recorded in `hops`
+  (section 11). A wheel lifted by roll is treated the same way (section 13). The body touching the
+  lane or the rail always ends the run (section 13). A car that cannot leave the gate, or stops
+  before the finish, ends as `STALLED`.
 
 ## 6. Inputs and provenance
 
@@ -274,6 +277,12 @@ Every input is a `Sourced<T>` value carrying its provenance. The result record h
 | P7 play | Play 1e-4, 1e-5, 1e-6 m | Approaches the fixed-wheel time, error falling | < 0.15 ms at 1 µm |
 | P7 play | Mass scaling × 1.7, inelastic hubs | Time unchanged | 1e-6 s |
 | P7 play | Step size 4e-4, 2e-4 s against 5e-5 s; bouncing hubs | First order; < 1 ms at 5e-4 s either way | – |
+| Roll | CG off the centreline (`test/p7-roll-clearance.test.ts`) | Each wheel shifted `y_c (N_r + N_f)/(4b)` | 1e-14 N |
+| Roll | Cross slope, treads holding | Uphill wheels unloaded by `z_cg m g_lat/(4b)` | 1e-14 N |
+| Roll | Tipping on a cross slope | Finishes at 0.98 of the slope where the lighter axle's uphill wheel reaches zero load; at 1.02 ends with that wheel lifting in roll | – |
+| Clearance | A point 60 mm ahead of the front axle, BestTrack transition | Least clearance at most the arc value `R − √((x − c)² + (k − z)²)`, `k = √((R − r)² − c²)`, and within 20 µm of it; race time unchanged | 1e-9 m, 2e-5 m |
+| Clearance | That point 0.3 mm above the rail statically; another beside the rail | Ends touching the guide rail at 171.1 mm; the other the lane | – |
+| Clearance | The uncut block (`test/m2-geometry.test.ts`) | Underside map at the block's bottom except over the axle slots; least rail clearance the flat value less `x (x − WB)/(2R)` at the nose | ±10 % |
 
 ## 8. Before predictions mean anything (VAL-001)
 
@@ -586,3 +595,64 @@ inelastic hubs that sensitivity is about 1e-7 s.
 - A wheel's slide does not change the lever arm of its sideways inertia in the yaw equation (under 1 mm
   against a 20 mm half-track).
 - Wheel faces and hub faces are flat; the hub's own length is in the travel.
+
+## 13. Roll, and the underside's clearance (`src/physics/lateral.ts`, `src/physics/clearance.ts`)
+
+**Roll.** The car stays on its four wheels: roll is not a degree of freedom. What roll does to a
+rigid car on a lane is move load between its left and right wheels, and that is modelled. About the
+ground line under the car's centreline, the lane loads balance the moment of everything else:
+
+```
+Σ y_k N_k = −Σ_rail (y F_z − z F_y) + y_c (Σ N + Σ F_z) − z_cg m (a_y + g_lat)
+```
+
+- the rail forces at their contact points, `z` above the lane;
+- the CG's offset `y_c` from the centreline, under the weight the lane and rail carry;
+- the CG's sideways acceleration over the step, and the cross slope, at the CG's height `z_cg`.
+
+Tread forces act at the lane and have no moment about it. Four wheels on a rigid body carry that
+moment in a statically indeterminate way. Equal compliance at the four contacts, the same limit taken
+for the treads, gives every wheel the same shift: `±M/(4b)`, with `b` the half-track. Each wheel's
+lane load is then half its axle's plus or minus that (`WheelAxle.roll`). It enters:
+
+- the wheel's own Newton equation, and so its bore load and thrust face;
+- with axial play, its own tread's friction limit.
+
+Every effect of roll is a redistribution. With Coulomb friction and both wheels loaded, it changes
+each axle's total loss only through the direction of each wheel's bore load, a second-order effect.
+Mass scaling still holds.
+
+**Wheel lift in roll.** A wheel whose share falls to zero has lifted, and the model, which keeps every
+wheel on the lane, no longer applies. On a step with a strike it is counted in `hops.roll`. No roll
+inertia is given, so the hop is not sized. Otherwise the run ends as `OUTSIDE_MODEL_VALIDITY`.
+Statically that happens where the classic tipping condition holds for the lighter axle:
+`z_cg m g sin(c) = 2b N_min`.
+
+**Underside clearance.** Only the wheels are meant to touch, but the lane's curves bring the body
+closer to it. On an arc of radius `R` through both axles' contacts, the lane under body `x` departs
+from the line between them by `x (x − WB)/(2R)`: away from the body between the axles in a valley
+such as BestTrack's transition, and toward it beyond them. The uncut block's 44 mm nose overhang
+comes 1.5 mm closer to the rail there than on the straights. A crest does the reverse.
+
+`CarSpec.underbody` maps the underside: the lowest point of the body, or of a weight mounted outside
+it, in each 2 mm cell of the plan view (`src/mass/carModel.ts` cuts the solid at each row's centre).
+Each step, every point that the lane's largest curvature could bring within reach is checked:
+
+- against the lane, along its normal at the nearest point;
+- against the rail's top, if the point lies within the rail's half-width plus how far the car can
+  move across (its wheel faces' gap to the rail, and any axial play).
+
+Points with a margin of more than `κ_max |x| |x − WB| / 2 + 0.5 mm` cannot touch and are not checked;
+the least clear point of each kind always is. A point that touches ends the run as
+`OUTSIDE_MODEL_VALIDITY`, naming the rail or the lane and where. `RaceResult.clearance` reports the
+least clearance over the race. The monitor applies no force, so a race that passes is the race
+without it, bit for bit.
+
+**Approximations.**
+
+- Roll is quasi-static. The car's roll inertia and the time a wheel takes to unload are left out.
+- The roll moment uses the CG's acceleration, not each wheel's (with play the wheels' own slides add
+  under 2 % of the mass).
+- Clearance is checked at the end of each step (0.5 ms, about 2 mm of travel at speed); it changes
+  over centimetres.
+- A planar car (no lateral description) is taken as centred over the rail.

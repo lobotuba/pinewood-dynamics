@@ -18,6 +18,13 @@ export interface ThrustFace {
   readonly friction: Sourced<number>;
 }
 
+/** A low point of the body or of a weight hung under it, body frame, m: the lowest in its cell of the plan view. */
+export interface UnderbodyPoint {
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+}
+
 export interface AxleSpec {
   /** Wheel outer radius, m. */
   readonly wheelRadius: Sourced<number>;
@@ -77,6 +84,11 @@ export interface CarSpec {
    * the vertical plane only, as before.
    */
   readonly lateral?: LateralCarSpec;
+  /**
+   * The underside, for the clearance monitor (src/physics/clearance.ts): the lowest point in each cell
+   * of a grid over the plan view, wheels and axles excluded. Omitted: clearance is not checked.
+   */
+  readonly underbody?: Sourced<readonly UnderbodyPoint[]>;
 }
 
 export interface Environment {
@@ -150,6 +162,7 @@ export function inputProvenance(spec: CarSpec, env: Environment): Record<string,
     "car.wheelbase": spec.wheelbase.provenance,
     "car.nose": spec.nose.provenance,
     "car.dragArea": spec.dragArea.provenance,
+    ...(spec.underbody ? { "car.underbody": spec.underbody.provenance } : {}),
     "env.gravity": env.gravity.provenance,
     "env.airDensity": env.airDensity.provenance,
   };

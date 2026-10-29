@@ -23,6 +23,9 @@
 // carried by a thrust face, the axle head or the body; dynamics.ts adds that friction to the spin.
 // With axial play the wheels slide along their axles between those faces; play.ts steps that model.
 //
+// Roll is not a degree of freedom: the car stays on its four wheels, and the lane loads balance the
+// roll moment of the side loads (rollLoads below). A wheel whose load that leaves negative has lifted.
+//
 // Time stepping is Moreau's (velocity-level impulses, positions by the midpoint of the start and
 // end velocities). Each step enumerates the stick/slip state of both treads and the open/closed
 // state of the rail contacts near closing, and takes the first consistent combination: Coulomb's
@@ -103,6 +106,8 @@ export interface LateralModel {
   readonly gLat: number;
   /** Axial play per axle, m, the hub's restitution on a face, and the start as a fraction of the play. Omitted: none. */
   readonly play?: { readonly travel: readonly [number, number]; readonly e: number; readonly start: number };
+  /** CG height above the lane, m, for the roll moment. Omitted: no load transfer between the sides. */
+  readonly cgHeight?: number;
 }
 
 export interface LateralState {
@@ -143,6 +148,8 @@ export interface LateralInput {
   /** Axial play only: each wheel's bore, and the previous step's contact and friction states. */
   readonly loads?: readonly WheelLoad[];
   readonly prev?: Readonly<Record<string, number>>;
+  /** Each wheel's lane-load shift from roll at the start of the step, N (WheelAxle.roll). Axial play only. */
+  readonly roll?: readonly number[];
 }
 
 /** A force for the planar solver, constant over the step, in the axle path's (tangent, normal) frame. */
@@ -180,6 +187,8 @@ export interface WheelAxle {
    */
   readonly thrust?: number;
   readonly boreSpin?: number;
+  /** Lane load this wheel carries beyond half its axle's, N, from the roll moment. Omitted: none. */
+  readonly roll?: number;
 }
 
 /** Per axle (rear, front), its left and right wheels. */
@@ -275,6 +284,8 @@ export interface Candidate {
   readonly force: { readonly t: number; readonly n: number; readonly y: number; readonly spin: number };
   /** Contact point from the planar axle centre: along t, along n. */
   readonly at: { readonly t: number; readonly n: number };
+  /** Lateral position of the contact on the lane, m. */
+  readonly y: number;
   /** Axial play: gap rate per unit slide rate of this wheel, and the generalized impulse on its slide per unit normal impulse. */
   readonly Gxi: number;
   readonly Wxi: number;
@@ -317,7 +328,7 @@ export function candidates(L: LateralModel, Y: number, psi: number, slide: reado
       const wheel = 2 * axle + (side === 1 ? 0 : 1);
       if (zetaH <= -r) {
         // The rail is lower than the face's lowest rim: it cannot reach this face.
-        out.push({ axle, side, wheel, gap: Infinity, G: [0, 0], W: [0, 0], force: { t: 0, n: 0, y: 0, spin: 0 }, at: { t: 0, n: 0 }, Gxi: 0, Wxi: 0 });
+        out.push({ axle, side, wheel, gap: Infinity, G: [0, 0], W: [0, 0], force: { t: 0, n: 0, y: 0, spin: 0 }, at: { t: 0, n: 0 }, y: 0, Gxi: 0, Wxi: 0 });
         continue;
       }
       // Lane-frame (u, y, z) directions of this wheel: e1 forward, e2 up its plane, ax out along its axle.
@@ -378,14 +389,43 @@ export function candidates(L: LateralModel, Y: number, psi: number, slide: reado
       // The slide moves the face along (-sin a, cos a) side cos(gamma) across the lane.
       const Gxi = side * cg * ca * ny;
       const Wxi = side * cg * (ca * F[1]! - sa * F[0]!);
-      out.push({ axle, side, wheel, gap, G, W, force: { t: F[0]!, n: F[2]!, y: F[1]!, spin }, at: { t: atT, n: atN }, Gxi, Wxi });
+      out.push({ axle, side, wheel, gap, G, W, force: { t: F[0]!, n: F[2]!, y: F[1]!, spin }, at: { t: atT, n: atN }, y: pt.y, Gxi, Wxi });
     }
   }
   return out;
 }
 
+/** A force on the car for the roll moment: lane position and height of its point, sideways and normal parts, N. */
+export interface RollForce {
+  readonly y: number;
+  readonly z: number;
+  readonly Fy: number;
+  readonly Fz: number;
+}
+
+/**
+ * The lane load each left wheel carries beyond half its axle's, N; each right wheel carries the
+ * negative. The lane loads balance, about the ground line under the car's centreline, the moment of
+ * the rail forces, the CG's offset under its supported weight, and the CG's sideways acceleration and
+ * the cross slope at its height:
+ *
+ *   sum y_k N_k = -sum (y F_z - z F_y) + y_c (sum N + sum F_z) - z_c m (a_y + g_lat).
+ *
+ * Four wheels on a rigid body carry that moment in a statically indeterminate way. Equal compliance
+ * at the four contacts gives every wheel the same shift, M / (4 b), b the half-track. Without a CG
+ * height (cgHeight omitted) there is no transfer.
+ */
+export function rollLoads(L: LateralModel, Y: number, aY: number, N: readonly [number, number], forces: readonly RollForce[]): number {
+  if (L.cgHeight === undefined) return 0;
+  const b = L.spacing / 2 + L.treadWidth / 2;
+  const centre = Y - L.yc;
+  let M = L.yc * (N[0] + N[1]) - L.cgHeight * L.m * (aY + L.gLat);
+  for (const f of forces) M += L.yc * f.Fz - ((f.y - centre) * f.Fz - f.z * f.Fy);
+  return M / (4 * b);
+}
+
 /** Each wheel's outward axle direction at heading psi, and its sideways load for velocity change dV over h. */
-export function axles(L: LateralModel, Y: number, psi: number, dV: V2, h: number): WheelAxles {
+export function axles(L: LateralModel, Y: number, psi: number, dV: V2, h: number, roll = 0): WheelAxles {
   const per = (axle: 0 | 1): readonly [WheelAxle, WheelAxle] => {
     const d = L.toe[axle];
     const cg = Math.cos(L.camber[axle]);
@@ -397,7 +437,7 @@ export function axles(L: LateralModel, Y: number, psi: number, dV: V2, h: number
       const reach = L.spacing / 2 + 0.5 * L.treadWidth * cg;
       const pt = bodyPoint(L, Y, psi, L.wheelbase * axle - side * reach * Math.sin(d), side * reach * Math.cos(d));
       const ay = h > 0 ? (dV[0] + pt.dyDpsi * dV[1]) / h : 0;
-      return { axis: { t: -side * cg * sa, y: side * cg * ca, n: -sg }, sideways: (L.wheelMass[axle] / 2) * (ay + L.gLat) };
+      return { axis: { t: -side * cg * sa, y: side * cg * ca, n: -sg }, sideways: (L.wheelMass[axle] / 2) * (ay + L.gLat), ...(roll === 0 ? {} : { roll: side * roll }) };
     };
     return [wheel(1), wheel(-1)];
   };
@@ -542,13 +582,18 @@ export function lateralStep(L: LateralModel, s: LateralState, inp: LateralInput)
     forces.push({ kind: "rail", axle: c.axle, onWheel: true, side: c.side, at: c.at, f: { t: f.t * F, n: f.n * F }, y: f.y * F, spin: f.spin * F });
   });
   const impact = sol.set.some((c, j) => sol.P[j]! > 0 && !inp.closed?.some((k) => k.axle === c.axle && k.side === c.side));
+  const rails: RollForce[] = sol.set.map((c, j) => {
+    const F = sol.P[j]! / h;
+    return { y: c.y, z: L.radius[c.axle] + c.at.n, Fy: c.force.y * F, Fz: c.force.n * F };
+  });
+  const roll = rollLoads(L, Ym, (V[0] - Vm[0]) / h, inp.N, rails);
   return {
     next,
     forces,
     contacts,
     stops: [],
     work: { gravity: h * dot2(Fs, Vmid), tread: wTread, railNormal: wNormal, railFriction: wFric, stops: 0, boreSlide: 0, heave: 0 },
-    wheels: axles(L, Ym, pm, [V[0] - Vm[0], V[1] - Vm[1]], h),
+    wheels: axles(L, Ym, pm, [V[0] - Vm[0], V[1] - Vm[1]], h, roll),
     slip: sol.slip,
     consistent: sol.score <= 0,
     penetration,

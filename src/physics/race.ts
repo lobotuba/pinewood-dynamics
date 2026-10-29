@@ -21,9 +21,10 @@ import {
   rearOffset,
   restingAxles,
 } from "./lateral.js";
+import { type Clearance, ClearanceMonitor } from "./clearance.js";
 import { playArrival, playKinetic, playStep, restingPlayAxles, startSlides } from "./play.js";
 
-export const SOLVER_VERSION = "phy-009/0.6.0";
+export const SOLVER_VERSION = "phy-009/0.7.0";
 
 export interface RaceOptions {
   /** Fixed RK4 step, s. Convergence is demonstrated by step halving (PHY-005). */
@@ -111,7 +112,18 @@ export interface RaceResult {
    * can momentarily exceed that axle's load. The planar model keeps the wheel on the track through
    * the impact step; the hop it would make is estimated and reported here, never hidden.
    */
-  readonly hops: { readonly count: number; readonly maxHeight: number; readonly maxAirtime: number };
+  readonly hops: {
+    readonly count: number;
+    readonly maxHeight: number;
+    readonly maxAirtime: number;
+    /** Strikes whose roll moment lifted one side's wheel: counted, not sized (no roll inertia is given). */
+    readonly roll: number;
+  };
+  /**
+   * Least clearance of the underside over the lane and over the rail's top during the race, m, and
+   * where. Null when the car gives no underside (CarSpec.underbody).
+   */
+  readonly clearance: Clearance | null;
   readonly trace: readonly TraceSample[];
   readonly record: {
     readonly solverVersion: string;
@@ -167,6 +179,8 @@ export function simulateRace(spec: CarSpec, track: Track, env: Environment, opts
           muC: spec.lateral.railFriction.value,
           e: spec.lateral.railRestitution.value,
           gLat: denv.g * Math.sin(track.lateral.crossSlope.value),
+          // The body frame's origin is on the rear axle axis, at the wheel radius above the lane.
+          cgHeight: car.cg.z + car.rear.r,
           ...(spec.lateral.play && (spec.lateral.play.rear.value > 0 || spec.lateral.play.front.value > 0)
             ? {
                 play: {
@@ -179,6 +193,15 @@ export function simulateRace(spec: CarSpec, track: Track, env: Environment, opts
         }
       : null;
   const play = L?.play !== undefined;
+
+  // Underside clearance (validity monitor). The rail can be under any body point within its half-width
+  // plus how far the car can move across: the wheel faces' gap to the rail, and any axial play.
+  const railBand = track.lateral
+    ? track.lateral.guideRail.width.value / 2 +
+      (L ? (L.spacing - L.railWidth) / 2 + Math.max(0, ...(L.play?.travel ?? [0])) : 0)
+    : undefined;
+  const monitor = spec.underbody ? new ClearanceMonitor(spec.underbody.value, track, [car.rear.r, car.front.r], car.wheelbase, railBand) : null;
+  let clearance: Clearance | null = null;
   // Forces from the lateral model on the planar motion, and the wheels' axles, held over the current step.
   let ext: readonly PlanarForce[] = [];
   let axles: WheelAxles = SQUARE_AXLES;
@@ -240,7 +263,7 @@ export function simulateRace(spec: CarSpec, track: Track, env: Environment, opts
   /** True while the forces in `ext` come from a step that carried a rail (or, with play, a face) impact. */
   let impactStep = false;
   let lastH = dt;
-  const hops = { count: 0, maxHeight: 0, maxAirtime: 0 };
+  const hops = { count: 0, maxHeight: 0, maxAirtime: 0, roll: 0 };
 
   const ledgerAt = (y: State): EnergyLedger => {
     const pose = poseAt(y[0]);
@@ -344,6 +367,7 @@ export function simulateRace(spec: CarSpec, track: Track, env: Environment, opts
     maxSpeed,
     ledger: ledgerAt(y),
     hops,
+    clearance,
     trace,
     record,
   });
@@ -383,7 +407,7 @@ export function simulateRace(spec: CarSpec, track: Track, env: Environment, opts
     let out: State = y;
     for (let pass = 0; pass < 2; pass++) {
       pendingLat = play
-        ? playStep(L, lat, { h, v0, v1, N: [d0.Nr, d0.Nf], loads: d0.wheelLoads, prev: latInfo.modes ?? {} })
+        ? playStep(L, lat, { h, v0, v1, N: [d0.Nr, d0.Nf], loads: d0.wheelLoads, prev: latInfo.modes ?? {}, roll: wheelRoll(steady.axles) })
         : lateralStep(L, lat, { h, v0, v1, N: [d0.Nr, d0.Nf], closed: latInfo.contacts });
       ext = pendingLat.forces;
       axles = pendingLat.wheels;
@@ -446,6 +470,22 @@ export function simulateRace(spec: CarSpec, track: Track, env: Environment, opts
     const s = sample(t, y);
     if (step % traceEvery === 0) trace.push(s);
     maxSpeed = Math.max(maxSpeed, s.speedCg);
+    if (monitor) {
+      const pose = poseAt(y[0]);
+      const c = monitor.check(pose, pose.rear.s);
+      const least = (a: Clearance) => Math.min(a.lane, a.rail);
+      if (!clearance || least(c) < least(clearance)) clearance = c;
+      if (least(c) < 0) {
+        trace.push(s);
+        return finish(
+          "OUTSIDE_MODEL_VALIDITY",
+          `The body touches the ${c.kind === "rail" ? "guide rail" : "lane"} ${(1000 * c.x).toFixed(1)} mm ahead of the rear axle at t=${t.toFixed(4)} s (model assumes only the wheels touch).`,
+          y,
+          null,
+          maxSpeed,
+        );
+      }
+    }
     if (!s.frictionConsistent) {
       trace.push(s);
       return finish(
@@ -487,6 +527,21 @@ export function simulateRace(spec: CarSpec, track: Track, env: Environment, opts
         null,
         maxSpeed,
       );
+    } else {
+      // Roll: each wheel carries half its axle's load, shifted by the roll moment.
+      const roll = wheelRoll(axles);
+      const lifted = [0, 1, 2, 3].find((k) => (k < 2 ? s.Nr : s.Nf) / 2 + roll[k]! <= 0);
+      if (lifted !== undefined && impactStep) hops.roll++;
+      else if (lifted !== undefined) {
+        trace.push(s);
+        return finish(
+          "OUTSIDE_MODEL_VALIDITY",
+          `The ${lifted < 2 ? "rear" : "front"} ${lifted % 2 === 0 ? "left" : "right"} wheel lifts in roll at t=${t.toFixed(4)} s (model assumes all wheels in contact).`,
+          y,
+          null,
+          maxSpeed,
+        );
+      }
     }
 
     const ordinary = crossTarget === null && !impactNext;
@@ -552,6 +607,9 @@ export function simulateRace(spec: CarSpec, track: Track, env: Environment, opts
   }
   return finish("STALLED", `No finish within ${maxTime} s.`, y, null, maxSpeed);
 }
+
+/** Each wheel's lane-load shift from roll, N: index 2 * axle + (0 left, 1 right). */
+const wheelRoll = (w: WheelAxles): number[] => [w[0][0], w[0][1], w[1][0], w[1][1]].map((a) => a.roll ?? 0);
 
 function axpy(y: State, k: readonly number[], h: number): State {
   return y.map((yi, i) => yi + h * k[i]!) as unknown as State;

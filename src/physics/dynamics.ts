@@ -202,11 +202,13 @@ export function dynamics(
     }
     const { t, n } = (i === 0 ? pose.rear : pose.front).pt;
     const a = wheels[i][w].axis;
+    // Roll moves lane load between the sides: this wheel's lane force is (N/2 + roll) n.
+    const roll = wheels[i][w].roll ?? 0;
     return {
       da: { x: 0.5 * bf.da.x, y: 0, z: 0.5 * bf.da.z },
       n: { x: 0.5 * bf.n.x, y: 0, z: 0.5 * bf.n.z },
       t: { x: 0.5 * bf.t.x, y: 0, z: 0.5 * bf.t.z },
-      r0: { x: 0.5 * bf.r0.x - ex, y: wheels[i][w].sideways - ey, z: 0.5 * bf.r0.z - ez },
+      r0: { x: 0.5 * bf.r0.x - ex - roll * n.x, y: wheels[i][w].sideways - ey, z: 0.5 * bf.r0.z - ez - roll * n.z },
       axis: { x: a.t * t.x + a.n * n.x, y: a.y, z: a.t * t.z + a.n * n.z },
     };
   };
