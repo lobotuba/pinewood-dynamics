@@ -180,7 +180,7 @@ model that is worth 19 ms: about 10 ms from the wheels and 9 ms from the air.
    measured 0.167; needs 7 times the hub-drag bound; reaches only 37 of the 94 ms mass effect; and
    leaves χ² = 33 for 7 degrees of freedom (p ≈ 3e-5).
 
-**What remains.**
+**What remains** (as of this screen; section 7 then tests (a)).
 
 - **(a) Lateral dynamics and guide-rail contact (P6, P7).** This class is outside the screen. It can
   escape the scaling argument where it involves the fixed wheels: wheels sliding along their axles,
@@ -195,3 +195,83 @@ model that is worth 19 ms: about 10 ms from the wheels and 9 ms from the air.
 
 None has been set yet. Per VAL-001 it must be written down before comparing with the owner's own
 measured runs. The Duke comparison above is exploratory and does not count as validation.
+
+## 7. Lateral dynamics and guide-rail contact against the Duke data
+
+`npm run screen:lateral` races the Duke car with the lateral model (`docs/physics-model.md`, section 11).
+The paper gives none of the inputs, so all of them are ESTIMATED:
+
+- the rail: 1 5/8 in by 1/4 in;
+- inside wheel spacing: 1.81 in;
+- yaw inertia: their pitch inertia scaled for a 7 by 1.75 by 1.2 in body;
+- tread friction 0.35, rail friction 0.3, restitution 0.5.
+
+Yaw inertia is held fixed across both sweeps, as the published pitch inertia already is. The
+car's alignment is unknown, so each kind of misalignment was raced as given, with nothing fitted.
+Steps were 0.5 ms (within 0.2 ms of converged for these runs).
+
+| Alignment | Mass effect | CG effect | Table 2 car | χ² (10 points) | Rail loss |
+|---|---|---|---|---|---|
+| Aligned: the planar result | −18.8 ms | −14.9 ms | 2.235 s | 327 | 0 |
+| Front toe 1 mrad | −20.8 | −218.2 | 2.379 | 2702 | 24.8 % |
+| Front toe 4 mrad | −20.8 | −200.2 | 2.402 | 3542 | 25.8 % |
+| Front toe 8 mrad | −20.8 | −275.6 | 2.413 | 4707 | 26.1 % |
+| Rear toe 4 mrad | −20.7 | −248.6 | 2.395 | 3700 | 25.5 % |
+| Set down 5 mrad crooked, square axles | +2.1 | −95.3 | 2.596 | 19159 | 50.8 % |
+| Set down 10 mrad crooked | −20.8 | −128.9 | 2.628 | 24935 | 52.0 % |
+| Set down 20 mrad crooked | −34.2 | −48.3 | 2.731 | 35201 | 55.4 % |
+| Front toe 4 mrad, rail friction 0.15 | −19.7 | −104.7 | 2.317 | 718 | 13.7 % |
+| Set down 10 mrad crooked, restitution 0.8 | −79.8 | −204.7 | 2.634 | 22014 | 52.3 % |
+
+Rail loss is the share of released energy lost to wheel faces rubbing and striking the rail.
+
+**What the physics does:**
+
+1. **Any toe makes the car ride the rail.** With 1 mrad of toe or more, at either axle, the car
+   strikes the rail, bounces a few times and then rides it. The toed treads slide sideways, which
+   is Coulomb sliding even at 1 mrad (`docs/physics-model.md`, section 11), so they press the wheel
+   face on the rail with `μ_t N`. The face then rubs the rail's top edge at about 0.9 v. That costs
+   about a quarter of the energy and gives a strong CG effect, because the press force is
+   proportional to the toed axle's load.
+
+   It adds no mass effect. The loss is proportional to load, so the scaling theorem of section 5
+   still holds.
+2. **A crooked start makes the car wobble.** A car set down off-line with square axles bounces
+   between the rail's two faces. Here the mass sweep is not a pure scaling: weight is added while
+   yaw inertia stays fixed, so I_z/m changes. That gives a real mass effect, up to −80 ms with
+   lively bounces, the first mechanism in this study to come near the measured −94 ms. But the
+   level is then far too slow, at 2.6–2.7 s.
+3. **The rail friction and restitution are the key unknowns.** Racers' fast "rail rider" setups
+   cant the wheels and lubricate the faces. Both mitigate exactly the loss found here: the contact
+   moves low on the face, where it slides slowly, and its friction drops.
+
+**Joint search.** Front toe 0 to 4 mrad, rail friction 0.02 to 0.2, restitution 0.3 to 0.9, and set
+down 0 to 10 mrad crooked: 180 combinations, ranked at 1 ms steps and re-raced at 0.5 ms. The best
+five all need very low rail friction (0.05) and very bouncy contact (e 0.9):
+
+- χ² 196 to 210, against 327 for the planar model;
+- Table 2 car 2.255 to 2.266 s, the right level;
+- CG effect 43 to 53 ms, three times the planar 15 ms but a third of the measured 140;
+- mass effect 17 to 26 ms, the planar value.
+
+That χ² over 10 points with 4 parameters is far worse than the planar three-mechanism fit of
+section 5 (33 for 7 dof), and neither is acceptable.
+
+**Conclusion.** Lateral dynamics and guide-rail contact, with Coulomb treads and a rigid rail, do
+not explain the Duke effects either. Two tensions remain:
+
+- toe gives the right shape of CG effect, but rail riding costs too much at any rail friction that
+  leaves the level right;
+- wobble can make a mass effect, but only by making the car far too slow.
+
+With the planar candidates excluded in section 5, the remaining explanations are:
+
+- **(d) Experimental artefacts.** For example, the car's setup or alignment changing between
+  configurations. Re-placing magnetic weights could easily change the toe by a milliradian, which
+  the table shows is worth hundreds of milliseconds.
+- **Mechanisms not yet modelled.** Camber, which moves the rail contact low; wheels sliding along
+  their axles; body contact with the rail; or roll.
+
+The first is consistent with how sensitive these results are to alignment. Any owner test plan
+must hold alignment fixed and measure it between configurations: spin-and-drift tests on a flat
+board give the toe to a fraction of a milliradian.

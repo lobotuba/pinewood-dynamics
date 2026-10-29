@@ -6,6 +6,7 @@
 
 import type { Provenance, Sourced } from "../core/provenance.js";
 import type { Vec2 } from "../core/vec2.js";
+import type { LateralCarSpec } from "./lateral.js";
 
 export interface AxleSpec {
   /** Wheel outer radius, m. */
@@ -54,6 +55,11 @@ export interface CarSpec {
   readonly dragArea: Sourced<number>;
   readonly rear: AxleSpec;
   readonly front: AxleSpec;
+  /**
+   * Lateral properties for P6/P7 (lateral dynamics, guide-rail contact). Omitted: the car is raced in
+   * the vertical plane only, as before.
+   */
+  readonly lateral?: LateralCarSpec;
 }
 
 export interface Environment {
@@ -135,6 +141,21 @@ export function inputProvenance(spec: CarSpec, env: Environment): Record<string,
       out[`${axle}.frictionLaw.referenceLoad`] = a.frictionLaw.referenceLoad.provenance;
     }
     if (a.hubDrag) out[`${axle}.hubDrag`] = a.hubDrag.provenance;
+  }
+  const l = spec.lateral;
+  if (l) {
+    out["lateral.yawInertia"] = l.yawInertia.provenance;
+    out["lateral.cgOffset"] = l.cgOffset.provenance;
+    out["lateral.insideWheelSpacing"] = l.insideWheelSpacing.provenance;
+    out["lateral.toe.rear"] = l.toe.rear.provenance;
+    out["lateral.toe.front"] = l.toe.front.provenance;
+    out["lateral.treadFriction"] = l.treadFriction.provenance;
+    out["lateral.railFriction"] = l.railFriction.provenance;
+    out["lateral.railRestitution"] = l.railRestitution.provenance;
+    if (l.start) {
+      out["lateral.start.offset"] = l.start.offset.provenance;
+      out["lateral.start.heading"] = l.start.heading.provenance;
+    }
   }
   return out;
 }

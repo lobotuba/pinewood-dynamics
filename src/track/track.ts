@@ -4,6 +4,7 @@ import { type Sourced, sourced } from "../core/provenance.js";
 import { degrees, inches } from "../core/units.js";
 import { v2 } from "../core/vec2.js";
 import type { Surface } from "./curve.js";
+import type { LaneLateral } from "../physics/lateral.js";
 import { Path, type SegmentSpec } from "./path.js";
 
 /** TRK-004: how much of the lane profile is known. */
@@ -19,6 +20,8 @@ export interface Track {
   readonly pinS: number;
   /** Timed distance from the start pin to the finish sensor, measured along the lane surface. */
   readonly timedDistance: Sourced<number>;
+  /** Guide rail and cross slope, for the lateral model (P6, P7). Omitted: planar racing only. */
+  readonly lateral?: LaneLateral;
 }
 
 /** Surface arc length of the finish sensor plane (TIM-001). */
@@ -75,6 +78,19 @@ const BESTTRACK_TIMED_IN: Record<BestTrackLength, number> = { 35: 358, 42: 442, 
 const BESTTRACK_STRAIGHTS: Record<BestTrackLength, number> = { 35: 3, 42: 4, 49: 5 };
 
 /**
+ * Centre guide rail, 1 5/8 in wide and 1/4 in tall: the figure local rulebooks give for a standard
+ * track. Not from BestTrack's own documents, which leave rail and lane dimensions open, so ESTIMATED
+ * until the owner's track is measured (CHAR-005). The lane is taken as level across (DEFAULT).
+ */
+export const TYPICAL_LANE_LATERAL: LaneLateral = {
+  guideRail: {
+    width: sourced(inches(1.625), "ESTIMATED", "Common rulebook statement of a standard centre rail; not BestTrack-specific"),
+    height: sourced(inches(0.25), "ESTIMATED", "Common rulebook statement of a standard centre rail; not BestTrack-specific"),
+  },
+  crossSlope: sourced(0, "DEFAULT", "Level across until surveyed"),
+};
+
+/**
  * BestTrack aluminium track built from the manufacturer's layout drawing and specification page.
  *
  * MANUFACTURER: a 7 ft start lane at 26 deg; a curved lane 41 in long; 7 ft straight lanes plus a
@@ -111,5 +127,6 @@ export function bestTrack(length: BestTrackLength = 35): Track {
       "curved lane assumed uniform (41 in turning 26 deg, radius 90.35 in) pending the CHAR-005 survey.",
     pinS: inches(8),
     timedDistance: sourced(inches(BESTTRACK_TIMED_IN[length]), "MANUFACTURER", BESTTRACK_SPECS),
+    lateral: TYPICAL_LANE_LATERAL,
   };
 }

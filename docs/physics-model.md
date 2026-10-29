@@ -1,7 +1,7 @@
 # Physics model, MVP solver (PHY-009)
 
-Status: milestone M1, physics core with no graphics, solver `phy-009/0.3.0`. Gates P0–P5 pass
-against analytic solutions (section 7). The solver has been compared with one published experiment
+Status: physics core, solver `phy-009/0.4.0`. Gates P0–P7 pass against analytic solutions
+(section 7); P6 and P7, lateral dynamics and guide-rail contact, are in section 11. The solver has been compared with one published experiment
 (`docs/validation.md`): it gets the overall time right, but not the size of the mass and CG
 effects. It has not been validated against the owner's track. The kit and friction values are still
 ESTIMATED (section 8).
@@ -27,9 +27,12 @@ Included:
 - wheel loads from the full rigid-body balance on the slope and transition, including centripetal
   and longitudinal-acceleration effects.
 
-Not modelled (the result record states this, and later releases add them): lateral motion, yaw,
-roll, camber and toe, guide-rail contact, three-wheel running, start-pin motion, body–track
-contact, wheel slip, and track or car flexibility.
+Lateral motion, yaw, toe and guide-rail contact are modelled when the car has a lateral description
+and the lane a guide rail (section 11); otherwise the car is raced in the vertical plane only, and
+the result record says which (`record.lateral`).
+
+Not modelled: roll, camber, three-wheel running, wheels sliding along their axles, start-pin
+motion, body–track contact, wheel slip along the direction of travel, and track or car flexibility.
 
 ## 2. Geometry and kinematics (`src/track/path.ts`, `src/physics/kinematics.ts`)
 
@@ -157,8 +160,11 @@ way carries over to the other only if friction is Coulomb (CHAR-006).
 ## 4. Energy ledger (ANA-001)
 
 ```
-released PE = KE_body (translation + pitch) + KE_wheels + E_axle + E_roll + E_aero + residual
+released PE = KE_body (translation + pitch) + KE_wheels + E_axle + E_roll + E_aero
+            + KE_lateral + E_tread + E_rail friction + E_rail impact + residual
 ```
+
+The four lateral terms are zero unless the lateral model runs (section 11).
 
 Loss energies are integrated as extra state variables using the same scheme as the motion. The
 residual measures the integration error; it is reported in the result and in every trace sample.
@@ -185,7 +191,10 @@ residual measures the integration error; it is reported in the result and in eve
   Cross-engine agreement has not yet been measured (spec 3.4).
 - **Validity monitor.** A non-positive axle load means a wheel has lifted. The run then ends as
   `OUTSIDE_MODEL_VALIDITY` with no time, because the model assumes all wheels are in contact.
-  A car that cannot leave the gate, or stops before the finish, ends as `STALLED`.
+  The one exception is a step carrying a guide-rail impact, where friction at the rail can briefly
+  exceed an axle's load. The run continues, and the hop's estimated height and airtime are recorded
+  in `hops` (section 11). A car that cannot leave the gate, or stops before the finish, ends as
+  `STALLED`.
 
 ## 6. Inputs and provenance
 
@@ -222,6 +231,16 @@ Every input is a `Sourced<T>` value carrying its provenance. The result record h
 | FRI-001 | Hub drag on an incline (`test/p6-mechanisms.test.ts`) | `a = g sin α − 2Q/(m r)`; loss `2QD/r` | 5e-11 s, 5e-11 J |
 | FRI-001 | Load-dependent coefficient | `n = 1` identical to Coulomb; `T_i = −μ(W_i) ρ \|R_i\|/r` at every sample | bit-identical; 5e-13 N |
 | VAL-001 | Scaling: every mass, inertia and hub torque × 1.7, no air, Coulomb | Time unchanged; changes with air or `n = 2/3` | 1e-9 s |
+| P6/P7 | External force on the planar motion (`test/p6-p7-lateral.test.ts`) | On the body `Δa = F/(m + ΣI/r²)`; on a wheel by virtual work: 0 at the contact point, `2F/M` at the top; power `F·v_point` | 1e-12 |
+| P6 | Aligned, centred car | Never leaves the centreline; time bit-identical to the planar model | exact |
+| P6 | Car set down at heading ψ | Drifts at `v tan ψ`, heading constant | 1e-15 m |
+| P6 | Front toe δ, no rail | Model ODE `ψ' WB cos ψ = v(tan(ψ+δ) − tan ψ)`; rigid circle `sin ψ = s tan δ/WB` at ψ ≤ 0.03; no tread slip | 2e-3, 1e-3 |
+| P7 | Square impact, frictionless | `ẏ⁺ = −e ẏ⁻`; loss `½ m (1−e²) ẏ²` | 1e-12 |
+| P7 | Single yawed impact, frictionless | Gap rate `× −e`; loss with `1/m_eff = 1/m + arm²/I_z` | 1e-9, 1e-6 |
+| P7 | Steady rail riding with front toe | Rear sticks, front slides, rail force from the two-equation balance | 1e-6 |
+| P6/P7 | Race with strikes, rail riding and scrub | Each lateral loss positive; residual / released | < 1e-6 |
+| P6/P7 | Mass scaling × 1.7 with the lateral model (yaw inertia scaled too) | Time unchanged | 1e-9 s |
+| P6/P7 | Step size 1e-3 to 1.25e-4 s against 3.125e-5 s | First order: error halves and quarters; < 0.5 ms at 5e-4 s | – |
 
 ## 8. Before predictions mean anything (VAL-001)
 
@@ -237,9 +256,10 @@ not been shown to match real races. Validation needs:
 3. **CHAR-006 friction calibration:** `μ` and `C_rr` from filmed runs or coast-downs at race load,
    using a set of runs separate from the validation runs. A spin-down at one wheel's weight is not
    enough unless friction is shown to be Coulomb (section 3).
-4. **Lateral dynamics and guide-rail contact (P6, P7).** The Duke screen rules out every planar loss
-   mechanism tried (`docs/validation.md`, section 5), which leaves these as the main physics
-   candidates.
+4. **Alignment and rail-contact data.** Lateral dynamics and guide-rail contact are now modelled
+   (section 11). Their inputs are not known: the car's toe and how it is set at the gate, the rail's
+   dimensions, and the friction and restitution of a wheel face on the rail. `docs/validation.md`,
+   section 7, shows what they do to the Duke comparison.
 5. **A written acceptance criterion** for predicted versus measured time, frozen before the
    comparison is made.
 
@@ -268,3 +288,114 @@ It treats dry air and water vapour as ideal gases, with the Buck (1996) saturati
 The result is 1.2041 kg/m³ for dry air at 20 °C and 101325 Pa. Humid air is lighter. Over a normal
 range of room conditions, density varies by about ±5%. That changes drag by the same proportion,
 which is worth a few milliseconds.
+
+## 11. Lateral dynamics and guide-rail contact (P6, P7; `src/physics/lateral.ts`)
+
+**Geometry.** The lane is its profile swept straight across, so laid flat it is a plane strip: `u`
+along it, `y` across it, `y = 0` on the centreline. The guide rail occupies `|y| ≤ w/2` and stands
+`h` high. The car's lateral state is the CG's lateral position `Y` and the yaw `ψ` of body +X from
+the lane direction, positive toward the car's left. The kinetic energy `½ m Ẏ² + ½ I_z ψ̇²` has a
+constant mass matrix, so the discrete energy balance below is exact.
+
+**Inputs** (`LateralCarSpec`, `LaneLateral`): yaw inertia, the CG's lateral offset, inside wheel
+spacing, toe of each axle, tread friction `μ_t`, rail friction `μ_c`, rail restitution `e`, the
+start offset and heading, rail width and height, and the lane's cross slope. BestTrack's rail is
+taken as 1 5/8 in by 1/4 in, the figure local rulebooks give for a standard track. That is
+ESTIMATED, because BestTrack's own documents leave rail and lane dimensions open.
+
+**Treads.** Axle `i` points along `ψ + δ_i`. Its sideways slip is
+
+```
+u_i = −v_i sin(ψ+δ_i) + cos(ψ+δ_i) (Ẏ + ψ̇ ∂y_i/∂ψ)
+```
+
+with `v_i` the axle's path speed from the planar solver. Coulomb friction is perpendicular to the
+wheel plane: `|F_i| ≤ μ_t N_i`, with zero slip while sticking and opposing the slip when sliding.
+Sticking at both axles is rolling without sideways slip, so a square car drifts at `v tan ψ` and a
+toed car steers like a bicycle. The force's along-lane part, `−F_i sin(ψ+δ_i)`, goes to the planar
+solver as a body force. It is parallel to the axle, so it exerts no torque about it.
+
+Coulomb sliding is the right limit here. A Hertz estimate for a hard-plastic tread under 0.45 N gives
+a contact strip about 17 µm wide, and Kalker's linear creep theory then saturates at a creepage near
+3e-4. Any misalignment above about 0.3 mrad therefore slides the tread.
+
+**Rail.** A wheel's inner face meets the rail's top edge at the end of the face's chord at height
+`h`: offset `ξ = ±√(r² − (r−h)²)` along the wheel plane, on the side the yaw turns toward the rail.
+The gap is `side · y_P − w/2`.
+
+- **Normal impulse.** Newton restitution: `ġ⁺ = −e ġ⁻` for a contact closing from open. A contact
+  that carried force in the previous step is in sustained contact and uses `e = 0`.
+- **Friction.** That point of the face moves at `v (h, −ξ)/r` in the wheel plane, which is
+  `v √(2h/r)`, about 0.9 v, with no component across the rail. Friction `μ_c P` opposes that motion.
+  It acts on the wheel in the planar model, so it brakes the wheel's spin, adds to its bore load
+  and has a vertical part.
+- **Yaw.** The friction's along-lane part acts at the rail face, off the CG's line, so it yaws the
+  car toward that side: `M = −(y_P − Y) F_u`.
+
+**Time stepping.** The lateral part uses Moreau's scheme. Impulses are found at velocity level, and
+positions advance by the mean of the start and end velocities. In each step:
+
+1. Contacts whose gap is closed at the predicted midpoint are candidates.
+2. Every combination is tried: stick, slide forward or slide back for each tread, and open or closed
+   for each candidate contact.
+3. The first combination satisfying all the laws (Coulomb's, the impact law, `P ≥ 0`, and opening
+   gaps for open contacts) is taken. Nothing is regularised. A step with no consistent combination
+   ends the run as `OUTSIDE_MODEL_VALIDITY`.
+
+The planar RK4 step holds the resulting forces over the step. The lateral step is solved twice: on
+an Euler estimate of the end speed, then on the speed RK4 reaches. That way a sticking tread ends
+every step exactly on its rolling constraint, which makes the drift case exact.
+
+When a wheel face will reach the rail inside a step, the step is cut there, as at track joins, and
+the impact gets a step 1/1000 as long. Impact timing therefore does not depend on the step grid.
+Over so short a step the treads carry only their finite friction, so the impact is the rail's alone.
+
+**Coupling approximation.** Every body point is taken to move along the lane at its axle's path
+speed. The along-lane velocity that yaw itself produces (`x ψ ψ̇`) is left out of the planar
+kinetic energy. The rail bounds ψ at about the gap over the wheelbase, roughly 0.04 rad, so this is
+a relative error below 1e-3 in the lateral kinematics. The bicycle test measures it: 1e-3 against
+the rigid circle at ψ = 0.03.
+
+**Energy.** Each lateral loss is minus the work its forces do on both motions. The lateral work is
+the impulse times the step's mean velocity, which is exact with the constant mass matrix. The planar
+work is integrated in RK4 with the other states.
+
+- `E_tread`: scrub, including the along-lane component.
+- `E_rail friction`: the planar work on the wheel plus the yaw moment's work.
+- `E_rail impact`: from the normal impulses.
+
+**Wheel hops.** Where a face strikes the rail's top edge, the front-lower part of the wheel is moving
+down at about 0.8 v. The friction impulse therefore lifts that wheel, often by more than the axle
+load can hold for the length of a step. The planar model keeps the wheel on the track through the
+impact step. The would-be hop is estimated, with the car pivoting about the other axle:
+
+- leaving speed `J · WB²/I_pivot`;
+- returning under gravity's moment about the pivot.
+
+The count, the largest height and the longest airtime are reported in `RaceResult.hops`. On the
+estimated demo car they are about a micrometre and under a millisecond. A negative load on a step
+without an impact is sustained lift and still ends the run.
+
+**Convergence.** After a strike, a wheel bounces off the rail with each flight shorter than the
+last, as a bouncing ball does, and then rides it. Once the flights are shorter than a step, the
+scheme merges them. Race times therefore converge at first order but not monotonically. Against a
+3.125e-5 s reference:
+
+| Step | Error |
+|---|---|
+| 1e-3 s | 0.30 ms |
+| 2.5e-4 s | 0.06 ms |
+| 1.25e-4 s | 0.03 ms |
+
+A run without rail contact keeps the planar model's accuracy.
+
+**Not modelled yet:**
+
+- roll and camber, so a cambered wheel's lower contact on the rail is not available;
+- wheels sliding along their axles;
+- the start pin's lateral effect;
+- aerodynamic side force;
+- contact between the body and the rail.
+
+The design workspace still races the planar model, because alignment inputs are Release 2 controls
+(WHL-002, WHL-009) whose legality at the event is UNKNOWN (WHL-005).

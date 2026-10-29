@@ -1,0 +1,354 @@
+// Lateral dynamics and guide-rail contact (spec 11.5 gates P6, P7; derivation in
+// docs/physics-model.md, section 11).
+//
+// The lane is a cylinder: its profile in the vertical plane swept straight across. Laid flat, the
+// lane is a plane strip with arc length u along it and y across it, y = 0 on the lane centreline
+// and the guide rail occupying |y| <= w/2. The car's lateral motion is two degrees of freedom in that
+// plane: Y, the CG's lateral position, and psi, the yaw of body +X from the lane direction (positive
+// toward +y, the car's left). Mass matrix diag(m, I_z) is constant, so the discrete energy balance
+// below is exact.
+//
+// Forces:
+//   tread  Coulomb friction at each axle's tread contacts, perpendicular to the wheel plane
+//          (heading psi + toe delta_i). Stick means rolling without sideways slip.
+//   rail   a wheel's inner face meets the rail's top edge, height h: normal impulse with Newton
+//          restitution e, and Coulomb friction mu_c where the face slides over the edge. The face
+//          material there moves at v sqrt(2h/r) in the wheel plane, so friction acts on the wheel's
+//          spin and, being off the CG's line, yaws the car toward that side.
+//   gravity across the lane when it has a cross slope.
+//
+// Time stepping is Moreau's (velocity-level impulses, positions by the midpoint of the start and
+// end velocities). Each step enumerates the stick/slip state of both treads and the open/closed
+// state of the rail contacts near closing, and takes the first consistent combination: Coulomb's
+// law and the impact law hold exactly, with no regularisation.
+//
+// The longitudinal motion stays with the planar solver. The lateral model treats every body point
+// as moving along the lane at its axle's path speed, so the yaw-induced along-lane velocity
+// (x psi psi') is left out of the planar kinetic energy; with psi bounded by the rail gap over the
+// wheelbase (about 0.04 rad) that is a relative error below 1e-3 in the lateral kinematics.
+
+import type { Sourced } from "../core/provenance.js";
+
+/** The lane's guide rail and cross slope (TRK geometry; dimensions are not yet sourced for BestTrack). */
+export interface LaneLateral {
+  readonly guideRail: { readonly width: Sourced<number>; readonly height: Sourced<number> };
+  /** Lane tilt across, rad: positive raises the +y (left) side, so gravity pulls toward -y. */
+  readonly crossSlope: Sourced<number>;
+}
+
+/** What the lateral model needs of the car beyond the planar description. */
+export interface LateralCarSpec {
+  /** Yaw moment of inertia about the CG, about the lane normal, kg m^2 (wheels as point masses). */
+  readonly yawInertia: Sourced<number>;
+  /** CG offset toward the car's left from the centreline, m. */
+  readonly cgOffset: Sourced<number>;
+  /** Distance between the inner faces of a left and right wheel, as installed, m. */
+  readonly insideWheelSpacing: Sourced<number>;
+  /** Axle yaw relative to square, rad: positive turns that axle's wheels to point left (WHL-002). */
+  readonly toe: { readonly rear: Sourced<number>; readonly front: Sourced<number> };
+  /** Coulomb coefficient of the treads on the lane, sideways. */
+  readonly treadFriction: Sourced<number>;
+  /** Coulomb coefficient of a wheel face on the guide rail. */
+  readonly railFriction: Sourced<number>;
+  /** Newton restitution of a wheel face striking the rail. */
+  readonly railRestitution: Sourced<number>;
+  /** Rear-axle lateral offset from the lane centre and heading at the gate. Omitted: centred, straight. */
+  readonly start?: { readonly offset: Sourced<number>; readonly heading: Sourced<number> };
+}
+
+export interface LateralModel {
+  readonly m: number;
+  readonly Iz: number;
+  /** CG in body coordinates: x ahead of the rear axle, y to the left. */
+  readonly xc: number;
+  readonly yc: number;
+  readonly wheelbase: number;
+  readonly spacing: number;
+  readonly railWidth: number;
+  readonly railHeight: number;
+  readonly toe: readonly [number, number];
+  readonly radius: readonly [number, number];
+  readonly muT: number;
+  readonly muC: number;
+  readonly e: number;
+  /** g sin(cross slope), m/s^2. */
+  readonly gLat: number;
+}
+
+export interface LateralState {
+  readonly Y: number;
+  readonly psi: number;
+  readonly dY: number;
+  readonly dPsi: number;
+}
+
+export interface LateralInput {
+  readonly h: number;
+  /** Axle path speeds along the lane, rear and front, at the start and (predicted) end of the step. */
+  readonly v0: readonly [number, number];
+  readonly v1: readonly [number, number];
+  /** Axle normal loads, N. */
+  readonly N: readonly [number, number];
+  /**
+   * Rail contacts that carried force in the previous step. They are in sustained contact, not
+   * striking, so restitution does not apply to them: a wheel riding the rail stays on it.
+   */
+  readonly closed?: readonly Pick<RailContact, "axle" | "side">[];
+}
+
+/** A force for the planar solver, constant over the step, in the axle path's (tangent, normal) frame. */
+export interface PlanarForce {
+  readonly kind: "tread" | "rail";
+  readonly axle: 0 | 1;
+  /** True: acts on the wheels (enters their spin and bore load). False: acts on the body. */
+  readonly onWheel: boolean;
+  /** Offset of the point of application from the axle centre: along t, along n, m. */
+  readonly at: { readonly t: number; readonly n: number };
+  /** Force components along t and n, N. */
+  readonly f: { readonly t: number; readonly n: number };
+}
+
+export interface RailContact {
+  readonly axle: 0 | 1;
+  /** +1: a left wheel against the rail's left face; -1: a right wheel against its right face. */
+  readonly side: 1 | -1;
+  /** Mean normal force over the step, N. */
+  readonly force: number;
+}
+
+export interface LateralStep {
+  readonly next: LateralState;
+  readonly forces: readonly PlanarForce[];
+  readonly contacts: readonly RailContact[];
+  /** Work done on the lateral motion over the step, J, by mechanism. */
+  readonly work: { readonly gravity: number; readonly tread: number; readonly railNormal: number; readonly railFriction: number };
+  /** Tread state per axle: 0 stick, +1 or -1 sliding in that direction. */
+  readonly slip: readonly [number, number];
+  /** False when no stick/slip/contact combination satisfied every law (reported, not hidden). */
+  readonly consistent: boolean;
+  /** Deepest rail penetration at the step's midpoint, m (Moreau stepping allows O(h v) overlap). */
+  readonly penetration: number;
+}
+
+type V2 = [number, number];
+const dot2 = (a: readonly number[], b: readonly number[]): number => a[0]! * b[0]! + a[1]! * b[1]!;
+
+export const lateralKinetic = (L: LateralModel, s: LateralState): number => 0.5 * L.m * s.dY * s.dY + 0.5 * L.Iz * s.dPsi * s.dPsi;
+
+/** Lateral offset of a body point (bx ahead of the rear axle, by to the left) and its d/dpsi. */
+function bodyPoint(L: LateralModel, Y: number, psi: number, bx: number, by: number): { y: number; dyDpsi: number } {
+  const c = Math.cos(psi);
+  const s = Math.sin(psi);
+  return { y: Y + (bx - L.xc) * s + (by - L.yc) * c, dyDpsi: (bx - L.xc) * c - (by - L.yc) * s };
+}
+
+/** Rear-axle lateral offset at a given CG position and heading. */
+export const rearOffset = (L: LateralModel, s: Pick<LateralState, "Y" | "psi">): number => bodyPoint(L, s.Y, s.psi, 0, 0).y;
+
+/** CG lateral position for a rear-axle offset and heading. */
+export const cgFromRear = (L: LateralModel, offset: number, psi: number): number => offset + L.xc * Math.sin(psi) + L.yc * Math.cos(psi);
+
+interface Candidate {
+  readonly axle: 0 | 1;
+  readonly side: 1 | -1;
+  readonly gap: number;
+  /** Gap rate per generalized velocity (Y', psi'). */
+  readonly G: V2;
+  /** Generalized impulse per unit normal impulse: normal plus the yaw of rail friction. */
+  readonly W: V2;
+  /** Contact point on the wheel face, offset from the axle centre: along the wheel plane, and height above the centre. */
+  readonly xi: number;
+  readonly z: number;
+  /** Rail-friction force on the wheel per unit normal force, in the axle path's (t, n) frame. */
+  readonly fric: { readonly t: number; readonly n: number };
+}
+
+/** The four places a wheel face can meet the rail. */
+function candidates(L: LateralModel, Y: number, psi: number): Candidate[] {
+  const out: Candidate[] = [];
+  const h = L.railHeight;
+  for (const axle of [0, 1] as const) {
+    const r = L.radius[axle];
+    const d = L.toe[axle];
+    // Half-chord of the wheel face below the rail's top edge.
+    const ell = h < r ? Math.sqrt(r * r - (r - h) * (r - h)) : r;
+    const along = Math.sin(psi + d);
+    for (const side of [1, -1] as const) {
+      // The edge of the face nearest the rail: the chord end that the yaw turns toward it.
+      const xi = along === 0 ? 0 : -side * ell * Math.sign(along);
+      // Face centre on the toed axle, then along the wheel plane by xi.
+      const bx = (L.wheelbase * axle) - side * (L.spacing / 2) * Math.sin(d) + xi * Math.cos(d);
+      const by = side * (L.spacing / 2) * Math.cos(d) + xi * Math.sin(d);
+      const p = bodyPoint(L, Y, psi, bx, by);
+      const gap = side * p.y - L.railWidth / 2;
+      const G: V2 = [side, side * p.dyDpsi];
+      // The face point at the edge moves (h, -xi) r^-1 v relative to the axle centre's path frame;
+      // friction opposes that slide.
+      const z = h - r;
+      const len = Math.hypot(h, xi);
+      const fric = { t: (-L.muC * h) / len, n: (L.muC * xi) / len };
+      // Along-lane friction at lateral lever (y_P - Y) yaws the car: M = -(y_P - Y) F_u.
+      const W: V2 = [G[0], G[1] - (p.y - Y) * fric.t];
+      out.push({ axle, side, gap, G, W, xi, z, fric });
+    }
+  }
+  return out;
+}
+
+/** Gap between a wheel face and the rail, m (negative when overlapping): axle 0 rear / 1 front, side +1 left / -1 right. */
+export function railGap(L: LateralModel, Y: number, psi: number, axle: 0 | 1, side: 1 | -1): number {
+  return candidates(L, Y, psi).find((c) => c.axle === axle && c.side === side)!.gap;
+}
+
+export function lateralStep(L: LateralModel, s: LateralState, inp: LateralInput): LateralStep {
+  const h = inp.h;
+  const Minv: V2 = [1 / L.m, 1 / L.Iz];
+  const Vm: V2 = [s.dY, s.dPsi];
+  const Fs: V2 = [-L.m * L.gLat, 0];
+  const Vfree: V2 = [Vm[0] + h * Fs[0] * Minv[0], Vm[1] + h * Fs[1] * Minv[1]];
+
+  // Geometry at the step's midpoint, predicted from the starting velocity (Moreau's theta = 1/2).
+  const Ym = s.Y + 0.5 * h * Vm[0];
+  const pm = s.psi + 0.5 * h * Vm[1];
+  const tread = ([0, 1] as const).map((i) => {
+    const a = pm + L.toe[i];
+    const pt = bodyPoint(L, Ym, pm, L.wheelbase * i, 0);
+    const c = Math.cos(a);
+    return { sin: Math.sin(a), W: [c, c * pt.dyDpsi] as V2, limit: L.muT * Math.max(inp.N[i], 0) * h };
+  });
+  const all = candidates(L, Ym, pm);
+  const near = all.filter((c) => c.gap <= 0);
+  const eOf = (c: Candidate): number => (inp.closed?.some((k) => k.axle === c.axle && k.side === c.side) ? 0 : L.e);
+  const penetration = Math.max(0, ...near.map((c) => -c.gap));
+
+  // Unknown impulses: tread i (bounded by limit), rail j >= 0. Try every combination.
+  const subsets: Candidate[][] = [[]];
+  for (const c of near) for (const sset of [...subsets]) subsets.push([...sset, c]);
+  const modes: [number, number][] = [];
+  for (const a of [0, 1, -1]) for (const b of [0, 1, -1]) modes.push([a, b]);
+
+  const tol = 1e-12;
+  let best: { score: number; lam: [number, number]; P: number[]; set: Candidate[]; V: V2; slip: [number, number] } | null = null;
+  search: for (const set of subsets)
+    for (const mode of modes) {
+      // A sliding tread with no friction limit is the same as sticking with zero force; skip duplicates.
+      if (mode.some((m, i) => m !== 0 && tread[i]!.limit === 0)) continue;
+      // Fixed impulses: sliding treads at their limit, opposing the slip.
+      const lamFixed: [number, number] = [0, 0];
+      mode.forEach((m, i) => {
+        if (m !== 0) lamFixed[i] = -m * tread[i]!.limit;
+      });
+      let Vb: V2 = [...Vfree];
+      for (const i of [0, 1]) Vb = [Vb[0] + Minv[0] * tread[i]!.W[0] * lamFixed[i]!, Vb[1] + Minv[1] * tread[i]!.W[1] * lamFixed[i]!];
+      // Unknown columns: sticking treads, then closed rail contacts.
+      const cols: V2[] = [];
+      const rows: { a: V2; rhs: number }[] = [];
+      mode.forEach((m, i) => {
+        // An unloaded tread carries no friction: it is free, not stuck.
+        if (m !== 0 || tread[i]!.limit === 0) return;
+        cols.push(tread[i]!.W);
+        // u+ = -v1 sin + W.V+ = 0
+        rows.push({ a: tread[i]!.W, rhs: inp.v1[i]! * tread[i]!.sin });
+      });
+      for (const c of set) {
+        cols.push(c.W);
+        rows.push({ a: c.G, rhs: -eOf(c) * dot2(c.G, Vm) });
+      }
+      const n = cols.length;
+      let x: number[] = [];
+      if (n > 0) {
+        // rows . (Vb + Minv * sum cols x) = rhs
+        const A = rows.map((r) => cols.map((col) => r.a[0] * Minv[0] * col[0] + r.a[1] * Minv[1] * col[1]));
+        const b = rows.map((r) => r.rhs - dot2(r.a, Vb));
+        const sol = solveSmall(A, b);
+        if (!sol) continue;
+        x = sol;
+      }
+      const V: V2 = [...Vb];
+      cols.forEach((col, k) => {
+        V[0] += Minv[0] * col[0] * x[k]!;
+        V[1] += Minv[1] * col[1] * x[k]!;
+      });
+      // Check every law; score is the worst violation, 0 when consistent.
+      let score = 0;
+      const lam: [number, number] = [...lamFixed];
+      let k = 0;
+      mode.forEach((m, i) => {
+        const u = -inp.v1[i]! * tread[i]!.sin + dot2(tread[i]!.W, V);
+        const lim = tread[i]!.limit;
+        const scale = tol * (1 + Math.abs(inp.v1[i]!));
+        if (m === 0 && lim === 0) return;
+        if (m === 0) {
+          lam[i] = x[k++]!;
+          score = Math.max(score, Math.abs(lam[i]) - lim - tol * (1 + lim));
+        } else score = Math.max(score, -m * u - scale);
+      });
+      const P = set.map(() => x[k++]!);
+      P.forEach((p) => {
+        score = Math.max(score, -p - tol);
+      });
+      for (const c of near)
+        if (!set.includes(c)) score = Math.max(score, -(dot2(c.G, V) + eOf(c) * dot2(c.G, Vm)) - tol * (1 + Math.abs(dot2(c.G, Vm))));
+      if (!best || score < best.score) best = { score, lam, P, set, V, slip: [mode[0], mode[1]] };
+      if (score <= 0) break search;
+    }
+  const sol = best!;
+  const V = sol.V;
+  const Vmid: V2 = [(Vm[0] + V[0]) / 2, (Vm[1] + V[1]) / 2];
+  const next: LateralState = { Y: s.Y + h * Vmid[0], psi: s.psi + h * Vmid[1], dY: V[0], dPsi: V[1] };
+
+  const forces: PlanarForce[] = [];
+  let wTread = 0;
+  ([0, 1] as const).forEach((i) => {
+    const lam = sol.lam[i];
+    if (lam === 0) return;
+    wTread += lam * dot2(tread[i]!.W, Vmid);
+    // Along-lane component of the tread force, at the tread contact. It is parallel to the axle, so it
+    // exerts no torque about it: a body force.
+    forces.push({ kind: "tread", axle: i, onWheel: false, at: { t: 0, n: -L.radius[i] }, f: { t: (-lam * tread[i]!.sin) / h, n: 0 } });
+  });
+  let wNormal = 0;
+  let wFric = 0;
+  const contacts: RailContact[] = [];
+  sol.set.forEach((c, j) => {
+    const p = sol.P[j]!;
+    if (p === 0) return;
+    wNormal += p * dot2(c.G, Vmid);
+    wFric += p * (c.W[1] - c.G[1]) * Vmid[1];
+    const F = p / h;
+    contacts.push({ axle: c.axle, side: c.side, force: F });
+    forces.push({ kind: "rail", axle: c.axle, onWheel: true, at: { t: c.xi, n: c.z }, f: { t: c.fric.t * F, n: c.fric.n * F } });
+  });
+  return {
+    next,
+    forces,
+    contacts,
+    work: { gravity: h * dot2(Fs, Vmid), tread: wTread, railNormal: wNormal, railFriction: wFric },
+    slip: sol.slip,
+    consistent: sol.score <= 0,
+    penetration,
+  };
+}
+
+/** Gaussian elimination for the small (at most 6) contact systems; null if singular. */
+function solveSmall(A: number[][], b: number[]): number[] | null {
+  const n = b.length;
+  const M = A.map((row, i) => [...row, b[i]!]);
+  for (let col = 0; col < n; col++) {
+    let piv = col;
+    for (let r = col + 1; r < n; r++) if (Math.abs(M[r]![col]!) > Math.abs(M[piv]![col]!)) piv = r;
+    if (Math.abs(M[piv]![col]!) < 1e-300) return null;
+    [M[col], M[piv]] = [M[piv]!, M[col]!];
+    for (let r = col + 1; r < n; r++) {
+      const f = M[r]![col]! / M[col]![col]!;
+      for (let c = col; c <= n; c++) M[r]![c] = M[r]![c]! - f * M[col]![c]!;
+    }
+  }
+  const x = new Array<number>(n).fill(0);
+  for (let r = n - 1; r >= 0; r--) {
+    let acc = M[r]![n]!;
+    for (let c = r + 1; c < n; c++) acc -= M[r]![c]! * x[c]!;
+    x[r] = acc / M[r]![r]!;
+  }
+  return x;
+}

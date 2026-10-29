@@ -11,10 +11,15 @@
 // u, so |R_i| = e_i . R_i with e_i its direction; e_i is found by Newton iteration. When friction
 // depends on load (AxleModel.frictionExponent), the coefficient is updated from |R_i| in the same loop.
 // Hub drag is a fixed torque and enters the wheel equations directly.
+//
+// External forces (from the lateral model: tread scrub, guide-rail friction) are given for the
+// instant. A force on a wheel enters its spin equation and its bore load; a force on the body does
+// not. Both enter the whole-car force and moment balance.
 
 import { type Vec2, add, cross, dot, norm, scale, sub } from "../core/vec2.js";
 import type { AxleModel, CarModel } from "./car.js";
 import type { AxleState, Pose } from "./kinematics.js";
+import type { PlanarForce } from "./lateral.js";
 
 export interface LossSwitches {
   readonly axleFriction: boolean;
@@ -42,6 +47,9 @@ export interface Dynamics {
   readonly boreF: number;
   /** Dissipated power by mechanism, W (ANA-001). pAxle includes hub drag. */
   readonly pAxle: number;
+  /** Power of the external forces, W, by kind (negative when they take energy out). */
+  readonly pTread: number;
+  readonly pRail: number;
   readonly pRolling: number;
   readonly pAero: number;
   /** Wheel spin rates, rad/s, positive rolling forward. */
@@ -68,7 +76,7 @@ interface BoreForce {
 // ratio |1 - exponent|: 2/3 needs about 20 steps to reach 1e-10.
 const MAX_BORE_ITERATIONS = 60;
 
-export function dynamics(car: CarModel, pose: Pose, v: number, env: DynamicsEnv): Dynamics {
+export function dynamics(car: CarModel, pose: Pose, v: number, env: DynamicsEnv, ext: readonly PlanarForce[] = []): Dynamics {
   const { rear: R, front: F } = car;
   const L = env.losses;
   const v2 = v * v;
@@ -121,8 +129,29 @@ export function dynamics(car: CarModel, pose: Pose, v: number, env: DynamicsEnv)
   };
   const boreAt = (bf: BoreForce, a: number, N: number, T: number): Vec2 =>
     add(add(scale(bf.da, a), bf.r0), add(scale(bf.n, -N), scale(bf.t, -T)));
-  const bR = bore(pose.rear, R.wheelMass);
-  const bF = bore(pose.front, F.wheelMass);
+  const bRbase = bore(pose.rear, R.wheelMass);
+  const bFbase = bore(pose.front, F.wheelMass);
+
+  // External forces: position and vector in the plane; on a wheel, its forward-roll torque about the
+  // axle (z F_t - xi F_n) and its share of the wheel pair's Newton equation.
+  const extRows = { spin: [0, 0], fx: 0, fz: 0, moment: 0, onWheel: [{ x: 0, z: 0 }, { x: 0, z: 0 }] };
+  const extPts: { P: Vec2; F: Vec2; kind: PlanarForce["kind"]; axle: 0 | 1; onWheel: boolean; at: PlanarForce["at"] }[] = [];
+  for (const f of ext) {
+    const ax = f.axle === 0 ? pose.rear : pose.front;
+    const { t, n } = ax.pt;
+    const P = add(ax.pt.p, add(scale(t, f.at.t), scale(n, f.at.n)));
+    const Fv = add(scale(t, f.f.t), scale(n, f.f.n));
+    extRows.fx += Fv.x;
+    extRows.fz += Fv.z;
+    extRows.moment -= cross(sub(P, pose.cg), Fv);
+    if (f.onWheel) {
+      extRows.spin[f.axle] = extRows.spin[f.axle]! + f.at.n * f.f.t - f.at.t * f.f.n;
+      extRows.onWheel[f.axle] = add(extRows.onWheel[f.axle]!, Fv);
+    }
+    extPts.push({ P, F: Fv, kind: f.kind, axle: f.axle, onWheel: f.onWheel, at: f.at });
+  }
+  const bR: BoreForce = { ...bRbase, r0: sub(bRbase.r0, extRows.onWheel[0]!) };
+  const bF: BoreForce = { ...bFbase, r0: sub(bFbase.r0, extRows.onWheel[1]!) };
 
   // Rows: rear wheel, front wheel, force x, force z, moment (clockwise) about CG.
   const A: number[][] = [
@@ -139,11 +168,11 @@ export function dynamics(car: CarModel, pose: Pose, v: number, env: DynamicsEnv)
     ],
   ];
   const b: number[] = [
-    -spinR * pose.rear.K * v2 - sR * hubR,
-    -spinF * pose.front.K * v2 - sF * hubF,
-    m * grav.x + aero.x - m * pose.ddCg.x * v2,
-    m * grav.z + aero.z - m * pose.ddCg.z * v2,
-    Ip * pose.ddTheta * v2 - (spinR * pose.rear.K + spinF * pose.front.K) * v2,
+    -spinR * pose.rear.K * v2 - sR * hubR + extRows.spin[0]!,
+    -spinF * pose.front.K * v2 - sF * hubF + extRows.spin[1]!,
+    m * grav.x + aero.x - m * pose.ddCg.x * v2 + extRows.fx,
+    m * grav.z + aero.z - m * pose.ddCg.z * v2 + extRows.fz,
+    Ip * pose.ddTheta * v2 - (spinR * pose.rear.K + spinF * pose.front.K) * v2 + extRows.moment,
   ];
 
   // Friction torque f |R| linearized as f (e . R(u)) in the wheel row; columns a, N_i, T_i. f is the
@@ -211,7 +240,27 @@ export function dynamics(car: CarModel, pose: Pose, v: number, env: DynamicsEnv)
   const pRolling = crr(R) * R.r * Nr * Math.abs(omegaR) + crr(F) * F.r * Nf * Math.abs(omegaF);
   const pAero = -dot(aero, vCg);
 
-  return { a, Nr, Nf, Tr, Tf, boreR, boreF, pAxle, pRolling, pAero, omegaR, omegaF, vCg, converged };
+  // Power of each external force at its material point: a wheel point moves with the axle centre plus
+  // the wheel's spin; a body point with the CG plus the pitch rotation.
+  let pTread = 0;
+  let pRail = 0;
+  const pitchCcw = pose.dTheta * v;
+  for (const e of extPts) {
+    let vel: Vec2;
+    if (e.onWheel) {
+      const ax = e.axle === 0 ? pose.rear : pose.front;
+      const w = e.axle === 0 ? omegaR : omegaF;
+      vel = add(scale(ax.pt.t, ax.J * v), scale(add(scale(ax.pt.t, e.at.n), scale(ax.pt.n, -e.at.t)), w));
+    } else {
+      const rho = sub(e.P, pose.cg);
+      vel = add(vCg, { x: -pitchCcw * rho.z, z: pitchCcw * rho.x });
+    }
+    const pw = dot(e.F, vel);
+    if (e.kind === "tread") pTread += pw;
+    else pRail += pw;
+  }
+
+  return { a, Nr, Nf, Tr, Tf, boreR, boreF, pAxle, pTread, pRail, pRolling, pAero, omegaR, omegaF, vCg, converged };
 }
 
 const relChange = (next: number, prev: number): number => (prev === 0 ? Math.abs(next) : Math.abs(next - prev) / prev);
