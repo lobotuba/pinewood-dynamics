@@ -25,16 +25,24 @@ describe("M4 build package", () => {
     const d = wedgeDesign();
     const body = evaluateBody(w, d);
     const ev = evaluateCar(d, body);
-    const ins = inspect(ev);
-    return { d, body, ev, ins, gate: exportGate(ins) };
+    const ins = inspect(ev, undefined, "SANDBOX");
+    return { d, body, ev, ins, gate: exportGate(ins, "SANDBOX") };
   };
 
-  it("exports only as SANDBOX until there is a CERTIFIED context, and says why (14.2)", () => {
-    const { ins, gate } = setup();
+  it("exports SANDBOX from SANDBOX, PROVISIONAL from CERTIFIED short of certain compliance, and says why (14.2)", () => {
+    const { d, ev, gate } = setup();
     expect(gate.certified).toBe(false);
     expect(gate.watermark).toBe("SANDBOX");
-    expect(gate.reasons[0]).toMatch(/no CERTIFIED context/);
-    expect(gate.reasons.join(" ")).toContain(ins.state);
+    expect(gate.reasons[0]).toMatch(/SANDBOX context/);
+    // CERTIFIED context: the starting-gate test is unevaluated and kit lengths are estimated.
+    const certified = inspect(ev, undefined, "CERTIFIED");
+    expect(certified.state).toBe("PROVISIONALLY COMPLIANT");
+    const g = exportGate(certified, "CERTIFIED");
+    expect(g.certified).toBe(false);
+    expect(g.watermark).toBe("PROVISIONAL");
+    expect(g.reasons.join(" ")).toMatch(/Not yet evaluated: Starting-gate face/);
+    expect(g.reasons.join(" ")).toMatch(/Passed provisionally/);
+    expect(d.context).toBe("CERTIFIED");
   });
 
   it("draws the templates at 1:1 in millimetres: the profiles themselves, and 100 mm and 4 in scale bars", () => {

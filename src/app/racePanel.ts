@@ -9,7 +9,7 @@ import { SOLVER_VERSION } from "../physics/race.js";
 import { type Fidelity, type LaneResult, MAX_LANES, type Session, type TrackChoice, buildTrack, finishOrder, poseAt } from "../race/session.js";
 import type { ComplianceState } from "../rules/cccs.js";
 import { CCCS_KIT_CAR_2026 } from "../rules/cccs.js";
-import type { CarDesign } from "../geometry/design.js";
+import { type CarDesign, type ComplianceContext, contextOf } from "../geometry/design.js";
 import type { BodySolid } from "../geometry/solid.js";
 import type { SessionReply, SessionRequest } from "./race.worker.js";
 import { LANE_COLOURS, type LaneCar, type RaceCamera, RaceView } from "./raceView.js";
@@ -20,6 +20,7 @@ export interface EvaluatedCar {
   readonly spec: CarSpec;
   readonly body: BodySolid;
   readonly compliance: ComplianceState;
+  readonly context: ComplianceContext;
 }
 
 const COUNTDOWN = 3;
@@ -302,13 +303,13 @@ export class RacePanel {
       track: run.track,
       trackName: s.track,
       profileStatus: s.profileStatus,
-      context: "SANDBOX",
+      context: run.lanes.every((r) => !r || contextOf(r.design) === "CERTIFIED") ? "CERTIFIED" : "SANDBOX",
       ruleset: CCCS_KIT_CAR_2026.name,
       seed: null,
       lanes: s.lanes.map((l, i) => {
         const r = run.lanes[i];
         return l && r
-          ? { label: r.label, design: r.design, compliance: r.compliance, status: l.status, message: l.message, time: l.time, finishSpeed: l.finishSpeed, maxSpeed: l.maxSpeed }
+          ? { label: r.label, design: r.design, context: contextOf(r.design), compliance: r.compliance, status: l.status, message: l.message, time: l.time, finishSpeed: l.finishSpeed, maxSpeed: l.maxSpeed }
           : null;
       }),
       ...(run.rerunOf ? { rerunOf: run.rerunOf.id } : {}),
@@ -425,6 +426,9 @@ export class RacePanel {
         out.push(`underside clears ${rail}the lane by ≥ ${(1000 * l.clearance.lane).toFixed(1)} mm`);
       }
       out.push(l.lateral ? "lateral model" : "planar model");
+      // MODE-002: a SANDBOX car's result says so.
+      const design = this.run?.lanes[l.lane]?.design;
+      if (design && contextOf(design) === "SANDBOX") out.unshift(`<span class="tag">SANDBOX</span>`);
       out.push(`weakest input ${l.weakestInput}`);
       return out.join(" · ");
     };

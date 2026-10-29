@@ -3,12 +3,13 @@
 // the evaluated solid (GEO-001: an export, never the master design).
 //
 // Export gate (14.2): a certified "BUILD THIS CAR" export needs the CERTIFIED context, every published
-// hard rule and active lock passing, and nothing unevaluated. The workspace has no CERTIFIED context
-// yet: it blocks nothing, which is SANDBOX behaviour (5.2), so every export says SANDBOX and why.
+// hard rule and active lock passing, and nothing unevaluated. A SANDBOX design's exports say SANDBOX;
+// a CERTIFIED design short of CERTIFIED COMPLIANT (the gate test, estimated kit values) says
+// PROVISIONAL. Either way the sheet says why.
 
 import { type UnitSystem, formatLength, formatMass } from "../core/display.js";
 import { toMm } from "../core/units.js";
-import { type CarDesign, type Feature, type P2, blockBox, shapeHalfSize } from "../geometry/design.js";
+import { type CarDesign, type ComplianceContext, type Feature, type P2, blockBox, shapeHalfSize } from "../geometry/design.js";
 import { outline } from "../geometry/profile.js";
 import type { BodySolid } from "../geometry/solid.js";
 import { TYPICAL_KIT_ESTIMATE } from "../kit/kit.js";
@@ -25,9 +26,13 @@ export interface ExportGate {
   readonly reasons: readonly string[];
 }
 
-export function exportGate(ins: Inspection): ExportGate {
-  const reasons = ["The workspace has no CERTIFIED context yet (MODE-002): it blocks nothing, so it works as SANDBOX."];
-  if (ins.state !== "CERTIFIED COMPLIANT") reasons.push(`Compliance state: ${ins.state}.`);
+export function exportGate(ins: Inspection, context: ComplianceContext): ExportGate {
+  const certified = context === "CERTIFIED" && ins.state === "CERTIFIED COMPLIANT";
+  if (certified) return { certified, watermark: null, reasons: [] };
+  const reasons =
+    context === "SANDBOX"
+      ? ["This design is in the SANDBOX context (MODE-002): nothing is enforced, so nothing it exports is certified."]
+      : [`Compliance state: ${ins.state}. A certified export needs every check evaluated, passed and certain.`];
   const failing = ins.lines.filter((l) => l.state === "FAIL");
   const groups: [string, (c: string) => boolean][] = [
     ["Published rules", (c) => c === "PUBLISHED RULE"],
@@ -40,7 +45,9 @@ export function exportGate(ins: Inspection): ExportGate {
   }
   const open = ins.lines.filter((l) => l.state === "NOT EVALUATED");
   if (open.length) reasons.push(`Not yet evaluated: ${open.map((l) => l.label).join(", ")}.`);
-  return { certified: false, watermark: "SANDBOX", reasons };
+  const unsure = ins.lines.filter((l) => l.state === "PASS" && l.provisional);
+  if (context === "CERTIFIED" && unsure.length) reasons.push(`Passed provisionally (estimated kit values or uncertainty): ${unsure.map((l) => l.label).join(", ")}.`);
+  return { certified, watermark: context === "SANDBOX" ? "SANDBOX" : "PROVISIONAL", reasons };
 }
 
 // --- 1:1 templates -------------------------------------------------------------------------------

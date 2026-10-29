@@ -13,11 +13,12 @@ A certified "BUILD THIS CAR" export needs three things:
 - every published hard rule and active local lock passing;
 - nothing left unevaluated.
 
-The workspace has no CERTIFIED context yet. It blocks nothing, which is SANDBOX behaviour (5.2).
-The starting-gate test also stays unevaluated until the gate geometry is known (CHAR-004), so the
-best state any design reaches is PROVISIONALLY COMPLIANT. Every export is therefore watermarked
-SANDBOX and says why. Published rules that fail are listed apart from local constraints and from
-other checks, as 14.2 requires.
+A design in the SANDBOX context exports watermarked SANDBOX. A design in the CERTIFIED context
+exports certified only when CERTIFIED COMPLIANT. Until the gate geometry is known (CHAR-004) the
+starting-gate test stays unevaluated, and the kit's lengths are ESTIMATED. So the best any design
+reaches is PROVISIONALLY COMPLIANT, and its exports are watermarked PROVISIONAL. Either way the sheet
+says why. Published rules that fail are listed apart from local constraints and from other checks,
+as 14.2 requires; for a CERTIFIED design the provisional passes are listed too.
 
 ## 2. Templates (BLD-002; `templatesSvg`)
 
@@ -75,7 +76,8 @@ inspected.
 ## 6. Not yet built
 
 - **PDF** export. Spec 14.1 allows SVG or PDF; the SVG and the HTML sheet print from any browser.
-- **CERTIFIED context** and the certified export it enables (M2 remainder).
+- **A certified export in practice.** The gate and the event kit must be measured first (CHAR-004,
+  CHAR-001..003).
 - **Hole dimensions on the drawing itself.** They are in the sheet's tables, not as dimension lines.
 - **Later (14.1):** a dimensioned build sheet with the operation sequence and adult-supervision notes
   (BLD-003), and jigs.

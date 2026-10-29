@@ -40,13 +40,15 @@ export interface SavedRace {
   readonly track: TrackChoice;
   readonly trackName: string;
   readonly profileStatus: string;
-  readonly context: "SANDBOX";
+  /** CERTIFIED only if every lane's design was. */
+  readonly context: "CERTIFIED" | "SANDBOX";
   readonly ruleset: string;
   /** The solver is deterministic: no random seed. */
   readonly seed: null;
   readonly lanes: readonly ({
     readonly label: string;
     readonly design: CarDesign;
+    readonly context: "CERTIFIED" | "SANDBOX";
     readonly compliance: string;
     readonly status: RaceStatus;
     readonly message: string;
@@ -107,6 +109,21 @@ export class Store {
         this.save();
       }
     }
+    this.emit("design");
+  }
+
+  /**
+   * Refuse the design shown now and go back to `valid`, the last one that passed (CERTIFIED context,
+   * MODE-002). A refused committed edit leaves no trace in the history; a refused drag position just
+   * holds the design where it last passed.
+   */
+  refuse(valid: CarDesign): void {
+    if (this.committed !== valid) {
+      if (this.past[this.past.length - 1] === valid) this.past.pop();
+      this.committed = valid;
+      this.save();
+    }
+    this.design = valid;
     this.emit("design");
   }
 

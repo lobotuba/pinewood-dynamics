@@ -14,6 +14,12 @@
         <button id="mode-design" role="tab" aria-selected="true">Design</button><button id="mode-race" role="tab" aria-selected="false">Race</button>
       </nav>
       <input id="design-name" class="design-name" aria-label="Design name" />
+      <label class="context" title="CERTIFIED refuses any edit that breaks a rule or lock; SANDBOX blocks nothing and watermarks everything (MODE-002)">Context
+        <select id="context">
+          <option value="CERTIFIED">CERTIFIED</option>
+          <option value="SANDBOX">SANDBOX</option>
+        </select>
+      </label>
       <div class="tools" id="design-tools">
         <button id="undo" title="Undo (Ctrl+Z)">Undo</button>
         <button id="redo" title="Redo (Ctrl+Y)">Redo</button>
@@ -35,6 +41,7 @@
       </div>
     </header>
     <div id="status" class="status" role="alert" hidden></div>
+    <div id="notice" class="status" role="status" hidden></div>
     <main class="workspace" id="design-main">
       <section class="view3d">
         <div class="viewbar" role="toolbar" aria-label="View">

@@ -20,8 +20,9 @@ as ghosts, three cameras, replay speeds, and results with speed charts and the e
 `docs/race.md`.
 
 Milestone M4, build outputs: 1:1 side and top templates with scale-check bars, a printable build
-sheet (targets, operations, holes, weights), and the body STL; exported as SANDBOX until there is a
-CERTIFIED context. See `docs/build.md`.
+sheet (targets, operations, holes, weights), and the body STL. Designs carry a compliance context:
+CERTIFIED refuses any edit that breaks a rule, SANDBOX blocks nothing and watermarks everything. See
+`docs/build.md` and `docs/design-workspace.md`.
 
 ## Commands
 

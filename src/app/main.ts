@@ -3,11 +3,11 @@
 // and, debounced, the solver in a worker. Race mode evaluates each lane's design the same way.
 
 import wasmUrl from "manifold-3d/manifold.wasm?url";
-import { type CarDesign, uncutDesign, wedgeDesign } from "../geometry/design.js";
+import { type CarDesign, contextOf, uncutDesign, wedgeDesign } from "../geometry/design.js";
 import { newCut, newHole } from "../geometry/presets.js";
 import { accessHole, evaluateBody, loadManifold, seatBallast } from "../geometry/solid.js";
 import { evaluateCar } from "../mass/carModel.js";
-import { inspect } from "../rules/cccs.js";
+import { inspect, violations } from "../rules/cccs.js";
 import { bodyStl, buildSheetHtml, exportGate, packageFileName, templatesSvg } from "../build/package.js";
 import { Panels } from "./panels.js";
 import { ProfileEditor } from "./profileEditor.js";
@@ -45,7 +45,7 @@ async function start(): Promise<void> {
       if (body.empty) evaluated.set(d, null);
       else {
         const ev = evaluateCar(d, body);
-        evaluated.set(d, { spec: ev.spec, body, compliance: inspect(ev).state });
+        evaluated.set(d, { spec: ev.spec, body, compliance: inspect(ev, undefined, contextOf(d)).state, context: contextOf(d) });
       }
     }
     return evaluated.get(d)!;
@@ -70,22 +70,55 @@ async function start(): Promise<void> {
   $("mode-design").onclick = () => setMode(false);
   $("mode-race").onclick = () => setMode(true);
 
+  // Short messages: saved versions, and edits the CERTIFIED context refused.
+  let noticeTimer = 0;
+  const notice = (text: string, kind: "ok" | "blocked"): void => {
+    const n = $("notice");
+    n.textContent = text;
+    n.classList.toggle("ok", kind === "ok");
+    n.hidden = false;
+    clearTimeout(noticeTimer);
+    noticeTimer = window.setTimeout(() => (n.hidden = true), kind === "ok" ? 3000 : 5000);
+  };
+
   let raced = "";
   let raceTimer = 0;
   let frame = 0;
+  /** The last design that passed every check in CERTIFIED context: where a refused edit goes back to. */
+  let lastValid: CarDesign | null = null;
   const refresh = (): void => {
     frame = 0;
     const d = store.design;
+    const context = contextOf(d);
     const body = evaluateBody(w, d);
     const status = $("status");
-    if (body.empty) {
+    const ev = body.empty ? null : evaluateCar(d, body);
+    const ins = ev ? inspect(ev, undefined, context) : null;
+    if (context === "CERTIFIED") {
+      const failed = ins ? violations(ins).map((l) => l.label) : [];
+      if (failed.length) {
+        if (lastValid && contextOf(lastValid) === "CERTIFIED") {
+          // MODE-002: in CERTIFIED context the edit is refused, and the design stays where it passed.
+          store.refuse(lastValid);
+          notice(`Not allowed in CERTIFIED context: ${failed.join(", ")}. Switch to SANDBOX to try it.`, "blocked");
+        } else {
+          // Opened or entered failing (an older file, a changed kit estimate): it can only be SANDBOX.
+          store.update({ ...d, context: "SANDBOX" });
+          notice(`Opened in SANDBOX: the design fails ${failed.join(", ")}.`, "blocked");
+        }
+        return;
+      }
+      lastValid = d;
+    }
+    if (!ev || !ins) {
       status.textContent = "The profiles leave no body: the side and top outlines do not overlap the block.";
       status.hidden = false;
       return;
     }
     status.hidden = true;
-    const ev = evaluateCar(d, body);
-    const ins = inspect(ev);
+    document.body.classList.toggle("sandbox", context === "SANDBOX");
+    const ctx = $<HTMLSelectElement>("context");
+    ctx.value = context;
     viewport.setModel(d, body, ev);
     side.render(d, ev);
     top.render(d, ev);
@@ -141,8 +174,8 @@ async function start(): Promise<void> {
     const body = evaluateBody(w, d);
     if (body.empty) return;
     const ev = evaluateCar(d, body);
-    const ins = inspect(ev);
-    const gate = exportGate(ins);
+    const ins = inspect(ev, undefined, contextOf(d));
+    const gate = exportGate(ins, contextOf(d));
     if (kind === "templates") download(new Blob([templatesSvg(d, ev, gate)], { type: "image/svg+xml" }), packageFileName(d, "templates"));
     if (kind === "sheet") download(new Blob([buildSheetHtml(d, ev, ins, gate, store.view.units)], { type: "text/html" }), packageFileName(d, "build-sheet"));
     if (kind === "stl-mm" || kind === "stl-in") {
@@ -152,14 +185,22 @@ async function start(): Promise<void> {
   });
   $("save-version").onclick = () => {
     const v = store.saveVersion();
-    const s = $("status");
-    s.textContent = `Saved ${v.name}. Race it against other versions in Race mode.`;
-    s.classList.add("ok");
-    s.hidden = false;
-    window.setTimeout(() => {
-      s.hidden = true;
-      s.classList.remove("ok");
-    }, 3000);
+    notice(`Saved ${v.name}. Race it against other versions in Race mode.`, "ok");
+  };
+  // Context (MODE-002). Leaving CERTIFIED is always allowed; entering it needs every check to pass.
+  $<HTMLSelectElement>("context").onchange = (e) => {
+    const to = (e.target as HTMLSelectElement).value === "CERTIFIED" ? "CERTIFIED" : "SANDBOX";
+    const d = store.design;
+    if (to === "CERTIFIED") {
+      const body = evaluateBody(w, d);
+      const failed = body.empty ? ["the profiles leave no body"] : violations(inspect(evaluateCar(d, body), undefined, "CERTIFIED")).map((l) => l.label);
+      if (failed.length) {
+        ($("context") as HTMLSelectElement).value = "SANDBOX";
+        notice(`Cannot enter CERTIFIED: the design fails ${failed.join(", ")}.`, "blocked");
+        return;
+      }
+    }
+    store.update({ ...d, context: to });
   };
   $("save").onclick = () => {
     const a = document.createElement("a");

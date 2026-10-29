@@ -117,8 +117,24 @@ highest of them.
   - geometry validity: weight mounting, and whether every hole can be made;
   - locked axle datums and wheelbase.
 - **Starting-gate face.** NOT EVALUATED until the pin geometry is known (CHAR-004).
-- **Compliance state.** The best achievable is PROVISIONALLY COMPLIANT; any failure gives
-  NONCOMPLIANT. There is no binary "legal" badge.
+- **Compliance state** (9.4) depends on the context, below. Any failure gives NONCOMPLIANT. In
+  SANDBOX a car that fails nothing is SANDBOX/RULES DISABLED, never compliant. In CERTIFIED it is
+  CERTIFIED COMPLIANT only when every line is evaluated, passed and certain. Until the gate pin is
+  measured and the kit's lengths are no longer ESTIMATED, the best it reaches is PROVISIONALLY
+  COMPLIANT. There is no binary "legal" badge.
+- **Compliance context** (MODE-002, 5.2), chosen in the top bar and saved with the design:
+  - **CERTIFIED.** Every published rule, local/frozen lock and protected zone is enforced. An edit
+    that would break one is refused: the design stays where it last passed, a drag stops there, the
+    refused edit leaves nothing in the undo history, and a notice names the rule. Entering CERTIFIED
+    needs the design to pass first.
+  - **SANDBOX.** Nothing is blocked. Every result and export is watermarked SANDBOX.
+  - New designs start CERTIFIED. A file saved before contexts existed opens in SANDBOX, where it was
+    made, and so does a CERTIFIED file that fails today (after a kit estimate changed, say).
+  - Geometry validity is reported but not enforced: a weight not yet seated, or a cavity not yet
+    drilled through, is a state a design passes through while it is being built up (place the weight,
+    then drill its access). Such a design is still NONCOMPLIANT until it is finished.
+  - The locked items, the axle datums and wheelbase, cannot be edited in either context yet: the
+    workspace has no control that would release them.
 - **How measured values are shown.** They round toward failure, and a failing value gets more
   decimals until it reads as failing (CMP-006). A converted limit that isn't exact at display
   precision is marked ≈, with the source value alongside.
@@ -201,8 +217,6 @@ In the browser, headless Edge was driven through these paths with no page errors
 
 ## 7. Not yet built (remaining M2 scope)
 
-- **CERTIFIED context.** Profiles and features are not yet stopped at protected zones; violations
-  are reported, not prevented.
 - **Display modes.** These modes and overlays from 12.2 are missing:
   - "CG and mass properties" as its own mode;
   - wheel swept envelopes drawn in 3D;

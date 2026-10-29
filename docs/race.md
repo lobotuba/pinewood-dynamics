@@ -55,7 +55,7 @@ that does not finish has no place, and its status and message are shown.
 ## 4. Results (13.3)
 
 - **Save result** keeps the result (DAT-001) with what MODE-004 asks every saved result to record:
-  - compliance context (SANDBOX; there is no CERTIFIED context yet);
+  - compliance context, per lane and overall (CERTIFIED only if every lane's design was);
   - simulation fidelity and step;
   - ruleset;
   - track, as chosen and as named, with its profile status;

@@ -2,6 +2,7 @@
 // named neutrally and paraphrased (BRD-007, spec 9.3). Pass/fail compares unrounded SI values with
 // limits converted exactly from their source units (CMP-005, spec 6.4).
 
+import type { ComplianceContext } from "../geometry/design.js";
 import { inches, ounces } from "../core/units.js";
 import type { CarEvaluation } from "../mass/carModel.js";
 
@@ -80,7 +81,13 @@ export interface Inspection {
 
 const KIT_NOTE = "Kit dimensions are ESTIMATED until the event kit is measured (CHAR-001..003).";
 
-export function inspect(ev: CarEvaluation, ruleset: Ruleset = CCCS_KIT_CAR_2026): Inspection {
+/**
+ * Inspect a car against a ruleset. The state depends on the compliance context (9.4, 5.2): in SANDBOX
+ * a car that fails nothing is SANDBOX/RULES DISABLED, never compliant; in CERTIFIED it is CERTIFIED
+ * COMPLIANT only when every line is evaluated, passed and certain, and otherwise at best PROVISIONALLY
+ * COMPLIANT. A failing car is NONCOMPLIANT in either.
+ */
+export function inspect(ev: CarEvaluation, ruleset: Ruleset = CCCS_KIT_CAR_2026, context: ComplianceContext = "CERTIFIED"): Inspection {
   const e = ev.extents;
   const measured: Record<string, { value: number; note: string; band?: number }> = {
     "RUL-001": { value: e.max[0] - e.min[0], note: `Longest point to longest point along X, every part included. ${KIT_NOTE}` },
@@ -168,6 +175,22 @@ export function inspect(ev: CarEvaluation, ruleset: Ruleset = CCCS_KIT_CAR_2026)
     { id: "LOC-AX", label: "Axle locations", cls: "LOCAL/FROZEN", state: "LOCKED", provisional: false, note: "Official axle slots, unchanged; the design cannot move them." },
     { id: "LOC-WB", label: "Wheelbase", cls: "LOCAL/FROZEN", state: "LOCKED", provisional: false, note: "Nominal kit wheelbase, unchanged." },
   );
-  const state: ComplianceState = lines.some((l) => l.state === "FAIL") ? "NONCOMPLIANT" : "PROVISIONALLY COMPLIANT";
+  const certain = lines.every((l) => (l.state === "PASS" || l.state === "LOCKED") && !l.provisional);
+  const state: ComplianceState = lines.some((l) => l.state === "FAIL")
+    ? "NONCOMPLIANT"
+    : context === "SANDBOX"
+      ? "SANDBOX/RULES DISABLED"
+      : certain
+        ? "CERTIFIED COMPLIANT"
+        : "PROVISIONALLY COMPLIANT";
   return { ruleset, lines, state };
 }
+
+/**
+ * The enforced checks a design fails: published rules, local/frozen locks and protected zones (5.2,
+ * 12.2). In CERTIFIED context each blocks the edit that caused it. Geometry validity (a weight not yet
+ * seated, a cavity not yet drilled through) is reported, not enforced: those are states a design
+ * passes through while it is being built up, as in "place the weight, then drill its access".
+ */
+export const violations = (ins: Inspection): InspectionLine[] =>
+  ins.lines.filter((l) => l.state === "FAIL" && (l.cls === "PUBLISHED RULE" || l.cls === "LOCAL/FROZEN" || l.cls === "PROTECTED"));

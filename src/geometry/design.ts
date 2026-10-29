@@ -82,6 +82,16 @@ export interface Ballast {
 
 export type AxlePrepId = "stock-dry" | "polished-graphite";
 
+/**
+ * Compliance context (MODE-002), per project version. CERTIFIED enforces every hard rule and lock:
+ * an edit that would break one is refused. SANDBOX blocks nothing and watermarks every result and
+ * export.
+ */
+export type ComplianceContext = "CERTIFIED" | "SANDBOX";
+
+/** A design's context; files saved before contexts existed open in SANDBOX, where nothing was enforced. */
+export const contextOf = (d: Pick<CarDesign, "context">): ComplianceContext => d.context ?? "SANDBOX";
+
 export interface CarDesign {
   readonly schema: 1;
   readonly name: string;
@@ -95,6 +105,8 @@ export interface CarDesign {
   readonly axlePrep: AxlePrepId;
   /** Weighed uncut block mass, kg. Given, it replaces the estimated wood density (MAT-001). */
   readonly measuredBlockMass?: number;
+  /** Compliance context (MODE-002). Omitted: SANDBOX. */
+  readonly context?: ComplianceContext;
 }
 
 /** Half-extent of a weight or bore shape along each car axis. */
@@ -141,6 +153,7 @@ export function uncutDesign(kit = TYPICAL_KIT_ESTIMATE): CarDesign {
     ballast: [],
     paint: "#c8a46e",
     axlePrep: "polished-graphite",
+    context: "CERTIFIED",
   };
 }
 

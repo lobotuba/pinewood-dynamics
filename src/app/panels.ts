@@ -14,6 +14,7 @@ import { LEAD_NOTICE, MATERIALS, nonLeadAlternative } from "../mass/materials.js
 import type { Inspection, InspectionLine } from "../rules/cccs.js";
 import type { RaceReply } from "./race.worker.js";
 import { exportGate } from "../build/package.js";
+import { contextOf } from "../geometry/design.js";
 import type { Store } from "./store.js";
 
 const esc = (s: string): string => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -124,7 +125,7 @@ export class Panels {
 
   /** Build package (spec 14): the downloads, and why they are not a certified export. */
   private renderBuild(ins: Inspection): void {
-    const gate = exportGate(ins);
+    const gate = exportGate(ins, contextOf(this.store.design));
     this.q("p-build").innerHTML = `
       <h2>Build package</h2>
       <div class="export-actions">

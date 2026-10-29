@@ -48,6 +48,8 @@ h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: 
 .units { display: flex; gap: 6px; align-items: center; color: var(--muted); }
 .status { margin: 8px 16px; padding: 8px 12px; border: 1px solid var(--fail); border-radius: 6px; background: #3a1f1d; }
 .status.ok { border-color: var(--pass); background: #1d3324; }
+.context { display: flex; gap: 6px; align-items: center; color: var(--muted); }
+body.sandbox #context { border-color: var(--amber); color: var(--amber); }
 .workspace[hidden] { display: none; }
 
 .workspace {
