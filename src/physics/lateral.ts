@@ -21,6 +21,7 @@
 //
 // Each wheel's axial load (tread and rail forces, and with camber its share of the axle load) is
 // carried by a thrust face, the axle head or the body; dynamics.ts adds that friction to the spin.
+// With axial play the wheels slide along their axles between those faces; play.ts steps that model.
 //
 // Time stepping is Moreau's (velocity-level impulses, positions by the midpoint of the start and
 // end velocities). Each step enumerates the stick/slip state of both treads and the open/closed
@@ -64,6 +65,18 @@ export interface LateralCarSpec {
    * A cambered wheel rests on one edge of its tread, so the tread width sets its height. Omitted: square.
    */
   readonly camber?: { readonly rear: Sourced<number>; readonly front: Sourced<number>; readonly treadWidth: Sourced<number> };
+  /**
+   * Axial play: how far each wheel can slide along its axle between the body and the axle head, m,
+   * per axle. insideWheelSpacing is then measured with the wheels pushed in against the body.
+   * restitution is the wheel's hub striking a face; start is where the wheels sit at the gate, as a
+   * fraction of the play outward from the body (omitted: 1/2). Omitted: the wheels are held fixed.
+   */
+  readonly play?: {
+    readonly rear: Sourced<number>;
+    readonly front: Sourced<number>;
+    readonly restitution: Sourced<number>;
+    readonly start?: Sourced<number>;
+  };
 }
 
 export interface LateralModel {
@@ -88,6 +101,8 @@ export interface LateralModel {
   readonly e: number;
   /** g sin(cross slope), m/s^2. */
   readonly gLat: number;
+  /** Axial play per axle, m, the hub's restitution on a face, and the start as a fraction of the play. Omitted: none. */
+  readonly play?: { readonly travel: readonly [number, number]; readonly e: number; readonly start: number };
 }
 
 export interface LateralState {
@@ -95,6 +110,22 @@ export interface LateralState {
   readonly psi: number;
   readonly dY: number;
   readonly dPsi: number;
+  /**
+   * Axial play only: each wheel's slide outward from the body along its axle, m, and its rate, m/s.
+   * Index 2 * axle + (0 left, 1 right).
+   */
+  readonly xi?: readonly number[];
+  readonly dXi?: readonly number[];
+}
+
+/** One wheel's bore at the start of a step (dynamics.ts), for axial play; index 2 * axle + (0 left, 1 right). */
+export interface WheelLoad {
+  /** Coulomb friction force available at the bore, mu |R_radial|, N. */
+  readonly friction: number;
+  /** Slip speed of the bore from the wheel's spin relative to the body, |omega - pitch rate| r_axle, m/s. */
+  readonly slip: number;
+  /** Axle force on the wheel along the lane normal, N (negative: the axle presses the wheel down). */
+  readonly normal: number;
 }
 
 export interface LateralInput {
@@ -109,6 +140,9 @@ export interface LateralInput {
    * striking, so restitution does not apply to them: a wheel riding the rail stays on it.
    */
   readonly closed?: readonly Pick<RailContact, "axle" | "side">[];
+  /** Axial play only: each wheel's bore, and the previous step's contact and friction states. */
+  readonly loads?: readonly WheelLoad[];
+  readonly prev?: Readonly<Record<string, number>>;
 }
 
 /** A force for the planar solver, constant over the step, in the axle path's (tangent, normal) frame. */
@@ -138,6 +172,14 @@ export interface WheelAxle {
   readonly axis: { readonly t: number; readonly y: number; readonly n: number };
   /** Sideways force the axle gives the wheel besides the external forces on it, N: m_w (a_y + g sin(cross slope)). */
   readonly sideways: number;
+  /**
+   * Axial play only: the face load, N, positive on the body face, negative on the head, zero while
+   * the wheel is between them; and the share of the bore's Coulomb limit that opposes the spin, the
+   * rest opposing the slide along the axle. Omitted: the face load follows from the wheel's motion
+   * with the car, and the spin takes all of it.
+   */
+  readonly thrust?: number;
+  readonly boreSpin?: number;
 }
 
 /** Per axle (rear, front), its left and right wheels. */
@@ -157,12 +199,39 @@ export interface RailContact {
   readonly force: number;
 }
 
+/** A wheel's hub on one of the faces that end its axial travel (axial play only). */
+export interface StopContact {
+  /** 2 * axle + (0 left, 1 right). */
+  readonly wheel: number;
+  readonly face: "body" | "head";
+  /** Mean force over the step, N. */
+  readonly force: number;
+}
+
 export interface LateralStep {
   readonly next: LateralState;
   readonly forces: readonly PlanarForce[];
   readonly contacts: readonly RailContact[];
-  /** Work done on the lateral motion over the step, J, by mechanism. */
-  readonly work: { readonly gravity: number; readonly tread: number; readonly railNormal: number; readonly railFriction: number };
+  /** Hubs on their faces (axial play only; otherwise empty). */
+  readonly stops: readonly StopContact[];
+  /**
+   * Work done on the lateral motion over the step, J, by mechanism. stops, boreSlide and heave are
+   * axial play's: hubs striking their faces, bore friction against the slide, and the axle load on a
+   * cambered axle, whose slope lifts the body as the wheel slides down it.
+   */
+  readonly work: {
+    readonly gravity: number;
+    readonly tread: number;
+    readonly railNormal: number;
+    readonly railFriction: number;
+    readonly stops: number;
+    readonly boreSlide: number;
+    readonly heave: number;
+  };
+  /** Axial play only: the contact and friction states, to start the next step's search from. */
+  readonly modes?: Readonly<Record<string, number>>;
+  /** True when a contact closed in this step with an impulse: a strike, not sustained contact. */
+  readonly impact: boolean;
   /** Each wheel's axle direction and sideways load over the step. */
   readonly wheels: WheelAxles;
   /** Tread state per axle: 0 stick, +1 or -1 sliding in that direction. */
@@ -173,13 +242,13 @@ export interface LateralStep {
   readonly penetration: number;
 }
 
-type V2 = [number, number];
+export type V2 = [number, number];
 const dot2 = (a: readonly number[], b: readonly number[]): number => a[0]! * b[0]! + a[1]! * b[1]!;
 
 export const lateralKinetic = (L: LateralModel, s: LateralState): number => 0.5 * L.m * s.dY * s.dY + 0.5 * L.Iz * s.dPsi * s.dPsi;
 
 /** Lateral offset of a body point (bx ahead of the rear axle, by to the left) and its d/dpsi. */
-function bodyPoint(L: LateralModel, Y: number, psi: number, bx: number, by: number): { y: number; dyDpsi: number } {
+export function bodyPoint(L: LateralModel, Y: number, psi: number, bx: number, by: number): { y: number; dyDpsi: number } {
   const c = Math.cos(psi);
   const s = Math.sin(psi);
   return { y: Y + (bx - L.xc) * s + (by - L.yc) * c, dyDpsi: (bx - L.xc) * c - (by - L.yc) * s };
@@ -191,9 +260,11 @@ export const rearOffset = (L: LateralModel, s: Pick<LateralState, "Y" | "psi">):
 /** CG lateral position for a rear-axle offset and heading. */
 export const cgFromRear = (L: LateralModel, offset: number, psi: number): number => offset + L.xc * Math.sin(psi) + L.yc * Math.cos(psi);
 
-interface Candidate {
+export interface Candidate {
   readonly axle: 0 | 1;
   readonly side: 1 | -1;
+  /** 2 * axle + (0 left, 1 right). */
+  readonly wheel: number;
   /** Distance to the rail along the contact normal, m (negative when overlapping). */
   readonly gap: number;
   /** Gap rate per generalized velocity (Y', psi'). */
@@ -204,7 +275,12 @@ interface Candidate {
   readonly force: { readonly t: number; readonly n: number; readonly y: number; readonly spin: number };
   /** Contact point from the planar axle centre: along t, along n. */
   readonly at: { readonly t: number; readonly n: number };
+  /** Axial play: gap rate per unit slide rate of this wheel, and the generalized impulse on its slide per unit normal impulse. */
+  readonly Gxi: number;
+  readonly Wxi: number;
 }
+
+const NO_SLIDE: readonly number[] = [0, 0, 0, 0];
 
 /** Height above the lane of an axle's wheel centres and of their inner faces' centres, m. */
 export function wheelHeights(L: LateralModel, axle: 0 | 1): { centre: number; face: number } {
@@ -225,7 +301,7 @@ const dot3 = (a: readonly number[], b: readonly number[]): number => a[0]! * b[0
  * away from (the rim on the rail's side face) or an end of the chord at the rail's height (the rim on
  * the rail's top edge).
  */
-function candidates(L: LateralModel, Y: number, psi: number): Candidate[] {
+export function candidates(L: LateralModel, Y: number, psi: number, slide: readonly number[] = NO_SLIDE): Candidate[] {
   const out: Candidate[] = [];
   for (const axle of [0, 1] as const) {
     const r = L.radius[axle];
@@ -238,9 +314,10 @@ function candidates(L: LateralModel, Y: number, psi: number): Candidate[] {
     const ca = Math.cos(psi + d);
     const sa = Math.sin(psi + d);
     for (const side of [1, -1] as const) {
+      const wheel = 2 * axle + (side === 1 ? 0 : 1);
       if (zetaH <= -r) {
         // The rail is lower than the face's lowest rim: it cannot reach this face.
-        out.push({ axle, side, gap: Infinity, G: [0, 0], W: [0, 0], force: { t: 0, n: 0, y: 0, spin: 0 }, at: { t: 0, n: 0 } });
+        out.push({ axle, side, wheel, gap: Infinity, G: [0, 0], W: [0, 0], force: { t: 0, n: 0, y: 0, spin: 0 }, at: { t: 0, n: 0 }, Gxi: 0, Wxi: 0 });
         continue;
       }
       // Lane-frame (u, y, z) directions of this wheel: e1 forward, e2 up its plane, ax out along its axle.
@@ -275,8 +352,9 @@ function candidates(L: LateralModel, Y: number, psi: number): Candidate[] {
         zeta = Math.min(zetaH, r);
         n = ax;
       }
-      // Body-frame position of the contact: the face centre on the toed axle, then across the disc.
-      const half = L.spacing / 2;
+      // Body-frame position of the contact: the face centre on the toed axle, then across the disc. A
+      // wheel slid out along its axle moves across the lane, its height held by the lane.
+      const half = L.spacing / 2 + slide[wheel]! * cg;
       const bx = L.wheelbase * axle - side * half * Math.sin(d) + xi * Math.cos(d) - zeta * side * sg * Math.sin(d);
       const by = side * half * Math.cos(d) + xi * Math.sin(d) + zeta * side * sg * Math.cos(d);
       const pt = bodyPoint(L, Y, psi, bx, by);
@@ -297,14 +375,17 @@ function candidates(L: LateralModel, Y: number, psi: number): Candidate[] {
       const atN = zFace + zeta * cg - r;
       // Sideways force at the contact, and the along-lane force's yaw about the CG: M = -(y_P - Y) F_u.
       const W: V2 = [F[1]!, F[1]! * pt.dyDpsi - (pt.y - Y) * F[0]!];
-      out.push({ axle, side, gap, G, W, force: { t: F[0]!, n: F[2]!, y: F[1]!, spin }, at: { t: atT, n: atN } });
+      // The slide moves the face along (-sin a, cos a) side cos(gamma) across the lane.
+      const Gxi = side * cg * ca * ny;
+      const Wxi = side * cg * (ca * F[1]! - sa * F[0]!);
+      out.push({ axle, side, wheel, gap, G, W, force: { t: F[0]!, n: F[2]!, y: F[1]!, spin }, at: { t: atT, n: atN }, Gxi, Wxi });
     }
   }
   return out;
 }
 
 /** Each wheel's outward axle direction at heading psi, and its sideways load for velocity change dV over h. */
-function axles(L: LateralModel, Y: number, psi: number, dV: V2, h: number): WheelAxles {
+export function axles(L: LateralModel, Y: number, psi: number, dV: V2, h: number): WheelAxles {
   const per = (axle: 0 | 1): readonly [WheelAxle, WheelAxle] => {
     const d = L.toe[axle];
     const cg = Math.cos(L.camber[axle]);
@@ -327,8 +408,8 @@ function axles(L: LateralModel, Y: number, psi: number, dV: V2, h: number): Whee
 export const restingAxles = (L: LateralModel, s: Pick<LateralState, "Y" | "psi">): WheelAxles => axles(L, s.Y, s.psi, [0, 0], 0);
 
 /** Gap between a wheel face and the rail, m (negative when overlapping): axle 0 rear / 1 front, side +1 left / -1 right. */
-export function railGap(L: LateralModel, Y: number, psi: number, axle: 0 | 1, side: 1 | -1): number {
-  return candidates(L, Y, psi).find((c) => c.axle === axle && c.side === side)!.gap;
+export function railGap(L: LateralModel, Y: number, psi: number, axle: 0 | 1, side: 1 | -1, slide: readonly number[] = NO_SLIDE): number {
+  return candidates(L, Y, psi, slide).find((c) => c.axle === axle && c.side === side)!.gap;
 }
 
 export function lateralStep(L: LateralModel, s: LateralState, inp: LateralInput): LateralStep {
@@ -460,20 +541,23 @@ export function lateralStep(L: LateralModel, s: LateralState, inp: LateralInput)
     const f = c.force;
     forces.push({ kind: "rail", axle: c.axle, onWheel: true, side: c.side, at: c.at, f: { t: f.t * F, n: f.n * F }, y: f.y * F, spin: f.spin * F });
   });
+  const impact = sol.set.some((c, j) => sol.P[j]! > 0 && !inp.closed?.some((k) => k.axle === c.axle && k.side === c.side));
   return {
     next,
     forces,
     contacts,
-    work: { gravity: h * dot2(Fs, Vmid), tread: wTread, railNormal: wNormal, railFriction: wFric },
+    stops: [],
+    work: { gravity: h * dot2(Fs, Vmid), tread: wTread, railNormal: wNormal, railFriction: wFric, stops: 0, boreSlide: 0, heave: 0 },
     wheels: axles(L, Ym, pm, [V[0] - Vm[0], V[1] - Vm[1]], h),
     slip: sol.slip,
     consistent: sol.score <= 0,
     penetration,
+    impact,
   };
 }
 
 /** Gaussian elimination for the small (at most 6) contact systems; null if singular. */
-function solveSmall(A: number[][], b: number[]): number[] | null {
+export function solveSmall(A: number[][], b: number[]): number[] | null {
   const n = b.length;
   const M = A.map((row, i) => [...row, b[i]!]);
   for (let col = 0; col < n; col++) {

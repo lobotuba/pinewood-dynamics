@@ -1,8 +1,9 @@
 # Physics model, MVP solver (PHY-009)
 
-Status: physics core, solver `phy-009/0.5.0`. Gates P0–P7 pass against analytic solutions
+Status: physics core, solver `phy-009/0.6.0`. Gates P0–P7 pass against analytic solutions
 (section 7). P6 and P7, lateral dynamics and guide-rail contact, are in section 11, with camber and
-the thrust faces that hold each wheel on its axle. The solver has been compared with one published experiment
+the thrust faces that hold each wheel on its axle. Axial play, wheels sliding along their axles
+between those faces, is in section 12. The solver has been compared with one published experiment
 (`docs/validation.md`): it gets the overall time right, but not the size of the mass and CG
 effects. It has not been validated against the owner's track. The kit and friction values are still
 ESTIMATED (section 8).
@@ -29,11 +30,12 @@ Included:
   and longitudinal-acceleration effects.
 
 Lateral motion, yaw, toe, camber, guide-rail contact and thrust-face friction are modelled when the
-car has a lateral description and the lane a guide rail (section 11); otherwise the car is raced in
-the vertical plane only, and the result record says which (`record.lateral`).
+car has a lateral description and the lane a guide rail (section 11), and axial play when the car
+gives it (section 12); otherwise the car is raced in the vertical plane only, and the result record
+says which (`record.lateral`).
 
-Not modelled: roll, three-wheel running, axial play (a wheel moving between its faces), start-pin
-motion, body–track contact, wheel slip along the direction of travel, and track or car flexibility.
+Not modelled: roll, three-wheel running, start-pin motion, body–track contact, wheel slip along the
+direction of travel, and track or car flexibility.
 
 ## 2. Geometry and kinematics (`src/track/path.ts`, `src/physics/kinematics.ts`)
 
@@ -172,10 +174,13 @@ way carries over to the other only if friction is Coulomb (CHAR-006).
 
 ```
 released PE = KE_body (translation + pitch) + KE_wheels + E_axle + E_thrust + E_roll + E_aero
-            + KE_lateral + E_tread + E_rail friction + E_rail impact + residual
+            + KE_lateral + E_tread + E_rail friction + E_rail impact
+            + E_hub strikes + E_bore slide + E_heave + residual
 ```
 
-The thrust and lateral terms are zero unless the lateral model runs (section 11).
+The thrust and lateral terms are zero unless the lateral model runs (section 11), and the last three
+unless the wheels have axial play (section 12). `E_heave` is stored, not lost: the body raised by
+wheels sliding down cambered axles.
 
 Loss energies are integrated as extra state variables using the same scheme as the motion. The
 residual measures the integration error; it is reported in the result and in every trace sample.
@@ -202,8 +207,9 @@ residual measures the integration error; it is reported in the result and in eve
   Cross-engine agreement has not yet been measured (spec 3.4).
 - **Validity monitor.** A non-positive axle load means a wheel has lifted. The run then ends as
   `OUTSIDE_MODEL_VALIDITY` with no time, because the model assumes all wheels are in contact.
-  The one exception is a step carrying a guide-rail impact, where friction at the rail can briefly
-  exceed an axle's load. The run continues, and the hop's estimated height and airtime are recorded
+  The one exception is a step carrying a guide-rail impact (a contact closing with an impulse; with
+  axial play, a hub striking its face too), where friction at the rail can briefly exceed an axle's
+  load. The run continues, and the hop's estimated height and airtime are recorded
   in `hops` (section 11). A car that cannot leave the gate, or stops before the finish, ends as
   `STALLED`.
 
@@ -259,6 +265,15 @@ Every input is a `Sourced<T>` value carrying its provenance. The result record h
 | P6/P7 | Race with strikes, rail riding and scrub | Each lateral loss positive; residual / released | < 1e-6 |
 | P6/P7 | Mass scaling × 1.7 with the lateral model (yaw inertia scaled too) | Time unchanged | 1e-9 s |
 | P6/P7 | Step size 1e-3 to 1.25e-4 s against 3.125e-5 s | First order: error halves and quarters; < 0.5 ms at 5e-4 s | – |
+| P7 play | Slide on a turning wheel (`test/p7-axial-play.test.ts`) | Decays as `exp(−F t/(w m_w))`; bore work = slide energy lost; spin share `w/√(w² + ξ̇²)` | 1e-2, 1e-15 J, 1e-6 |
+| P7 play | Gate, not turning, tops-out camber pushing `sin γ` N | Held when `F > sin γ`; else slides at `(sin γ − F)/(m_w cos²γ)`; heave work `−sin γ Σ Δξ` | exact, 2 %, 1e-12 J |
+| P7 play | Hub strikes the axle head | `ξ̇⁺ = −e ξ̇⁻`; loss `½ m_w ξ̇² (1 − e²)`; inward face load | 1e-12, 1e-6 |
+| P7 play | Aligned, centred car with play and faces | Time bit-identical to the planar model | exact |
+| P7 play | Rail riding with front toe | The riding wheel ends on its axle head | 2 µm |
+| P7 play | Strikes, bore sliding, camber's heave, faces | Each term non-zero; residual / released | < 1e-9 |
+| P7 play | Play 1e-4, 1e-5, 1e-6 m | Approaches the fixed-wheel time, error falling | < 0.15 ms at 1 µm |
+| P7 play | Mass scaling × 1.7, inelastic hubs | Time unchanged | 1e-6 s |
+| P7 play | Step size 4e-4, 2e-4 s against 5e-5 s; bouncing hubs | First order; < 1 ms at 5e-4 s either way | – |
 
 ## 8. Before predictions mean anything (VAL-001)
 
@@ -390,7 +405,8 @@ the body (section 3). Axial loads come from:
   heads; tops out slides them in onto the body;
 - the wheel's own sideways inertia and the cross slope.
 
-The faces hold the wheel exactly: axial play, where a wheel crosses between them, is not modelled.
+Without axial play the faces hold the wheel exactly; with it the wheel bears on a face only at the
+end of its travel (section 12).
 
 **Power of a wheel force.** A wheel turns with the body's pitch plus its own spin relative to the
 body, about the axle. A force on it works as `F · v_axle + (ω − θ̇_cw) τ_axle + θ̇_cw τ_plane`, with
@@ -415,6 +431,12 @@ every step exactly on its rolling constraint, which makes the drift case exact.
 When a wheel face will reach the rail inside a step, the step is cut there, as at track joins, and
 the impact gets a step 1/1000 as long. Impact timing therefore does not depend on the step grid.
 Over so short a step the treads carry only their finite friction, so the impact is the rail's alone.
+
+Each lateral step takes its loads (the axles' normal loads for the tread limits, and with play the
+bore loads) from the planar solution at its start, with the lateral forces of the last step that
+carried no strike. A strike's forces are its impulses spread over its own short step, about a
+thousand times their sustained size; they end with that step. Before 0.6.0 the step after a strike
+took them as its loads, which for one step let the treads hold far more than they can.
 
 **Coupling approximation.** Every body point is taken to move along the lane at its axle's path
 speed. The along-lane velocity that yaw itself produces (`x ψ ψ̇`) is left out of the planar
@@ -481,10 +503,86 @@ usual size. The axle-friction iteration then reaches rounding with its direction
 **Not modelled yet:**
 
 - roll;
-- axial play: wheels sliding along their axles between head and body;
 - the start pin's lateral effect;
 - aerodynamic side force;
 - contact between the body and the rail.
 
 The design workspace still races the planar model, because alignment inputs are Release 2 controls
 (WHL-002, WHL-009) whose legality at the event is UNKNOWN (WHL-005).
+
+## 12. Axial play (P7; `src/physics/play.ts`)
+
+A kit wheel is not clamped between the axle head and the body. It slides along its axle across a
+gap, commonly set near 1/32 in, and bears on a face only at either end. `LateralCarSpec.play` gives
+each axle's travel, the hub's restitution on a face, and where the wheels sit at the gate (a
+fraction of the travel out from the body; 1/2 if omitted). Inside wheel spacing is then measured
+with the wheels pushed in against the body.
+
+**Coordinates.** Each wheel on an axle with play adds `ξ`, its slide outward from the body along the
+axle, `0 ≤ ξ ≤ travel`, to `(Y, ψ)`. The lane holds the wheel's height, so a unit of slide moves it
+`cos γ` across the lane. On a cambered axle the body corner rises or falls by `sin γ` instead.
+
+**Mass matrix.** A wheel's sideways velocity is `Ẏ + D ψ̇ + s ξ̇`, with lever `D` and slide factor
+`s = side · cos γ cos δ`. The kinetic energy adds `m_w (Ẏ + D ψ̇) s ξ̇ + ½ m_w s² ξ̇²` per wheel to
+`½ m Ẏ² + ½ I_z ψ̇²`. `D` and `s` are frozen at the square pose. The terms that freezes are of
+relative size `|ψ|` ≈ 0.04 within the coupling, which is itself `m_w/m` ≈ 0.02 of the motion. The
+matrix stays constant, so the discrete energy balance stays exact.
+
+**Forces on a slide:**
+
+- **Faces.** The body at `ξ = 0` and the head at `ξ = travel` are unilateral contacts with Newton
+  restitution, as the rail is: the hub strikes its face. A wheel bears on a face only there, and only
+  then does that face's thrust friction act on its spin. The lateral model passes dynamics.ts the
+  face load (`WheelAxle.thrust`): positive on the body, negative on the head, zero in between.
+- **Treads.** Each wheel has its own Coulomb tread. With play, a wheel's sideways load reaches the car
+  only through a face or the bore's friction, so the two treads of an axle act separately. Sliding
+  moves the tread across its rolling direction at `side · cos γ` per unit.
+- **Bore.** Coulomb friction at the bore opposes the bore surface's slip. That slip has two
+  components: the spin relative to the body, `w = |ω − θ̇_cw| r_axle`, and the slide rate `ξ̇`. The
+  axial part of the friction is `−μ|R| ξ̇/√(w² + ξ̇²)`. While `ξ̇ ≪ w` this is a damper of rate
+  `μ|R|/w`, about 0.2 N s/m at speed, so a loose 2.7 g wheel's slide decays in about 15 ms. The spin
+  keeps the share `w/√(w² + ξ̇²)` of the limit (`WheelAxle.boreSpin`), so the friction's total power
+  is Coulomb's, `μ|R| √(w² + ξ̇²)`. The root is taken at the step's starting slide rate, which is
+  first order in `h`, and the damper is implicit. A wheel that is not yet turning (`w = 0`, at the
+  gate) is held by static friction instead: a Coulomb element with limit `μ|R| h`.
+- **Heave.** The lane stops a wheel sliding down a cambered axle from going into it. The body corner
+  rises `sin γ` per unit of slide against the axle's load instead. The generalized force is
+  `sin γ (R · n)`, with `R` the axle's force on the wheel at the step's start. Tops in pushes the
+  wheels out onto their heads, tops out in onto the body. The energy goes into lifting the body,
+  `E_heave`, which the planar model does not otherwise see. On a 3° axle the lift is under 0.05 mm.
+- **Rail.** As in section 11, with the face moved across the lane by its slide.
+- **Gravity** across the lane on the wheel.
+
+**Two wheels as one.** When both wheels of an axle rest on faces in sustained contact with both
+treads sticking, they move with the car as one. Their tread forces then cannot be told apart: this
+is the rigid model's static indeterminacy, and the system is singular. They are taken equal, as on
+an axle without play, which is the limit of equal tread compliances.
+
+**Search.** Each step starts from the previous step's stick/slip and open/closed states and corrects
+every violated law at once. If that cycles, it enumerates every combination, as section 11 does. A
+step with no consistent combination still ends the run as `OUTSIDE_MODEL_VALIDITY`.
+
+**What it does.** While a toed car yaws, its treads hold the wheels to the lane and the body turns
+over them: the wheels slide on their axles until they reach a face, in about 0.3 s on the Duke car.
+A wheel riding the rail is pushed out against its head and stays there. With play the rail's blow
+reaches the car through the light wheel and its head, so a strike is two impacts.
+
+**Limit of no play.** As the travel goes to zero the race approaches the fixed-wheel result: 0.41,
+0.16 and 0.09 ms away at 0.1 mm, 10 µm and 1 µm of play on the toed demo car. It does not reach it
+exactly, because a pair of impacts in quick succession does not lose what one rigid strike loses.
+
+**Convergence.** First order. With inelastic hubs the toed demo car is 0.7 ms from the 5e-5 s result
+at the workspace's 0.5 ms step, and 0.2 ms at 0.2 ms; without play it is under 0.02 ms. The slower
+convergence comes from the light wheels, whose loads lag a step. With bouncing
+hubs (`e = 0.3`) the error is noisier and still under 0.4 ms. Bouncing hubs also make the race
+sensitive to rounding: a relative change of 1e-12 in the mass moves the time by up to 0.3 ms. With
+inelastic hubs that sensitivity is about 1e-7 s.
+
+**Approximations.**
+
+- The mass matrix is frozen at the square pose (above).
+- The wheel's own sideways inertia, and the axle's load on a cambered slope, use the planar loads at
+  the step's start.
+- A wheel's slide does not change the lever arm of its sideways inertia in the yaw equation (under 1 mm
+  against a 20 mm half-track).
+- Wheel faces and hub faces are flat; the hub's own length is in the travel.

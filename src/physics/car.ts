@@ -186,6 +186,12 @@ export function inputProvenance(spec: CarSpec, env: Environment): Record<string,
       out["lateral.camber.front"] = l.camber.front.provenance;
       out["lateral.camber.treadWidth"] = l.camber.treadWidth.provenance;
     }
+    if (l.play) {
+      out["lateral.play.rear"] = l.play.rear.provenance;
+      out["lateral.play.front"] = l.play.front.provenance;
+      out["lateral.play.restitution"] = l.play.restitution.provenance;
+      if (l.play.start) out["lateral.play.start"] = l.play.start.provenance;
+    }
     if (l.start) {
       out["lateral.start.offset"] = l.start.offset.provenance;
       out["lateral.start.heading"] = l.start.heading.provenance;

@@ -21,8 +21,9 @@ import {
   rearOffset,
   restingAxles,
 } from "./lateral.js";
+import { playArrival, playKinetic, playStep, restingPlayAxles, startSlides } from "./play.js";
 
-export const SOLVER_VERSION = "phy-009/0.5.0";
+export const SOLVER_VERSION = "phy-009/0.6.0";
 
 export interface RaceOptions {
   /** Fixed RK4 step, s. Convergence is demonstrated by step halving (PHY-005). */
@@ -57,7 +58,14 @@ export interface TraceSample {
   /** Energy-ledger residual at this instant, J (ANA-001). */
   readonly residual: number;
   /** Lateral model only: rear-axle offset from the lane centre (m), yaw (rad), rail contacts, tread states. */
-  readonly lateral?: { readonly offset: number; readonly yaw: number; readonly contacts: readonly RailContact[]; readonly slip: readonly [number, number] };
+  readonly lateral?: {
+    readonly offset: number;
+    readonly yaw: number;
+    readonly contacts: readonly RailContact[];
+    readonly slip: readonly [number, number];
+    /** Axial play only: each wheel's slide outward from the body, m (2 * axle + (0 left, 1 right)). */
+    readonly slides?: readonly number[];
+  };
 }
 
 export interface EnergyLedger {
@@ -80,6 +88,12 @@ export interface EnergyLedger {
   readonly railFrictionLoss: number;
   /** Wheel faces striking the guide rail (restitution below 1). */
   readonly railImpactLoss: number;
+  /** Axial play: hubs striking the body or the axle head. */
+  readonly stopImpactLoss: number;
+  /** Axial play: bore friction against the wheels' slide along their axles. */
+  readonly boreSlideLoss: number;
+  /** Axial play: the body raised by wheels sliding down cambered axles (stored, not lost). */
+  readonly heaveEnergy: number;
   /** released - (kinetic + losses): numerical error, J (should be ~0). */
   readonly residual: number;
 }
@@ -153,8 +167,18 @@ export function simulateRace(spec: CarSpec, track: Track, env: Environment, opts
           muC: spec.lateral.railFriction.value,
           e: spec.lateral.railRestitution.value,
           gLat: denv.g * Math.sin(track.lateral.crossSlope.value),
+          ...(spec.lateral.play && (spec.lateral.play.rear.value > 0 || spec.lateral.play.front.value > 0)
+            ? {
+                play: {
+                  travel: [spec.lateral.play.rear.value, spec.lateral.play.front.value] as const,
+                  e: spec.lateral.play.restitution.value,
+                  start: spec.lateral.play.start?.value ?? 0.5,
+                },
+              }
+            : {}),
         }
       : null;
+  const play = L?.play !== undefined;
   // Forces from the lateral model on the planar motion, and the wheels' axles, held over the current step.
   let ext: readonly PlanarForce[] = [];
   let axles: WheelAxles = SQUARE_AXLES;
@@ -195,12 +219,25 @@ export function simulateRace(spec: CarSpec, track: Track, env: Environment, opts
   // Lateral state, and the work the lateral forces have done on the lateral motion, J.
   const start = spec.lateral?.start;
   const psi0 = start?.heading.value ?? 0;
-  let lat: LateralState = { Y: L ? cgFromRear(L, start?.offset.value ?? 0, psi0) : 0, psi: psi0, dY: 0, dPsi: 0 };
+  let lat: LateralState = {
+    Y: L ? cgFromRear(L, start?.offset.value ?? 0, psi0) : 0,
+    psi: psi0,
+    dY: 0,
+    dPsi: 0,
+    ...(L && play ? startSlides(L) : {}),
+  };
   const Y0 = lat.Y;
-  if (L) axles = restingAxles(L, lat);
-  const latWork = { gravity: 0, tread: 0, railNormal: 0, railFriction: 0 };
-  let latInfo: { contacts: readonly RailContact[]; slip: readonly [number, number] } = { contacts: [], slip: [0, 0] };
-  /** True while the forces in `ext` come from a step that carried a rail impact. */
+  if (L) axles = play ? restingPlayAxles(L, lat) : restingAxles(L, lat);
+  // The lateral forces and axles of the last step without an impact: the loads (tread limits, bore
+  // loads) the next lateral step starts from. An impact's forces are its impulses spread over its own
+  // step, a ten-thousandth of an ordinary one when the strike is timed; they end with that step.
+  let steady = { ext, axles };
+  const latWork = { gravity: 0, tread: 0, railNormal: 0, railFriction: 0, stops: 0, boreSlide: 0, heave: 0 };
+  let latInfo: { contacts: readonly RailContact[]; slip: readonly [number, number]; modes?: Readonly<Record<string, number>> } = {
+    contacts: [],
+    slip: [0, 0],
+  };
+  /** True while the forces in `ext` come from a step that carried a rail (or, with play, a face) impact. */
   let impactStep = false;
   let lastH = dt;
   const hops = { count: 0, maxHeight: 0, maxAirtime: 0 };
@@ -208,20 +245,25 @@ export function simulateRace(spec: CarSpec, track: Track, env: Environment, opts
   const ledgerAt = (y: State): EnergyLedger => {
     const pose = poseAt(y[0]);
     const d = dynamics(car, pose, y[1], denv, ext, axles);
-    const releasedLat = L ? -car.mass * L.gLat * (lat.Y - Y0) : 0;
+    // With play the wheels' own slides also move mass across the slope: take gravity's work as summed.
+    const releasedLat = L ? (play ? latWork.gravity : -car.mass * L.gLat * (lat.Y - Y0)) : 0;
     const released = pe0 - car.mass * denv.g * pose.cg.z + releasedLat;
     const pitchRate = pose.dTheta * y[1];
     const kineticBody = 0.5 * car.mass * dot(d.vCg, d.vCg) + 0.5 * car.pitchInertia * pitchRate * pitchRate;
     const kineticWheels =
       0.5 * car.rear.spinInertia * d.omegaR * d.omegaR + 0.5 * car.front.spinInertia * d.omegaF * d.omegaF;
-    const kineticLateral = L ? lateralKinetic(L, lat) : 0;
+    const kineticLateral = L ? (play ? playKinetic(L, lat) : lateralKinetic(L, lat)) : 0;
     // Each lateral mechanism's loss is minus the work its forces did on both motions.
     const treadLoss = -(latWork.tread + y[5]);
     const railFrictionLoss = -(latWork.railFriction + y[6]);
     const railImpactLoss = -latWork.railNormal;
+    const stopImpactLoss = -latWork.stops;
+    const boreSlideLoss = -latWork.boreSlide;
+    const heaveEnergy = -latWork.heave;
     const residual =
       released -
-      (kineticBody + kineticWheels + kineticLateral + y[2] + y[7] + y[3] + y[4] + treadLoss + railFrictionLoss + railImpactLoss);
+      (kineticBody + kineticWheels + kineticLateral + y[2] + y[7] + y[3] + y[4] + treadLoss + railFrictionLoss + railImpactLoss) -
+      (stopImpactLoss + boreSlideLoss + heaveEnergy);
     return {
       released,
       kineticBody,
@@ -234,6 +276,9 @@ export function simulateRace(spec: CarSpec, track: Track, env: Environment, opts
       treadLoss,
       railFrictionLoss,
       railImpactLoss,
+      stopImpactLoss,
+      boreSlideLoss,
+      heaveEnergy,
       residual,
     };
   };
@@ -259,7 +304,17 @@ export function simulateRace(spec: CarSpec, track: Track, env: Environment, opts
       boreF: d.boreF,
       frictionConsistent: d.converged,
       residual: ledgerAt(y).residual,
-      ...(L ? { lateral: { offset: rearOffset(L, lat), yaw: lat.psi, contacts: latInfo.contacts, slip: latInfo.slip } } : {}),
+      ...(L
+        ? {
+            lateral: {
+              offset: rearOffset(L, lat),
+              yaw: lat.psi,
+              contacts: latInfo.contacts,
+              slip: latInfo.slip,
+              ...(lat.xi ? { slides: lat.xi } : {}),
+            },
+          }
+        : {}),
     };
   };
 
@@ -320,14 +375,16 @@ export function simulateRace(spec: CarSpec, track: Track, env: Environment, opts
   const advance = (y: State, h: number): State => {
     if (!L) return rk4(y, h);
     const pose = poseAt(y[0]);
-    const d0 = dynamics(car, pose, y[1], denv, ext, axles);
+    const d0 = dynamics(car, pose, y[1], denv, steady.ext, steady.axles);
     const held = ext;
     const heldAxles = axles;
     const v0: [number, number] = [pose.rear.J * y[1], pose.front.J * y[1]];
     let v1: [number, number] = [pose.rear.J * (y[1] + h * d0.a), pose.front.J * (y[1] + h * d0.a)];
     let out: State = y;
     for (let pass = 0; pass < 2; pass++) {
-      pendingLat = lateralStep(L, lat, { h, v0, v1, N: [d0.Nr, d0.Nf], closed: latInfo.contacts });
+      pendingLat = play
+        ? playStep(L, lat, { h, v0, v1, N: [d0.Nr, d0.Nf], loads: d0.wheelLoads, prev: latInfo.modes ?? {} })
+        : lateralStep(L, lat, { h, v0, v1, N: [d0.Nr, d0.Nf], closed: latInfo.contacts });
       ext = pendingLat.forces;
       axles = pendingLat.wheels;
       out = rk4(y, h);
@@ -348,8 +405,13 @@ export function simulateRace(spec: CarSpec, track: Track, env: Environment, opts
     latWork.tread += st.work.tread;
     latWork.railNormal += st.work.railNormal;
     latWork.railFriction += st.work.railFriction;
-    latInfo = { contacts: st.contacts, slip: st.slip };
-    impactStep = st.work.railNormal < 0;
+    latWork.stops += st.work.stops;
+    latWork.boreSlide += st.work.boreSlide;
+    latWork.heave += st.work.heave;
+    latInfo = { contacts: st.contacts, slip: st.slip, ...(st.modes ? { modes: st.modes } : {}) };
+    // A strike on the rail, or with play a hub striking its face (the blow can reach the rail that way).
+    impactStep = st.impact;
+    if (!impactStep) steady = { ext, axles };
     pendingLat = null;
     return st.consistent;
   };
@@ -361,6 +423,7 @@ export function simulateRace(spec: CarSpec, track: Track, env: Environment, opts
   let impactNext = false;
   const railArrival = (h: number): number | null => {
     if (!L) return null;
+    if (play) return playArrival(L, lat, h);
     let best: number | null = null;
     for (const axle of [0, 1] as const)
       for (const side of [1, -1] as const) {

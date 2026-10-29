@@ -3,7 +3,7 @@
 // misalignment is raced as given, nothing fitted: front toe, rear toe, and a car set down crooked at
 // the gate. Then camber, with the thrust faces that take each wheel's axial load (docs/validation.md,
 // section 8). For each: the Table 2 car's time, the mass and CG effects, and chi² over Fig. 12.
-// Usage: npm run screen:lateral [-- --search]
+// Usage: npm run screen:lateral [-- --search [--play <mm>]]
 
 import { sourced } from "../src/core/provenance.js";
 import { inches } from "../src/core/units.js";
@@ -40,6 +40,10 @@ interface Alignment {
   readonly camber?: number | readonly [number, number];
   /** Friction at the thrust faces (axle heads and body). Omitted: frictionless, as in section 7. */
   readonly faces?: boolean;
+  /** Axial play of every wheel, m, the hub's restitution on its faces, and where the wheels start (fraction of the play out). */
+  readonly play?: number;
+  readonly playE?: number;
+  readonly playStart?: number;
 }
 
 function lateral(a: Alignment): LateralCarSpec {
@@ -63,6 +67,16 @@ function lateral(a: Alignment): LateralCarSpec {
             rear: est(typeof a.camber === "number" ? a.camber : a.camber[0], "Swept"),
             front: est(typeof a.camber === "number" ? a.camber : a.camber[1], "Swept"),
             treadWidth: est(inches(0.3), "Kit wheel tread width"),
+          },
+        }),
+    ...(a.play === undefined
+      ? {}
+      : {
+          play: {
+            rear: est(a.play, "Swept"),
+            front: est(a.play, "Swept"),
+            restitution: est(a.playE ?? 0.3, "Plastic hub on a steel head or painted wood: guess"),
+            start: est(a.playStart ?? 0.5, "Swept"),
           },
         }),
   };
@@ -112,12 +126,17 @@ function evaluate(a: Alignment): void {
       `CG ${ms(ct[4]! - ct[0]!).padStart(9)}`,
       `Table 2 ${base.elapsedTime!.toFixed(3)} s`,
       `chi² ${chi2.toFixed(0).padStart(5)}`,
-      `rail ${pct(L.railFrictionLoss + L.railImpactLoss)}, scrub ${pct(L.treadLoss)}, faces ${pct(L.thrustLoss)}, hops ${base.hops.count}`,
+      `rail ${pct(L.railFrictionLoss + L.railImpactLoss)}, scrub ${pct(L.treadLoss)}, faces ${pct(L.thrustLoss)}, hops ${base.hops.count}` +
+        (a.play === undefined ? "" : `, hubs ${pct(L.stopImpactLoss + L.boreSlideLoss)}`),
     ].join("  "),
   );
 }
 
-console.log(`Measured: mass effect ${ms(MEASURED_MASS)}, CG effect ${ms(MEASURED_CG)}; Table 2 car about 2.25-2.27 s.\n`);
+const mm = 1e-3;
+const playArg = process.argv.indexOf("--play");
+const searchPlay = playArg >= 0 ? Number(process.argv[playArg + 1]) * mm : undefined;
+const tables = searchPlay === undefined;
+if (tables) console.log(`Measured: mass effect ${ms(MEASURED_MASS)}, CG effect ${ms(MEASURED_CG)}; Table 2 car about 2.25-2.27 s.\n`);
 const cases: Alignment[] = [
   { label: "Aligned (planar result)" },
   ...[1, 2, 4, 8].map((m) => ({ label: `Front toe ${m} mrad`, toeF: m / 1000 })),
@@ -127,12 +146,12 @@ const cases: Alignment[] = [
   { label: "Front toe 4 mrad, tread friction 0.6", toeF: 0.004, muT: 0.6 },
   { label: "Crooked 10 mrad, restitution 0.8", heading: 0.01, e: 0.8 },
 ];
-for (const c of cases) evaluate(c);
+if (tables) for (const c of cases) evaluate(c);
 
 // Camber, with friction at the faces that hold each wheel along its axle. Three degrees is the usual
 // bend in a canted axle.
 const deg3 = (3 * Math.PI) / 180;
-console.log("\nWith thrust-face friction, and camber (positive tops out):");
+if (tables) console.log("\nWith thrust-face friction, and camber (positive tops out):");
 const cambered: Alignment[] = [
   { label: "Aligned, faces", faces: true },
   { label: "Front toe 4 mrad, faces", toeF: 0.004, faces: true },
@@ -144,7 +163,25 @@ const cambered: Alignment[] = [
   { label: "Crooked 10 mrad, tops out 3 deg", heading: 0.01, camber: deg3, faces: true },
   { label: "Crooked 10 mrad, tops in 3 deg", heading: 0.01, camber: -deg3, faces: true },
 ];
-for (const c of cambered) evaluate(c);
+if (tables) for (const c of cambered) evaluate(c);
+
+// Axial play: the wheels slide along their axles between the body and the heads (docs/validation.md,
+// section 9). 1/32 in is a common setting; the gate position of the wheels is unknown, so it is swept.
+if (tables) console.log("\nWith axial play (and thrust-face friction):");
+const played: Alignment[] = [
+  { label: "Aligned, play 0.8 mm", faces: true, play: 0.8 * mm },
+  { label: "Front toe 4 mrad, play 0.8 mm", toeF: 0.004, faces: true, play: 0.8 * mm },
+  { label: "Front toe 4 mrad, play 0.8 mm, wheels in", toeF: 0.004, faces: true, play: 0.8 * mm, playStart: 0 },
+  { label: "Front toe 4 mrad, play 0.8 mm, wheels out", toeF: 0.004, faces: true, play: 0.8 * mm, playStart: 1 },
+  { label: "Front toe 4 mrad, play 0.8 mm, hub e 0.6", toeF: 0.004, faces: true, play: 0.8 * mm, playE: 0.6 },
+  { label: "Front toe 4 mrad, play 2 mm", toeF: 0.004, faces: true, play: 2 * mm },
+  { label: "Front toe 1 mrad, play 0.8 mm", toeF: 0.001, faces: true, play: 0.8 * mm },
+  { label: "Front toe 4 mrad, play 0.8 mm, tops out 3 deg", toeF: 0.004, camber: deg3, faces: true, play: 0.8 * mm },
+  { label: "Front toe 4 mrad, play 0.8 mm, tops in 3 deg", toeF: 0.004, camber: -deg3, faces: true, play: 0.8 * mm },
+  { label: "Tops in 3 deg, play 0.8 mm", camber: -deg3, faces: true, play: 0.8 * mm },
+  { label: "Crooked 10 mrad, play 0.8 mm", heading: 0.01, faces: true, play: 0.8 * mm },
+];
+if (tables) for (const c of played) evaluate(c);
 
 // Joint search over the unknowns, inside plausible ranges: front toe, rail friction (graphite on the
 // faces can bring it well down), restitution, how crooked the car was set down, and camber, with
@@ -152,6 +189,7 @@ for (const c of cambered) evaluate(c);
 // can explain the data, not that it does. Restitution stops at 0.6: at 0.9 a wheel pressed on the rail
 // bounces hundreds of times before it settles, and race times then move by milliseconds with the step
 // (docs/physics-model.md, section 11), so a ranking there means nothing. Ranked at the 0.5 ms step.
+// With --play the search runs with that axial play (mm) on every wheel, and the tables are skipped.
 if (process.argv.includes("--search")) {
   const scored: { a: Alignment; chi2: number }[] = [];
   for (const toeF of [0, 1e-3, 2e-3, 4e-3])
@@ -167,6 +205,7 @@ if (process.argv.includes("--search")) {
               heading,
               camber,
               faces: true,
+              ...(searchPlay === undefined ? {} : { play: searchPlay }),
             };
             const t = (o: Mann2012CarOptions): number | null => simulateRace(car(o, a), track, env, OPTS).elapsedTime;
             let chi2 = 0;
@@ -178,6 +217,7 @@ if (process.argv.includes("--search")) {
             scored.push({ a, chi2 });
           }
   scored.sort((p, q) => p.chi2 - q.chi2);
-  console.log(`\nJoint search (${scored.length} combinations, 0.5 ms steps); best five:`);
+  const withPlay = searchPlay === undefined ? "" : `, play ${searchPlay / mm} mm`;
+  console.log(`\nJoint search (${scored.length} combinations${withPlay}, 0.5 ms steps); best five:`);
   for (const s of scored.slice(0, 5)) evaluate(s.a);
 }

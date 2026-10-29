@@ -12,7 +12,9 @@
 // gives. The bore carries R_w's part across the axle, with friction mu * rho * |R_rad| = mu rho e . R_w,
 // e its direction; a thrust face carries the part along it, A = R_w . axis, with friction
 // mu_f r_f |A| = mu_f r_f sign(A) A, at the body face when the axle pushes the wheel outward and at
-// the head when inward. Directions and signs are found by fixed-point iteration. When friction
+// the head when inward. A wheel with axial play bears on a face only at the end of its travel: the
+// lateral model then gives its face load, and how much of the bore's Coulomb limit its spin takes
+// while the wheel also slides along the axle. Directions and signs are found by fixed-point iteration. When friction
 // depends on load (AxleModel.frictionExponent), the bore coefficient is updated from |R_rad| in the
 // same loop. Hub drag is a fixed torque and enters the wheel equations directly.
 //
@@ -26,7 +28,7 @@
 import { type Vec2, add, cross, dot, norm, scale, sub } from "../core/vec2.js";
 import type { AxleModel, CarModel } from "./car.js";
 import type { AxleState, Pose } from "./kinematics.js";
-import { type PlanarForce, SQUARE_AXLES, type WheelAxles } from "./lateral.js";
+import { type PlanarForce, SQUARE_AXLES, type WheelAxles, type WheelLoad } from "./lateral.js";
 
 export interface LossSwitches {
   readonly axleFriction: boolean;
@@ -65,6 +67,8 @@ export interface Dynamics {
   readonly omegaF: number;
   /** CG velocity, m/s. */
   readonly vCg: Vec2;
+  /** Each wheel's bore, for the lateral model's axial play; index 2 * axle + (0 left, 1 right). */
+  readonly wheelLoads: readonly WheelLoad[];
   /**
    * False when sliding Coulomb friction has no consistent solution (Painleve-type: friction arm
    * mu r_axle / r near or above 1). At rest this means friction holds the car.
@@ -208,6 +212,10 @@ export function dynamics(
   };
   const WF = [wheelForce(0, 0, bR), wheelForce(0, 1, bR), wheelForce(1, 0, bF), wheelForce(1, 1, bF)];
   const axleOf = (k: number): AxleModel => (k < 2 ? R : F);
+  const axleK = (k: number) => wheels[k < 2 ? 0 : 1][k % 2 as 0 | 1];
+  // Face load given by the lateral model (axial play), and the share of the bore limit the spin takes.
+  const givenA = [0, 1, 2, 3].map((k) => axleK(k).thrust);
+  const share = [0, 1, 2, 3].map((k) => axleK(k).boreSpin ?? 1);
   const wheelAt = (k: number, u: readonly number[]): V3 => {
     const wf = WF[k]!;
     const N = k < 2 ? u[1]! : u[2]!;
@@ -263,8 +271,11 @@ export function dynamics(
       for (const w of [0, 1]) {
         const k = 2 * i + w;
         const wf = WF[k]!;
-        const terms: [number, V3][] = [[s * mus[k]! * ax.axleRadius, e[k]!]];
-        if (th && sig[k] !== 0) {
+        const terms: [number, V3][] = [[s * mus[k]! * share[k]! * ax.axleRadius, e[k]!]];
+        const A = givenA[k];
+        if (A !== undefined) {
+          if (th && A !== 0) c0 += s * (A > 0 ? th.body : th.head).mu * (A > 0 ? th.body : th.head).r * Math.abs(A);
+        } else if (th && sig[k] !== 0) {
           const face = sig[k]! > 0 ? th.body : th.head;
           terms.push([s * face.mu * face.r * sig[k]!, wf.axis]);
         }
@@ -306,7 +317,7 @@ export function dynamics(
         change = Math.max(change, norm3({ x: nextE.x - e[k]!.x, y: nextE.y - e[k]!.y, z: nextE.z - e[k]!.z }), relChange(nextMu, mus[k]!));
         e[k] = nextE;
         mus[k] = nextMu;
-        if (thrustOf(axleOf(k)) && !settled[k]) {
+        if (thrustOf(axleOf(k)) && !settled[k] && givenA[k] === undefined) {
           const next = Math.sign(dot3(Rw, WF[k]!.axis));
           if (next !== sig[k]) {
             // An axial load that reverses with each iteration is zero at the solution: the wheel sits
@@ -337,15 +348,21 @@ export function dynamics(
   const bores = [0, 0];
   const boreTorque = [0, 0];
   const thrustTorque = [0, 0];
+  const wheelLoads: WheelLoad[] = [];
   for (let k = 0; k < 4; k++) {
     const i = k < 2 ? 0 : 1;
     const ax = axleOf(k);
     const Rw = wheelAt(k, u);
     const load = norm3(radial(Rw, WF[k]!.axis));
     bores[i] = bores[i]! + load;
-    boreTorque[i] = boreTorque[i]! + mu(ax, load) * ax.axleRadius * load;
+    boreTorque[i] = boreTorque[i]! + mu(ax, load) * share[k]! * ax.axleRadius * load;
+    const n = (i === 0 ? pose.rear : pose.front).pt.n;
+    wheelLoads.push({ friction: mu(ax, load) * load, slip: Math.abs((i === 0 ? omegaR : omegaF) - pitchCw) * ax.axleRadius, normal: Rw.x * n.x + Rw.z * n.z });
     const th = thrustOf(ax);
-    if (th && sig[k] !== 0) {
+    const A = givenA[k];
+    if (A !== undefined) {
+      if (th && A !== 0) thrustTorque[i] = thrustTorque[i]! + (A > 0 ? th.body : th.head).mu * (A > 0 ? th.body : th.head).r * Math.abs(A);
+    } else if (th && sig[k] !== 0) {
       const face = sig[k]! > 0 ? th.body : th.head;
       thrustTorque[i] = thrustTorque[i]! + face.mu * face.r * sig[k]! * dot3(Rw, WF[k]!.axis);
     }
@@ -387,7 +404,7 @@ export function dynamics(
     else pRail += pw;
   }
 
-  return { a, Nr, Nf, Tr, Tf, boreR, boreF, pAxle, pThrust, pTread, pRail, pRolling, pAero, omegaR, omegaF, vCg, converged };
+  return { a, Nr, Nf, Tr, Tf, boreR, boreF, pAxle, pThrust, pTread, pRail, pRolling, pAero, omegaR, omegaF, vCg, wheelLoads, converged };
 }
 
 const relChange = (next: number, prev: number): number => (prev === 0 ? Math.abs(next) : Math.abs(next - prev) / prev);
