@@ -9,8 +9,9 @@ Milestone M1, physics core: verified against analytic solutions for gates P0–P
 one published experiment. Not yet validated against the owner's track. See `docs/physics-model.md`
 and `docs/validation.md`.
 
-Milestone M2, 3D design workspace: first slice running in the browser. It has profile editing, a
-manifold solid, weights, live mass and CG, inspection, and a race preview. See
+Milestone M2, 3D design workspace: running in the browser. It has side and top profiles with arcs,
+splines and rounded corners; bores, pockets, saw cuts and wedge cuts; weights; a manifold solid;
+live mass and CG; a build tier for every operation; inspection; and a race preview. See
 `docs/design-workspace.md`.
 
 ## Commands
@@ -34,7 +35,9 @@ npm run survey:precision   # how precisely a track must be surveyed
 - `src/track`: lane profiles from lines and arcs or from survey points (smoothing spline), wheel-centre
   offset paths, track library
 - `data/surveys`: track survey files (the EXAMPLE file is synthetic)
-- `src/geometry`: master car model (design schema) and the manifold-3d body solid
+- `src/geometry`: master car model (design schema), profile curves, the manifold-3d body solid,
+  and starting points for new holes and cuts
+- `src/build`: build capability: the shop-order operations and the tool tier each needs
 - `src/mass`: materials, mass properties and inertia, design-to-solver car description
 - `src/rules`: data-driven ruleset and inspection
 - `src/app`: browser workspace (Three.js viewport, profile editors, panels, race worker)

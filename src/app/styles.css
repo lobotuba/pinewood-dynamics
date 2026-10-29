@@ -73,7 +73,7 @@ h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: 
 .profile-svg .grid .major { stroke: #36404b; }
 .profile-svg .block { fill: none; stroke: #8b7a5e; stroke-dasharray: 3 2; stroke-width: 1; vector-effect: non-scaling-stroke; }
 .profile-svg .profile { fill-opacity: 0.55; stroke: var(--wood); stroke-width: 1.5; vector-effect: non-scaling-stroke; pointer-events: none; }
-.profile-svg .edge-hit { stroke: transparent; cursor: copy; }
+.profile-svg .edge-hit { fill: none; stroke: transparent; cursor: copy; }
 .profile-svg .vertex { fill: #fff; stroke: #1d2228; stroke-width: 1.5; vector-effect: non-scaling-stroke; cursor: grab; }
 .profile-svg .vertex:hover { fill: var(--accent); }
 .profile-svg .wheel { fill: #23272b; fill-opacity: 0.8; stroke: #59626c; vector-effect: non-scaling-stroke; pointer-events: none; }
@@ -85,6 +85,18 @@ h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: 
 .profile-svg .ballast { fill: #8e959c; stroke: #e6e9ed; stroke-width: 1; vector-effect: non-scaling-stroke; cursor: move; }
 .profile-svg .ballast.cavity { stroke-dasharray: 2 2; }
 .profile-svg .ballast.selected { fill: var(--accent); }
+.profile-svg .vertex.smooth { fill: #ffd27a; }
+.profile-svg .mid { fill: #1d2228; stroke: var(--wood); stroke-width: 1.2; vector-effect: non-scaling-stroke; cursor: ns-resize; }
+.profile-svg .mid:hover { fill: var(--accent); }
+.profile-svg .feature { fill: #0f1216; fill-opacity: 0.55; stroke: #ff9f7a; stroke-width: 1; stroke-dasharray: 3 2; vector-effect: non-scaling-stroke; cursor: move; }
+.profile-svg .feature.selected { stroke: var(--accent); stroke-dasharray: none; stroke-width: 1.6; }
+.profile-svg .cut-region { fill: #ff9f7a; fill-opacity: 0.22; stroke: none; cursor: move; }
+.profile-svg .cut-region.selected { fill: var(--accent); fill-opacity: 0.25; }
+.profile-svg .cut-line { stroke: #ff9f7a; stroke-dasharray: 4 3; stroke-width: 1; vector-effect: non-scaling-stroke; pointer-events: none; }
+.profile-svg .cut-point { fill: #ff9f7a; stroke: #1d2228; stroke-width: 1.5; vector-effect: non-scaling-stroke; cursor: move; }
+.profile-svg .cut-point.off-view { fill: none; stroke: #ff9f7a; stroke-dasharray: 2 2; }
+.profile-svg .cut-point.selected { fill: var(--accent); }
+.profile-svg .cut-turn { fill: #1d2228; stroke: #ff9f7a; stroke-width: 1.5; vector-effect: non-scaling-stroke; cursor: crosshair; }
 .profile-svg .cg circle { fill: #ffcc33; stroke: #1d2228; vector-effect: non-scaling-stroke; pointer-events: none; }
 .profile-svg .cg line { stroke: #ffcc33; vector-effect: non-scaling-stroke; pointer-events: none; }
 .readout { position: absolute; right: 6px; bottom: 4px; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; pointer-events: none; }
@@ -117,6 +129,7 @@ h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: 
 .wpos { display: flex; gap: 6px; align-items: center; font-size: 12px; color: var(--muted); }
 .wpos label { display: flex; gap: 3px; align-items: center; }
 .wpos input { width: 70px; }
+.wpos .rowlabel { min-width: 30px; color: var(--muted); }
 .tag { font-size: 10px; border: 1px solid var(--amber); color: var(--amber); border-radius: 4px; padding: 0 4px; }
 .icon-btn { padding: 0 6px; font-size: 12px; }
 .empty { color: var(--muted); font-size: 12px; }
@@ -126,6 +139,22 @@ h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: 
 .add-weight .form label { display: flex; flex-direction: column; gap: 2px; color: var(--muted); }
 .add-weight .form input { width: 100%; }
 .add-weight .form .hint { grid-column: 1 / -1; margin: 0; }
+
+.tier { font-size: 10px; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; letter-spacing: 0.04em; font-weight: 600; }
+.tier[data-tier="BASIC"] { color: var(--pass); border-color: var(--pass); }
+.tier[data-tier="INTERMEDIATE"] { color: var(--accent); border-color: var(--accent); }
+.tier[data-tier="ADVANCED"], .tier[data-tier="CNC/DIGITAL"] { color: var(--amber); border-color: var(--amber); }
+.tier.blocked { color: var(--fail); border-color: var(--fail); }
+.tier.nothing { color: var(--muted); }
+.build-tier { margin-bottom: 6px; }
+.build-tier .tier { font-size: 12px; }
+.build-steps summary { cursor: pointer; color: var(--accent); font-size: 13px; }
+.steps { margin: 6px 0; padding-left: 20px; font-size: 12px; display: flex; flex-direction: column; gap: 4px; }
+.feature-item .cls { margin: 2px 0; }
+.wpos select { width: auto; }
+.form[data-kind] [data-for] { display: none; }
+.form[data-kind="bore"] [data-for~="bore"], .form[data-kind="pocket"] [data-for~="pocket"],
+.form[data-kind="cut"] [data-for~="cut"], .form[data-kind="wedge"] [data-for~="wedge"] { display: flex; }
 
 .compliance { font-size: 15px; margin-bottom: 4px; }
 .compliance[data-state="NONCOMPLIANT"] b { color: var(--fail); }

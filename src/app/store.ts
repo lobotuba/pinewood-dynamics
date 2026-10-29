@@ -5,7 +5,7 @@ import type { UnitSystem } from "../core/display.js";
 import { type CarDesign, wedgeDesign } from "../geometry/design.js";
 
 export type DisplayMode = "solid" | "xray" | "wireframe";
-export type Selection = { kind: "ballast"; id: string } | null;
+export type Selection = { kind: "ballast" | "feature"; id: string } | null;
 
 export interface View {
   readonly units: UnitSystem;
@@ -62,9 +62,9 @@ export class Store {
     this.emit("design");
   }
 
-  /** Commit whatever the live design is now (end of a drag). */
+  /** Commit whatever the live design is now (end of a drag). Nothing happens if nothing changed. */
   commit(): void {
-    this.update(this.design, true);
+    if (this.design !== this.committed) this.update(this.design, true);
   }
 
   undo(): void {

@@ -1,13 +1,16 @@
-// Sidebar panels: Design Constraints (12.5), mass and CG (7.6), weights (12.4, SAF-003), inspection
-// (9.7, 9.8) and the race preview. States are always written out in words, never colour alone (ACC-001).
+// Sidebar panels: Design Constraints (12.5), mass and CG (7.6), weights (12.4, SAF-003), holes and
+// cuts with their build tiers (12.3, 12.6), inspection (9.7, 9.8) and the race preview. States are
+// always written out in words, never colour alone (ACC-001).
 
+import { type BuildStep, SQUARE_ENTRY, tierTools } from "../build/tiers.js";
 import { type UnitSystem, formatAgainstLimit, formatLength, formatLimit, formatMass } from "../core/display.js";
 import { inches, toInches, toMm } from "../core/units.js";
-import type { Axis, Ballast, BallastShape, CarDesign, MaterialId, V3 } from "../geometry/design.js";
+import type { Axis, Ballast, BallastShape, CarDesign, Cut, Feature, MaterialId, Plane, V3 } from "../geometry/design.js";
 import { blockBox } from "../geometry/design.js";
+import { CUT_PRESETS, type CutPreset, HOLE_FACES, type HoleFace } from "../geometry/presets.js";
+import type { MountState } from "../geometry/solid.js";
 import { AXLE_PREPS, type CarEvaluation, shapeHalfSize, shapeVolume } from "../mass/carModel.js";
 import { LEAD_NOTICE, MATERIALS, nonLeadAlternative } from "../mass/materials.js";
-import type { MountState } from "../geometry/solid.js";
 import type { Inspection, InspectionLine } from "../rules/cccs.js";
 import type { RaceReply } from "./race.worker.js";
 import type { Store } from "./store.js";
@@ -19,39 +22,100 @@ const parseLength = (text: string, u: UnitSystem): number | null => {
   const x = Number(text);
   return Number.isFinite(x) && x > 0 ? (u === "metric" ? x / 1000 : inches(x)) : null;
 };
+/** A signed coordinate typed in the display units, back to metres. */
+const parseCoord = (text: string, u: UnitSystem): number | null => {
+  const x = Number(text);
+  return text.trim() !== "" && Number.isFinite(x) ? (u === "metric" ? x / 1000 : inches(x)) : null;
+};
 const showLength = (m: number, u: UnitSystem): string => (u === "metric" ? toMm(m).toFixed(2) : toInches(m).toFixed(3));
 const lengthUnit = (u: UnitSystem): string => (u === "metric" ? "mm" : "in");
+const lengthStep = (u: UnitSystem): number => (u === "metric" ? 0.25 : 0.01);
+const DEG = Math.PI / 180;
 
 const STATE_ICON: Record<string, string> = { PASS: "✓", FAIL: "✗", LOCKED: "🔒", "NOT EVALUATED": "–" };
 
+/** Plane normal as azimuth (about Z, from +X) and elevation (from the XY plane), degrees. */
+const toAngles = (n: V3): [number, number] => {
+  const l = Math.hypot(...n) || 1;
+  return [Math.atan2(n[1], n[0]) / DEG, Math.asin(Math.max(-1, Math.min(1, n[2] / l))) / DEG];
+};
+const fromAngles = (az: number, el: number): V3 => [Math.cos(el * DEG) * Math.cos(az * DEG), Math.cos(el * DEG) * Math.sin(az * DEG), Math.sin(el * DEG)];
+
+/** What the panels need from the solid; main supplies them. */
+export interface PanelTools {
+  /** Rest a surface weight on the body. */
+  seat(b: Ballast): Ballast;
+  /** The shortest access hole to a cavity weight, or null if it already opens to the surface. */
+  access(b: Ballast, id: string): Feature | null;
+  hole(kind: "bore" | "pocket", id: string, face: HoleFace, x: number, width: number, width2: number, depth: number): Feature;
+  cut(preset: CutPreset, id: string, size: number, x: number): Cut;
+}
+
 export class Panels {
   private seq = 0;
+  /** The latest evaluation, so a form-only change can re-render without a new solid. */
+  private lastEv: CarEvaluation | null = null;
+  /**
+   * The add forms are rebuilt only when their key (units, and the hole-or-cut type) changes, so a
+   * design update never replaces a form being filled in. Typed values carry over a rebuild.
+   */
+  private readonly formValues = new Map<string, string>();
+  private readonly formKeys = new Map<string, string>();
+  /** Open state of the build-sequence list, which is re-rendered with the plan. */
+  private readonly openForms = new Set<string>();
 
   constructor(
     private readonly root: HTMLElement,
     private readonly store: Store,
-    /** Rest a surface weight on the body (needs the solid, so main supplies it). */
-    private readonly seat: (b: Ballast) => Ballast,
+    private readonly tools: PanelTools,
   ) {
     root.innerHTML = `
       <section id="p-constraints" aria-label="Design constraints"></section>
       <section id="p-mass" aria-label="Mass and centre of gravity"></section>
-      <section id="p-weights" aria-label="Weights"></section>
+      <section id="p-weights" aria-label="Weights"><div id="p-weights-list"></div><div id="p-weights-form"></div>
+        <p class="hint">Drag weights in the 3D view or in either profile.</p></section>
+      <section id="p-features" aria-label="Holes, cuts and build tier"><div id="p-features-list"></div><div id="p-features-form"></div>
+        <p class="hint">Drag holes and cuts in either profile. A cut seen edge-on shows a handle per plane to turn it.</p></section>
       <section id="p-inspection" aria-label="Inspection"></section>
       <section id="p-race" aria-label="Race preview"></section>`;
     root.addEventListener("change", (e) => this.onChange(e));
     root.addEventListener("click", (e) => this.onClick(e));
+    root.addEventListener("input", (e) => {
+      const t = e.target as HTMLInputElement;
+      if (/^(aw|af)-/.test(t.id)) this.formValues.set(t.id, t.value);
+    });
+    // toggle does not bubble.
+    root.addEventListener(
+      "toggle",
+      (e) => {
+        const t = e.target as HTMLDetailsElement;
+        if (!t.dataset.form) return;
+        if (t.open) this.openForms.add(t.dataset.form);
+        else this.openForms.delete(t.dataset.form);
+      },
+      true,
+    );
   }
 
   private q(id: string): HTMLElement {
     return this.root.querySelector(`#${id}`)!;
   }
 
+  /** A remembered form value, or its default. */
+  private fv(id: string, fallback: string): string {
+    return esc(this.formValues.get(id) ?? fallback);
+  }
+  private sel(id: string, value: string, fallback: string): string {
+    return (this.formValues.get(id) ?? fallback) === value ? "selected" : "";
+  }
+
   render(d: CarDesign, ev: CarEvaluation, ins: Inspection): void {
+    this.lastEv = ev;
     const u = this.store.view.units;
     this.renderConstraints(ins);
     this.renderMass(d, ev, u);
-    this.renderWeights(d, ev.mounting, u);
+    this.renderWeights(d, ev, u);
+    this.renderFeatures(d, ev, u);
     this.renderInspection(ins, u);
   }
 
@@ -108,8 +172,23 @@ export class Panels {
       <label class="row">Paint <input id="paint" type="color" value="${esc(d.paint)}"></label>`;
   }
 
-  private renderWeights(d: CarDesign, mounting: Readonly<Record<string, MountState>>, u: UnitSystem): void {
+  /** A step's tier, or its blocking state, as a tag. */
+  private tierTag(s: BuildStep | undefined): string {
+    if (!s) return "";
+    if (s.state === "blocked") return '<span class="tier blocked">✗ CANNOT BE MADE</span>';
+    if (s.state === "nothing") return '<span class="tier nothing">REMOVES NO WOOD</span>';
+    return `<span class="tier" data-tier="${s.tier}">${s.tier}</span>`;
+  }
+
+  private posInputs(id: string, c: V3, u: UnitSystem, attr: string): string {
+    return `<div class="wpos"><span class="rowlabel">at</span>${(["x", "y", "z"] as const)
+      .map((a, k) => `<label>${a}<input type="number" step="${lengthStep(u)}" ${attr}="${esc(id)}" data-axis="${k}" value="${showLength(c[k]!, u)}"></label>`)
+      .join("")}<span>${lengthUnit(u)}</span></div>`;
+  }
+
+  private renderWeights(d: CarDesign, ev: CarEvaluation, u: UnitSystem): void {
     const sel = this.store.view.selection;
+    const mounting: Readonly<Record<string, MountState>> = ev.mounting;
     const lu = lengthUnit(u);
     const anyLead = d.ballast.some((b) => b.material === "lead");
     const item = (b: Ballast): string => {
@@ -121,6 +200,7 @@ export class Panels {
           ? `⌀ ${formatLength(b.shape.diameter, u)} × ${formatLength(b.shape.length, u)} along ${b.shape.axis.toUpperCase()}`
           : `${b.shape.size.map((s) => showLength(s, u)).join(" × ")} ${lu}`;
       const lead = b.material === "lead" ? nonLeadAlternative(shapeVolume(b.shape)) : null;
+      const step = ev.build.steps.find((s) => s.id === b.id);
       return `<li class="weight${selected ? " selected" : ""}" data-select="${esc(b.id)}">
         <div class="wtitle"><b>${esc(mat.name)}</b> ${b.material === "lead" ? '<span class="tag">ADULT INSTALLS</span>' : ""}
           <span class="wmass">${formatMass(mass, u)}</span>
@@ -128,32 +208,146 @@ export class Panels {
         <div class="wdims">${dims}; ${b.mounting === "cavity" ? "in a drilled cavity" : `mounted on the ${b.mounting}`}
           ${b.mounting !== "cavity" && mounting[b.id] !== "touching" ? `<span class="bad">${mounting[b.id] === "floating" ? "✗ not touching the body" : "✗ cuts into the body"}</span>` : ""}
           ${b.mounting !== "cavity" ? `<button class="icon-btn" data-seat="${esc(b.id)}" title="Rest it on the body surface">Seat</button>` : ""}</div>
-        <div class="wpos">
-          ${(["x", "y", "z"] as const)
-            .map((a, k) => `<label>${a}<input type="number" step="${u === "metric" ? 0.25 : 0.01}" data-pos="${esc(b.id)}" data-axis="${k}" value="${showLength(b.center[k]!, u)}"></label>`)
-            .join("")}<span>${lu}</span></div>
+        ${
+          b.mounting === "cavity" && step
+            ? `<div class="wdims">Cavity ${this.tierTag(step)} ${step.state === "blocked" ? `<button class="icon-btn" data-access="${esc(b.id)}" title="Drill the shortest hole from the surface to it">Drill access</button>` : ""}
+               <div class="cls">${esc(step.how)}</div></div>`
+            : ""
+        }
+        ${this.posInputs(b.id, b.center, u, "data-pos")}
         <div class="prov">Density ${(mat.density.value / 1000).toFixed(2)} g/cm³, ${mat.density.provenance}${lead ? `. Non-lead alternative: tungsten, ${formatMass(mass, u)} in ${(lead.volume * 1e6).toFixed(2)} cm³` : ""}</div>
       </li>`;
     };
-    const metal = (Object.keys(MATERIALS) as MaterialId[]).map((id) => `<option value="${id}">${MATERIALS[id].name}</option>`).join("");
-    this.q("p-weights").innerHTML = `
+    const metal = (Object.keys(MATERIALS) as MaterialId[]).map((id) => `<option value="${id}" ${this.sel("aw-material", id, "tungsten")}>${MATERIALS[id].name}</option>`).join("");
+    this.q("p-weights-list").innerHTML = `
       <h2>Weights</h2>
       ${anyLead ? `<p class="notice" role="note">⚠ ${LEAD_NOTICE}</p>` : ""}
-      <ul class="weights">${d.ballast.map(item).join("") || '<li class="empty">No weights yet.</li>'}</ul>
-      <details class="add-weight"><summary>Add weight</summary>
+      <ul class="weights">${d.ballast.map(item).join("") || '<li class="empty">No weights yet.</li>'}</ul>`;
+    this.form("p-weights-form", u, () => `
+      <details class="add-weight" data-form="aw"><summary>Add weight</summary>
         <div class="form">
           <label>Material <select id="aw-material">${metal}</select></label>
-          <label>Shape <select id="aw-shape"><option value="cylinder">Cylinder</option><option value="block">Block</option></select></label>
-          <label>Mounting <select id="aw-mount"><option value="cavity">Drilled cavity</option><option value="top">Top</option><option value="underside">Underside</option><option value="side">Side</option></select></label>
-          <label>Axis (cylinder) <select id="aw-axis"><option value="y">Across (Y)</option><option value="x">Along (X)</option><option value="z">Vertical (Z)</option></select></label>
-          <label>Diameter / length ${lu} <input id="aw-a" type="number" step="any" value="${showLength(inches(0.375), u)}"></label>
-          <label>Length / width ${lu} <input id="aw-b" type="number" step="any" value="${showLength(inches(1.0), u)}"></label>
-          <label>Height ${lu} (block) <input id="aw-c" type="number" step="any" value="${showLength(inches(0.25), u)}"></label>
-          <label>or target mass ${u === "metric" ? "g" : "oz"} <input id="aw-mass" type="number" step="any" placeholder="sets the last dimension"></label>
+          <label>Shape <select id="aw-shape"><option value="cylinder" ${this.sel("aw-shape", "cylinder", "cylinder")}>Cylinder</option><option value="block" ${this.sel("aw-shape", "block", "cylinder")}>Block</option></select></label>
+          <label>Mounting <select id="aw-mount">${(
+            [
+              ["cavity", "Drilled cavity"],
+              ["top", "Top"],
+              ["underside", "Underside"],
+              ["side", "Side"],
+            ] as const
+          )
+            .map(([v, l]) => `<option value="${v}" ${this.sel("aw-mount", v, "cavity")}>${l}</option>`)
+            .join("")}</select></label>
+          <label>Axis (cylinder) <select id="aw-axis"><option value="y" ${this.sel("aw-axis", "y", "y")}>Across (Y)</option><option value="x" ${this.sel("aw-axis", "x", "y")}>Along (X)</option><option value="z" ${this.sel("aw-axis", "z", "y")}>Vertical (Z)</option></select></label>
+          <label>Diameter / length ${lu} <input id="aw-a" type="number" step="any" value="${this.fv("aw-a", showLength(inches(0.375), u))}"></label>
+          <label>Length / width ${lu} <input id="aw-b" type="number" step="any" value="${this.fv("aw-b", showLength(inches(1.0), u))}"></label>
+          <label>Height ${lu} (block) <input id="aw-c" type="number" step="any" value="${this.fv("aw-c", showLength(inches(0.25), u))}"></label>
+          <label>or target mass ${u === "metric" ? "g" : "oz"} <input id="aw-mass" type="number" step="any" placeholder="sets the last dimension" value="${this.fv("aw-mass", "")}"></label>
           <button id="aw-add">Add</button>
-          <p class="hint">With a target mass, a cylinder's length or a block's height is calculated from the material's density.</p>
-        </div></details>
-      <p class="hint">Drag weights in the 3D view or in either profile.</p>`;
+          <p class="hint">With a target mass, a cylinder's length or a block's height is calculated from the material's density.
+            A cavity weight sealed inside the wood fails inspection until it has a way in: use Drill access.</p>
+        </div></details>`);
+  }
+
+  private renderFeatures(d: CarDesign, ev: CarEvaluation, u: UnitSystem): void {
+    const sel = this.store.view.selection;
+    const lu = lengthUnit(u);
+    const rho = ev.bodyDensity.value;
+    const steps = new Map(ev.build.steps.map((s) => [s.id, s]));
+    const dimInput = (id: string, key: string, value: number, label: string): string =>
+      `<label>${label}<input type="number" step="${lengthStep(u)}" min="0" data-fdim="${esc(id)}" data-key="${key}" value="${showLength(value, u)}"></label>`;
+    const item = (f: Feature): string => {
+      const step = steps.get(f.id);
+      const selected = sel?.kind === "feature" && sel.id === f.id;
+      let title: string;
+      let body: string;
+      if (f.kind === "bore") {
+        title = "Bore";
+        body = `<div class="wpos"><span class="rowlabel">size</span>${dimInput(f.id, "diameter", f.diameter, "⌀")}${dimInput(f.id, "depth", f.depth, "length")}
+          <label>axis<select data-faxis="${esc(f.id)}">${(["x", "y", "z"] as const).map((a) => `<option ${a === f.axis ? "selected" : ""}>${a}</option>`).join("")}</select></label><span>${lu}</span></div>
+          ${this.posInputs(f.id, f.center, u, "data-fpos")}`;
+      } else if (f.kind === "pocket") {
+        title = "Pocket";
+        body = `<div class="wpos"><span class="rowlabel">size</span>${(["x", "y", "z"] as const).map((a, k) => dimInput(f.id, `size${k}`, f.size[k]!, a)).join("")}<span>${lu}</span></div>
+          ${this.posInputs(f.id, f.center, u, "data-fpos")}`;
+      } else {
+        title = f.planes.length === 2 ? "Wedge cut" : "Saw cut";
+        body = `${this.posInputs(f.id, f.planes[0].point, u, "data-cpt")}
+          ${f.planes
+            .map((p, k) => {
+              const [az, el] = toAngles(p.normal);
+              return `<div class="wpos"><span class="rowlabel">plane ${k + 1}</span>
+                <label>az<input type="number" step="1" data-caz="${esc(f.id)}" data-plane="${k}" value="${az.toFixed(1)}"></label>
+                <label>el<input type="number" step="1" data-cel="${esc(f.id)}" data-plane="${k}" value="${el.toFixed(1)}"></label><span>°</span></div>`;
+            })
+            .join("")}`;
+      }
+      const removed = step ? step.removed : 0;
+      return `<li class="weight feature-item${selected ? " selected" : ""}" data-fselect="${esc(f.id)}">
+        <div class="wtitle"><b>${title}</b> ${this.tierTag(step)}
+          <span class="wmass" title="Wood this operation removes on its own">−${formatMass(removed * rho, u)}</span>
+          <button class="icon-btn" data-fdelete="${esc(f.id)}" title="Remove" aria-label="Remove">✕</button></div>
+        ${step ? `<div class="cls">${esc(step.how)}</div>` : ""}
+        ${body}
+      </li>`;
+    };
+    const plan = ev.build;
+    const kind = this.formValues.get("af-kind") ?? "bore";
+    const faces = (Object.keys(HOLE_FACES) as HoleFace[]).map((k) => `<option value="${k}" ${this.sel("af-face", k, "top")}>${HOLE_FACES[k].label}</option>`).join("");
+    const presets = (Object.keys(CUT_PRESETS) as CutPreset[])
+      .filter((k) => (kind === "wedge" ? k === "notch" : k !== "notch"))
+      .map((k) => `<option value="${k}" ${this.sel("af-preset", k, kind === "wedge" ? "notch" : "nose")}>${CUT_PRESETS[k]}</option>`)
+      .join("");
+    const xm = (blockBox().max[0] + blockBox().min[0]) / 2;
+    this.q("p-features-list").innerHTML = `
+      <h2>Holes and cuts</h2>
+      <div class="build-tier">Build tier <b class="tier" data-tier="${plan.tier}">${plan.tier}</b> <span class="cls">${plan.provenance}</span>
+        <div class="hint">${esc(tierTools(plan.tier))}.${plan.blocked.length > 0 ? ` <b class="bad">${plan.blocked.length} operation${plan.blocked.length > 1 ? "s" : ""} cannot be made as drawn.</b>` : ""}</div></div>
+      <details class="build-steps" data-form="steps" ${this.openForms.has("steps") ? "open" : ""}><summary>Build sequence (${plan.steps.length} steps)</summary>
+        <ol class="steps">${plan.steps
+          .map((s) => `<li><b>${esc(s.label)}</b> ${this.tierTag(s)}<div class="cls">${esc(s.how)}${s.removed > 0 ? ` Removes ${formatMass(s.removed * rho, u)} of wood.` : ""}</div></li>`)
+          .join("")}</ol>
+        <p class="hint">Tiers classify the kind of operation only; tool lists and precision per tier are TBD (12.6).
+          A drill meeting the surface within ${(SQUARE_ENTRY.value / DEG).toFixed(0)}° of square counts as square (${SQUARE_ENTRY.provenance}).</p></details>
+      <ul class="weights">${d.features.map(item).join("") || '<li class="empty">No holes or cuts yet.</li>'}</ul>`;
+    this.form("p-features-form", `${u}|${kind}`, () => `
+      <details class="add-weight" data-form="af"><summary>Add hole or cut</summary>
+        <div class="form" data-kind="${esc(kind)}">
+          <label>Type <select id="af-kind">${(
+            [
+              ["bore", "Bore (drilled hole)"],
+              ["pocket", "Pocket"],
+              ["cut", "Saw cut"],
+              ["wedge", "Wedge cut (V-notch)"],
+            ] as const
+          )
+            .map(([v, l]) => `<option value="${v}" ${kind === v ? "selected" : ""}>${l}</option>`)
+            .join("")}</select></label>
+          <label data-for="bore pocket">From <select id="af-face">${faces}</select></label>
+          <label data-for="cut wedge">Cut <select id="af-preset">${presets}</select></label>
+          <label data-for="bore pocket">${kind === "bore" ? "Diameter" : "Width"} ${lu} <input id="af-a" type="number" step="any" value="${this.fv("af-a", showLength(inches(0.25), u))}"></label>
+          <label data-for="pocket">Length ${lu} <input id="af-b" type="number" step="any" value="${this.fv("af-b", showLength(inches(0.5), u))}"></label>
+          <label data-for="bore pocket cut wedge">${kind === "bore" || kind === "pocket" ? "Depth" : kind === "wedge" ? "Notch depth" : "Size"} ${lu}
+            <input id="af-depth" type="number" step="any" value="${this.fv("af-depth", showLength(inches(0.25), u))}"></label>
+          <label data-for="bore pocket cut wedge">At x ${lu} <input id="af-x" type="number" step="any" value="${this.fv("af-x", showLength(xm, u))}"></label>
+          <button id="af-add">Add</button>
+          <p class="hint">Depth is measured from where the tool first meets the wood. x runs forward from the rear axle; nose and tail holes, and the corner and end chamfers, ignore it.</p>
+        </div></details>`);
+  }
+
+  /** Rebuild a form host only when its key changes, keeping its open state. */
+  private form(host: string, key: string, html: () => string): void {
+    if (this.formKeys.get(host) === key) return;
+    const el = this.q(host);
+    const wasOpen = el.querySelector("details")?.open ?? false;
+    const units = key.split("|")[0]!;
+    const prevUnits = this.formKeys.get(host)?.split("|")[0];
+    // Lengths typed in the other unit system would be misread: fall back to the defaults.
+    if (prevUnits !== undefined && prevUnits !== units)
+      for (const k of [...this.formValues.keys()]) if (/^(aw|af)-(a|b|c|mass|depth|x)$/.test(k)) this.formValues.delete(k);
+    this.formKeys.set(host, key);
+    el.innerHTML = html();
+    if (wasOpen) el.querySelector("details")!.open = true;
   }
 
   private renderInspection(ins: Inspection, u: UnitSystem): void {
@@ -206,10 +400,23 @@ export class Panels {
 
   // --- input handling -------------------------------------------------------------------------
 
+  private mapFeature(id: string, f: (x: Feature) => Feature): void {
+    const d = this.store.design;
+    this.store.update({ ...d, features: d.features.map((x) => (x.id === id ? f(x) : x)) });
+  }
+
   private onChange(e: Event): void {
     const t = e.target as HTMLInputElement | HTMLSelectElement;
     const d = this.store.design;
     const u = this.store.view.units;
+    if (/^(aw|af)-/.test(t.id)) {
+      this.formValues.set(t.id, t.value);
+      if (t.id === "af-kind" && this.lastEv) {
+        this.formValues.delete("af-preset");
+        this.renderFeatures(d, this.lastEv, u);
+      }
+      return;
+    }
     if (t.id === "axle-prep") this.store.update({ ...d, axlePrep: t.value as CarDesign["axlePrep"] });
     else if (t.id === "paint") this.store.update({ ...d, paint: t.value });
     else if (t.id === "block-mass") {
@@ -219,18 +426,49 @@ export class Panels {
     } else if (t.dataset.pos) {
       const id = t.dataset.pos;
       const k = Number(t.dataset.axis);
-      const x = Number(t.value);
-      if (!Number.isFinite(x)) return;
-      const m = u === "metric" ? x / 1000 : inches(x);
+      const m = parseCoord(t.value, u);
+      if (m === null) return;
       this.store.update({
         ...d,
-        ballast: d.ballast.map((b) => {
-          if (b.id !== id) return b;
-          const c = [...b.center] as [number, number, number];
-          c[k] = m;
-          return { ...b, center: c as V3 };
-        }),
+        ballast: d.ballast.map((b) => (b.id === id ? { ...b, center: setK(b.center, k, m) } : b)),
       });
+    } else if (t.dataset.fpos) {
+      const k = Number(t.dataset.axis);
+      const m = parseCoord(t.value, u);
+      if (m === null) return;
+      this.mapFeature(t.dataset.fpos, (f) => (f.kind === "cut" ? f : { ...f, center: setK(f.center, k, m) }));
+    } else if (t.dataset.cpt) {
+      const k = Number(t.dataset.axis);
+      const m = parseCoord(t.value, u);
+      if (m === null) return;
+      this.mapFeature(t.dataset.cpt, (f) =>
+        f.kind === "cut" ? { ...f, planes: f.planes.map((p) => ({ ...p, point: setK(p.point, k, m) })) as unknown as Cut["planes"] } : f,
+      );
+    } else if (t.dataset.caz || t.dataset.cel) {
+      const id = (t.dataset.caz ?? t.dataset.cel)!;
+      const k = Number(t.dataset.plane);
+      const x = Number(t.value);
+      if (!Number.isFinite(x)) return;
+      this.mapFeature(id, (f) => {
+        if (f.kind !== "cut") return f;
+        const planes = f.planes.map((p, i): Plane => {
+          if (i !== k) return p;
+          const [az, el] = toAngles(p.normal);
+          return { ...p, normal: t.dataset.caz ? fromAngles(x, el) : fromAngles(az, x) };
+        });
+        return { ...f, planes: planes as unknown as Cut["planes"] };
+      });
+    } else if (t.dataset.fdim) {
+      const m = parseLength(t.value, u);
+      if (m === null) return;
+      const key = t.dataset.key!;
+      this.mapFeature(t.dataset.fdim, (f) => {
+        if (f.kind === "bore" && (key === "diameter" || key === "depth")) return { ...f, [key]: m };
+        if (f.kind === "pocket" && key.startsWith("size")) return { ...f, size: setK(f.size, Number(key.slice(4)), m) };
+        return f;
+      });
+    } else if (t.dataset.faxis) {
+      this.mapFeature(t.dataset.faxis, (f) => (f.kind === "bore" ? { ...f, axis: t.value as Axis } : f));
     }
   }
 
@@ -242,17 +480,63 @@ export class Panels {
       this.store.update({ ...d, ballast: d.ballast.filter((b) => b.id !== del.dataset.delete) });
       return;
     }
+    const fdel = t.closest<HTMLElement>("[data-fdelete]");
+    if (fdel) {
+      this.store.update({ ...d, features: d.features.filter((f) => f.id !== fdel.dataset.fdelete) });
+      if (this.store.view.selection?.id === fdel.dataset.fdelete) this.store.setView({ selection: null });
+      return;
+    }
     const seat = t.closest<HTMLElement>("[data-seat]");
     if (seat) {
-      this.store.update({ ...d, ballast: d.ballast.map((b) => (b.id === seat.dataset.seat ? this.seat(b) : b)) });
+      this.store.update({ ...d, ballast: d.ballast.map((b) => (b.id === seat.dataset.seat ? this.tools.seat(b) : b)) });
+      return;
+    }
+    const access = t.closest<HTMLElement>("[data-access]");
+    if (access) {
+      const b = d.ballast.find((x) => x.id === access.dataset.access);
+      const f = b ? this.tools.access(b, newId("f")) : null;
+      if (f) {
+        this.store.update({ ...d, features: [...d.features, f] });
+        this.store.setView({ selection: { kind: "feature", id: f.id } });
+      }
       return;
     }
     if (t.id === "aw-add") {
       this.addWeight();
       return;
     }
+    if (t.id === "af-add") {
+      this.addFeature();
+      return;
+    }
+    if (t instanceof HTMLInputElement || t instanceof HTMLSelectElement || t.closest("summary")) return;
     const pick = t.closest<HTMLElement>("[data-select]");
-    if (pick && !(t instanceof HTMLInputElement)) this.store.setView({ selection: { kind: "ballast", id: pick.dataset.select! } });
+    if (pick) this.store.setView({ selection: { kind: "ballast", id: pick.dataset.select! } });
+    const fpick = t.closest<HTMLElement>("[data-fselect]");
+    if (fpick) this.store.setView({ selection: { kind: "feature", id: fpick.dataset.fselect! } });
+  }
+
+  private addFeature(): void {
+    const u = this.store.view.units;
+    const val = (id: string): string => (this.root.querySelector(`#${id}`) as HTMLInputElement | HTMLSelectElement).value;
+    const kind = val("af-kind");
+    const depth = parseLength(val("af-depth"), u);
+    const x = parseCoord(val("af-x"), u);
+    if (depth === null || x === null) return;
+    const id = newId("f");
+    let f: Feature;
+    if (kind === "bore" || kind === "pocket") {
+      const a = parseLength(val("af-a"), u);
+      const b = kind === "pocket" ? parseLength(val("af-b"), u) : a;
+      if (a === null || b === null) return;
+      // A pocket's length runs along the car where it can, otherwise across it.
+      const face = val("af-face") as HoleFace;
+      const [w1, w2] = kind === "pocket" && HOLE_FACES[face].axis !== "x" ? [b, a] : [a, b];
+      f = this.tools.hole(kind, id, face, x, w1, w2, depth);
+    } else f = this.tools.cut(val("af-preset") as CutPreset, id, depth, x);
+    const d = this.store.design;
+    this.store.update({ ...d, features: [...d.features, f] });
+    this.store.setView({ selection: { kind: "feature", id } });
   }
 
   private addWeight(): void {
@@ -283,13 +567,22 @@ export class Panels {
     const d = this.store.design;
     const bb = blockBox();
     const n = d.ballast.length;
-    const id = `w${Date.now().toString(36)}`;
+    const id = newId("w");
     // Surface mountings start against the block's face; cavity weights low in the body.
     const h = shapeHalfSize(shape);
     const z = mounting === "top" ? bb.max[2] + h[2] : mounting === "underside" ? bb.min[2] - h[2] : bb.min[2] + Math.max(inches(0.45), h[2] + inches(0.1));
     const x = inches(0.6) + n * inches(0.5);
     const y = mounting === "side" ? bb.max[1] + h[1] : 0;
-    this.store.update({ ...d, ballast: [...d.ballast, this.seat({ id, material, shape, center: [x, y, z], mounting })] });
+    this.store.update({ ...d, ballast: [...d.ballast, this.tools.seat({ id, material, shape, center: [x, y, z], mounting })] });
     this.store.setView({ selection: { kind: "ballast", id } });
   }
 }
+
+const setK = (c: V3, k: number, m: number): V3 => {
+  const out = [...c] as [number, number, number];
+  out[k] = m;
+  return out as V3;
+};
+
+let counter = 0;
+const newId = (prefix: string): string => `${prefix}${Date.now().toString(36)}${(counter++).toString(36)}`;

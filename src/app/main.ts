@@ -4,7 +4,8 @@
 
 import wasmUrl from "manifold-3d/manifold.wasm?url";
 import { type CarDesign, uncutDesign, wedgeDesign } from "../geometry/design.js";
-import { evaluateBody, loadManifold, seatBallast } from "../geometry/solid.js";
+import { newCut, newHole } from "../geometry/presets.js";
+import { accessHole, evaluateBody, loadManifold, seatBallast } from "../geometry/solid.js";
 import { evaluateCar } from "../mass/carModel.js";
 import { inspect } from "../rules/cccs.js";
 import { Panels } from "./panels.js";
@@ -21,7 +22,12 @@ async function start(): Promise<void> {
   const viewport = new Viewport($("viewport"), store);
   const side = new ProfileEditor($("side-editor"), store, "side");
   const top = new ProfileEditor($("top-editor"), store, "top");
-  const panels = new Panels($("panels"), store, (b) => seatBallast(w, store.design, b));
+  const panels = new Panels($("panels"), store, {
+    seat: (b) => seatBallast(w, store.design, b),
+    access: (b, id) => accessHole(w, store.design, b, id),
+    hole: (kind, id, face, x, a, b, depth) => newHole(w, store.design, kind, id, face, x, a, b, depth),
+    cut: (preset, id, size, x) => newCut(w, store.design, preset, id, size, x),
+  });
   const worker = new Worker(new URL("./race.worker.ts", import.meta.url), { type: "module" });
   worker.onmessage = (e: MessageEvent<RaceReply>) => panels.renderRace(e.data);
 
@@ -122,10 +128,9 @@ async function start(): Promise<void> {
       store.redo();
     } else if ((e.key === "Delete" || e.key === "Backspace") && !typing) {
       const sel = store.view.selection;
-      if (sel?.kind === "ballast") {
-        store.update({ ...store.design, ballast: store.design.ballast.filter((b) => b.id !== sel.id) });
-        store.setView({ selection: null });
-      }
+      if (sel?.kind === "ballast") store.update({ ...store.design, ballast: store.design.ballast.filter((b) => b.id !== sel.id) });
+      if (sel?.kind === "feature") store.update({ ...store.design, features: store.design.features.filter((f) => f.id !== sel.id) });
+      if (sel) store.setView({ selection: null });
     }
   });
 

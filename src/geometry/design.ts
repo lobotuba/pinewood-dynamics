@@ -13,9 +13,16 @@ export type P2 = readonly [number, number];
 export type V3 = readonly [number, number, number];
 export type Axis = "x" | "y" | "z";
 
-/** A closed outline. Side profile points are (x, z); top profile points are (x, y). */
+/**
+ * A closed outline. Side profile points are (x, z); top profile points are (x, y). Edges are straight
+ * unless a vertex is smooth (spline) or an edge has an arc bulge; see `profile.ts`.
+ */
 export interface Profile {
   readonly points: readonly P2[];
+  /** Per vertex: the outline passes smoothly through it. Absent means all corners. */
+  readonly smooth?: readonly boolean[];
+  /** Per edge i (vertex i to i+1): arc bulge tan(θ/4), + bowing left of travel. Absent means none. */
+  readonly bulge?: readonly number[];
 }
 
 /** Cylindrical hole; `center` is the centre of the cylinder, `depth` its length along `axis`. */
@@ -36,7 +43,24 @@ export interface Pocket {
   readonly size: V3;
 }
 
-export type Feature = Bore | Pocket;
+/** A plane through `point`; the side `normal` points to is the side a cut removes. */
+export interface Plane {
+  readonly point: V3;
+  readonly normal: V3;
+}
+
+/**
+ * A flat saw cut (spec 6.1, 12.3). One plane removes everything on its normal side; two planes make
+ * a wedge cut (V-notch), removing only where both half-spaces overlap. Cuts are sawn before any
+ * hole is drilled (6.1: "two saw cuts, then drilling").
+ */
+export interface Cut {
+  readonly kind: "cut";
+  readonly id: string;
+  readonly planes: readonly [Plane] | readonly [Plane, Plane];
+}
+
+export type Feature = Bore | Pocket | Cut;
 
 export type MaterialId = "tungsten" | "lead" | "steel" | "brass" | "zinc" | "tin" | "copper" | "aluminium";
 
@@ -101,16 +125,18 @@ const rect = (x0: number, a0: number, x1: number, a1: number): Profile => ({
   ],
 });
 
-/** Profiles that cut nothing: slightly larger than the block. */
+/**
+ * Profiles that cut nothing: exactly the block's outlines, so what the editor shows on the block's
+ * edge is where the saw goes (manifold resolves the coincident faces exactly).
+ */
 export function uncutDesign(kit = TYPICAL_KIT_ESTIMATE): CarDesign {
   const b = blockBox(kit);
-  const pad = 0.002;
   return {
     schema: 1,
     name: "Uncut block",
     kitId: "typical-kit-estimate",
-    side: rect(b.min[0] - pad, b.min[2] - pad, b.max[0] + pad, b.max[2] + pad),
-    top: rect(b.min[0] - pad, b.min[1] - pad, b.max[0] + pad, b.max[1] + pad),
+    side: rect(b.min[0], b.min[2], b.max[0], b.max[2]),
+    top: rect(b.min[0], b.min[1], b.max[0], b.max[1]),
     features: [],
     ballast: [],
     paint: "#c8a46e",
@@ -119,8 +145,8 @@ export function uncutDesign(kit = TYPICAL_KIT_ESTIMATE): CarDesign {
 }
 
 /**
- * A starting design: a wedge falling from 1.0 in at the rear to 0.25 in at the nose, with a full-width
- * tungsten cylinder in a cavity just ahead of the rear axle.
+ * A starting design: a wedge falling from 1.0 in at the rear to 0.25 in at the nose, with a tungsten
+ * cylinder in a cavity across the car just ahead of the rear axle, drilled in from the left side.
  */
 export function wedgeDesign(kit = TYPICAL_KIT_ESTIMATE): CarDesign {
   const b = blockBox(kit);
@@ -128,24 +154,30 @@ export function wedgeDesign(kit = TYPICAL_KIT_ESTIMATE): CarDesign {
   const zb = b.min[2];
   const xr = b.min[0];
   const xf = b.max[0];
+  const cyl = { diameter: inches(0.375), length: inches(1.5) };
+  const wz = zb + inches(0.45);
+  // The access bore runs from 1 mm outside the left face to 1 mm into the cavity.
+  const y0 = cyl.length / 2 - 0.001;
+  const y1 = b.max[1] + 0.001;
   return {
     ...base,
     name: "Wedge",
     side: {
       points: [
-        [xr - 0.002, zb - 0.002],
-        [xf + 0.002, zb - 0.002],
-        [xf + 0.002, zb + inches(0.25)],
+        [xr, zb],
+        [xf, zb],
+        [xf, zb + inches(0.25)],
         [xr + inches(1.5), zb + inches(1.0)],
-        [xr - 0.002, zb + inches(1.0)],
+        [xr, zb + inches(1.0)],
       ],
     },
+    features: [{ kind: "bore", id: "f1", center: [inches(0.5), (y0 + y1) / 2, wz], axis: "y", diameter: cyl.diameter, depth: y1 - y0 }],
     ballast: [
       {
         id: "w1",
         material: "tungsten",
-        shape: { kind: "cylinder", diameter: inches(0.375), length: inches(1.5), axis: "y" },
-        center: [inches(0.5), 0, zb + inches(0.45)],
+        shape: { kind: "cylinder", ...cyl, axis: "y" },
+        center: [inches(0.5), 0, wz],
         mounting: "cavity",
       },
     ],

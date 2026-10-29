@@ -69,20 +69,17 @@ describe("Body solid (GEO-009)", () => {
   });
 
   it("cuts the side profile through the full width: a wedge's volume is its trapezoid area times the width", () => {
-    const d = wedgeDesign();
+    const d = { ...wedgeDesign(), features: [] };
     const body = evaluateBody(w, { ...d, ballast: [] });
-    // Side outline inside the block: 1.0 in tall for 1.5 in, then a straight edge falling to 0.25 in at
-    // its end point, which sits 2 mm beyond the nose.
+    // Side outline: 1.0 in tall for 1.5 in, then a straight edge falling to 0.25 in at the nose.
     const x1 = inches(1.5);
-    const x2 = L + 0.002;
-    const atNose = inches(1.0) + ((inches(0.25) - inches(1.0)) * (L - x1)) / (x2 - x1);
-    const area = x1 * inches(1.0) + 0.5 * (inches(1.0) + atNose) * (L - x1);
+    const area = x1 * inches(1.0) + 0.5 * (inches(1.0) + inches(0.25)) * (L - x1);
     const exact = area * W + combine(slots()).mass;
     close(body.volume, exact, 1e-5);
   });
 
   it("removes a cavity for a cavity-mounted weight, to the 128-gon's area", () => {
-    const d = wedgeDesign();
+    const d = { ...wedgeDesign(), features: [] };
     const withCavity = evaluateBody(w, d).volume;
     const without = evaluateBody(w, { ...d, ballast: [] }).volume;
     const s = d.ballast[0]!.shape;
@@ -127,7 +124,7 @@ describe("Weight mounting (spec 6.5 geometry validity)", () => {
     // Wedge top falls from 1.0 in (1.5 in from the rear) to 0.25 in at the nose: the footprint's rear
     // edge (x = 1.5 in ahead of the rear axle) is its highest point.
     const x1 = inches(1.5);
-    const x2 = L + 0.002;
+    const x2 = L;
     const rearEdgeX = inches(2) - inches(0.5) * 0.98 - B.min[0];
     const surface = B.min[2] + inches(1.0) + ((inches(0.25) - inches(1.0)) * (rearEdgeX - x1)) / (x2 - x1);
     expect(seated.center[2] - inches(0.0625)).toBeCloseTo(surface, 6);
@@ -138,7 +135,8 @@ describe("Weight mounting (spec 6.5 geometry validity)", () => {
 
 describe("Mass model and solver bridge (7.6, MAT-001)", () => {
   it("sums body, wheels, axles and weights; the body is density times the solid's volume", () => {
-    const d = wedgeDesign();
+    // Without its one-sided access bore, so the design is symmetric.
+    const d = { ...wedgeDesign(), features: [] };
     const body = evaluateBody(w, d);
     const ev = evaluateCar(d, body);
     const sum = ev.components.reduce((a, c) => a + c.mass, 0);

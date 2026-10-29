@@ -4,7 +4,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { inches } from "../core/units.js";
-import type { Ballast, CarDesign, V3 } from "../geometry/design.js";
+import type { Ballast, CarDesign, Feature, V3 } from "../geometry/design.js";
 import type { BodySolid } from "../geometry/solid.js";
 import { wheelCentres } from "../geometry/solid.js";
 import { TYPICAL_KIT_ESTIMATE as K } from "../kit/kit.js";
@@ -48,6 +48,8 @@ export class Viewport {
     cg: new THREE.Group(),
     datums: new THREE.Group(),
     envelope: new THREE.Group(),
+    /** The selected hole or cut, drawn as a ghost so it can be found even where it removes nothing. */
+    selection: new THREE.Group(),
   };
   private readonly target = new THREE.Vector3(inches(2.2), 0, 0);
   private bodyMaterial = new THREE.MeshStandardMaterial({ color: 0xc8a46e, roughness: 0.75, metalness: 0, side: THREE.DoubleSide });
@@ -228,6 +230,14 @@ export class Viewport {
     bg.clear();
     for (const b of design.ballast) bg.add(this.ballastMesh(b));
 
+    const sg = this.groups.selection;
+    // Arrow helpers are groups: dispose whatever geometry sits anywhere below.
+    sg.traverse((o) => (o as Partial<THREE.Mesh>).geometry?.dispose());
+    sg.clear();
+    const sel = this.store.view.selection;
+    const f = sel?.kind === "feature" ? design.features.find((x) => x.id === sel.id) : undefined;
+    if (f) for (const m of this.featureGhost(f)) sg.add(m);
+
     // CG marker with a drop line to the contact plane.
     const [cx, cy, cz] = ev.total.centroid;
     this.groups.cg.position.set(cx, cy, cz);
@@ -277,6 +287,37 @@ export class Viewport {
     // Cavity weights show through the body in solid mode.
     m.renderOrder = b.mounting === "cavity" ? 2 : 0;
     return m;
+  }
+
+  private featureGhost(f: Feature): THREE.Object3D[] {
+    const mat = new THREE.MeshBasicMaterial({ color: 0x5fb3ff, transparent: true, opacity: 0.32, depthTest: false, depthWrite: false, side: THREE.DoubleSide });
+    const line = new THREE.LineBasicMaterial({ color: 0x5fb3ff, depthTest: false });
+    const out: THREE.Object3D[] = [];
+    if (f.kind === "cut") {
+      for (const p of f.planes) {
+        const n = new THREE.Vector3(...p.normal).normalize();
+        const quad = new THREE.Mesh(new THREE.PlaneGeometry(0.04, 0.04), mat);
+        quad.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), n);
+        quad.position.set(...p.point);
+        out.push(quad);
+        // An arrow toward the side the cut removes.
+        out.push(new THREE.ArrowHelper(n, new THREE.Vector3(...p.point), 0.012, 0x5fb3ff, 0.004, 0.003));
+      }
+    } else {
+      let geo: THREE.BufferGeometry;
+      if (f.kind === "bore") {
+        geo = new THREE.CylinderGeometry(f.diameter / 2, f.diameter / 2, f.depth, 48);
+        if (f.axis === "x") geo.rotateZ(Math.PI / 2);
+        if (f.axis === "z") geo.rotateX(Math.PI / 2);
+      } else geo = new THREE.BoxGeometry(...f.size);
+      const m = new THREE.Mesh(geo, mat);
+      m.position.set(...f.center);
+      const e = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 25), line);
+      e.position.set(...f.center);
+      out.push(m, e);
+    }
+    for (const o of out) o.renderOrder = 20;
+    return out;
   }
 
   /** Display modes and group visibility (12.2). */

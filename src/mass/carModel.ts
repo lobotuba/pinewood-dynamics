@@ -8,6 +8,7 @@ import { blockBox, shapeHalfSize } from "../geometry/design.js";
 import type { BodySolid, MountState } from "../geometry/solid.js";
 import { wheelCentres } from "../geometry/solid.js";
 import { TYPICAL_KIT_ESTIMATE } from "../kit/kit.js";
+import { type BuildPlan, planBuild } from "../build/tiers.js";
 import type { AxleSpec, CarSpec } from "../physics/car.js";
 import { type Mat3, type MassPart, ZERO3, boxInertia, combine, cylinderInertia, meshMassProperties, scaleMat } from "./inertia.js";
 import { MATERIALS } from "./materials.js";
@@ -41,6 +42,8 @@ export interface CarEvaluation {
   readonly frontalArea: number;
   /** How each surface-mounted weight meets the body. */
   readonly mounting: Readonly<Record<string, MountState>>;
+  /** Shop-order operations with the build tier each needs (12.6). */
+  readonly build: BuildPlan;
   readonly spec: CarSpec;
 }
 
@@ -182,6 +185,7 @@ export function evaluateCar(design: CarDesign, body: BodySolid, kit = TYPICAL_KI
     extents,
     frontalArea: body.frontalArea,
     mounting: body.mounting,
+    build: planBuild(design, body),
     spec: carSpec(design, body, total, pitch, kit),
   };
 }

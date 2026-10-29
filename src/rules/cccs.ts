@@ -114,6 +114,18 @@ export function inspect(ev: CarEvaluation, ruleset: Ruleset = CCCS_KIT_CAR_2026)
           : "Every surface weight touches the body."
         : bad.map(([id, m]) => (m === "floating" ? `Weight ${id} is not touching the body.` : `Weight ${id} cuts into the body: drill a cavity or move it.`)).join(" "),
   };
+  const blocked = ev.build.blocked;
+  const accessLine: InspectionLine = {
+    id: "GEO-ACCESS",
+    label: "Holes can be made",
+    cls: "GEOMETRY VALIDITY",
+    state: blocked.length === 0 ? "PASS" : "FAIL",
+    provisional: false,
+    note:
+      blocked.length === 0
+        ? "Every bore, pocket and weight cavity has a straight way in from outside."
+        : blocked.map((b) => `${b.label} (${b.id}): ${b.how}`).join(" "),
+  };
   const lines: InspectionLine[] = ruleset.limits.map((l) => {
     const m = measured[l.id];
     if (!m) return { id: l.id, label: l.label, cls: "PUBLISHED RULE", state: "NOT EVALUATED", limit: l, provisional: true, note: "No measurement defined." };
@@ -132,7 +144,7 @@ export function inspect(ev: CarEvaluation, ruleset: Ruleset = CCCS_KIT_CAR_2026)
       note: pass && straddles && band > 0 ? `${m.note} ADVISORY: the ±2σ mass band reaches the limit.` : m.note,
     };
   });
-  lines.unshift(mountLine);
+  lines.unshift(mountLine, accessLine);
   lines.push(
     {
       id: "RUL-007",
