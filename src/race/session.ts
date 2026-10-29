@@ -9,7 +9,8 @@ import type { Provenance } from "../core/provenance.js";
 import { rotate, sub } from "../core/vec2.js";
 import type { CarSpec, Environment } from "../physics/car.js";
 import { type EnergyLedger, type RaceStatus, SOLVER_VERSION, simulateRace } from "../physics/race.js";
-import type { ProfileStatus, Track } from "../track/track.js";
+import { parseSurveyCsv, surveyedTrack } from "../track/survey.js";
+import { type BestTrackLength, type ProfileStatus, TEST_RAMP, type Track, bestTrack, idealRamp } from "../track/track.js";
 
 export const MAX_LANES = 4;
 
@@ -20,6 +21,21 @@ export const FIDELITY_STEP: Readonly<Record<Fidelity, number>> = { standard: 5e-
 
 /** Replay samples about this far apart, s. */
 const SAMPLE_INTERVAL = 0.002;
+
+/**
+ * Which track a session races on, as data (the worker rebuilds it, and a saved result keeps it):
+ * BestTrack as drawn, the idealized test ramp, or a survey fitted from its CSV (CHAR-005).
+ */
+export type TrackChoice =
+  | { readonly kind: "besttrack"; readonly length: BestTrackLength }
+  | { readonly kind: "ramp" }
+  | { readonly kind: "survey"; readonly csv: string };
+
+export function buildTrack(c: TrackChoice): Track {
+  if (c.kind === "besttrack") return bestTrack(c.length);
+  if (c.kind === "ramp") return idealRamp(TEST_RAMP);
+  return surveyedTrack(parseSurveyCsv(c.csv)).track;
+}
 
 export interface Entry {
   readonly label: string;
@@ -52,6 +68,8 @@ export interface LaneResult {
   /** False if axle friction had no consistent solution at any sample. */
   readonly frictionConsistent: boolean;
   readonly hops: number;
+  /** Least underside clearance over the lane and the rail, m; null when the car gives no underside. */
+  readonly clearance: { readonly lane: number; readonly rail: number } | null;
   readonly lateral: boolean;
   readonly weakestInput: Provenance;
   /** Wheel radius at each axle, m (for drawing the wheels' roll). */
@@ -109,6 +127,7 @@ export function raceSession(entries: readonly (Entry | null)[], track: Track, en
       maxResidual: r.trace.reduce((m, p) => Math.max(m, Math.abs(p.residual)), 0),
       frictionConsistent: r.trace.every((p) => p.frictionConsistent),
       hops: r.hops.count,
+      clearance: r.clearance ? { lane: r.clearance.lane, rail: r.clearance.rail } : null,
       lateral: r.record.lateral,
       weakestInput: r.record.weakestInput,
       wheelRadius: [e.spec.rear.wheelRadius.value, e.spec.front.wheelRadius.value],

@@ -4,7 +4,7 @@ import { type Provenance, type Sourced, sourced } from "../core/provenance.js";
 import { M_PER_IN } from "../core/units.js";
 import type { Curve } from "./curve.js";
 import { type SmoothingFit, SplineSurface, fitSurveySpline } from "./spline.js";
-import type { Track } from "./track.js";
+import { TYPICAL_LANE_LATERAL, type Track } from "./track.js";
 
 export interface SurveyStation {
   /** Horizontal distance from the survey datum, m. */
@@ -114,6 +114,8 @@ export function surveyedTrack(s: TrackSurvey): SurveyedTrack {
       profileSource: `${s.source}; ${fitSummary}`,
       pinS,
       timedDistance,
+      // The survey gives the lane's profile, not its rail: the common rulebook rail (ESTIMATED), as for BestTrack.
+      lateral: TYPICAL_LANE_LATERAL,
     },
     fit,
     report,

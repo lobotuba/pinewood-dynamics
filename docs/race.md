@@ -9,7 +9,13 @@ design race as ghosts against each other and against the current design.
 - **Cars.** Each lane takes the current design, a saved version, or nothing. Save versions in
   Design mode with *Save version*: the design's name with the next free V number (DAT-003). They
   are kept in browser storage with the design; nothing leaves the machine (PLT-004).
-- **Track.** BestTrack 35, 42 or 49 ft, profile ESTIMATED from the manufacturer drawing.
+- **Track.** BestTrack 35, 42 or 49 ft, profile ESTIMATED from the manufacturer drawing; the
+  idealized test ramp (IDEALIZED, an exact verification profile, not a real track, 10.3); or a
+  survey loaded from its CSV and fitted with the smoothing spline (`docs/track-survey.md`). A survey
+  is MEASURED if its file says so, otherwise ESTIMATED, like the synthetic example. A surveyed lane
+  gets the rulebook guide rail, ESTIMATED, as BestTrack does. The session carries the track as data
+  (`TrackChoice`), and the worker rebuilds it.
+- **Saved versions.** Listed below the setup, where they can be renamed or deleted.
 - **Ruleset.** Shown, not chosen: the CCCS kit-car ruleset.
 - **Compliance and readiness, shown separately.** Each lane shows its car's compliance state from
   inspection, and its model readiness: the weakest provenance among its solver inputs. Today that is
@@ -43,14 +49,29 @@ that does not finish has no place, and its status and message are shown.
 - **Readouts.** A large clock that stops on the winning time once every car is in. A lane strip
   with each car's running or final time and speed. The finish order as cars cross.
 - **Replay.** 0.25×, 1× and 4×, pause and restart.
-- **Cameras.** Full track (which can be orbited), chase (follows the first entered lane), and finish
+- **Cameras.** Full track (which can be orbited), chase (following the lane chosen beside it), and finish
   line. The camera and replay speed only change what is drawn: they never touch a result (13.2).
 
 ## 4. Results (13.3)
 
+- **Save result** keeps the result (DAT-001) with what MODE-004 asks every saved result to record:
+  - compliance context (SANDBOX; there is no CERTIFIED context yet);
+  - simulation fidelity and step;
+  - ruleset;
+  - track, as chosen and as named, with its profile status;
+  - solver version;
+  - seed (none: the solver is deterministic).
+
+  Each lane keeps its design, compliance state and outcome.
+- **Saved results** are listed in the setup panel, newest first, with their solver version, flagged
+  when it is older than the current one. *Race again* (or *Re-run with* a newer solver) races the
+  saved designs on the saved track and fidelity. The result is new and compared lane by lane with
+  the saved one: identical, or the difference in time. A saved result is never changed (DAT-002).
+
 - Place, elapsed time, finish speed and maximum speed per lane.
 - Validity flags: status and message for a car that did not finish, any inconsistent axle
-  friction, the largest ledger residual, wheel hops, planar or lateral model, and the weakest input.
+  friction, the largest ledger residual, wheel hops, the least underside clearance over the rail and
+  the lane during the run, planar or lateral model, and the weakest input.
 - Profile provenance, solver version and step, and the reminder that the values are ESTIMATED.
 - Speed against distance from the gate, and against time. Each chart has one axis and 2 px lane
   lines. Lane colours are categorical slots 1–4 for the dark surface; together they pass the
@@ -72,20 +93,24 @@ that does not finish has no place, and its status and message are shown.
 | Finish order | Ties share a place, the next place skips; non-finishers have none |
 | Replay interpolation | Held at the gate before release and at the finish after; linear between samples |
 | Fine against standard fidelity | Within 1 µs |
+| Track choices | BestTrack by length; the ramp IDEALIZED with a DEFAULT timed distance; the example survey ESTIMATED with the rulebook rail, racing within 1 ms of the drawn profile it was sampled from |
 
 Browser check (headless Edge with playwright-core): three lanes raced from two saved versions and a
 different current design. The views were inspected as screenshots: setup, countdown, all three
-cameras, results with the chart tooltip, and the design view after returning from race mode. The
-page logged no errors.
+cameras, results with the chart tooltip, and the design view after returning from race mode. A
+second check covered:
+- saving a result, renaming a version, and racing the saved result again ("identical" on both lanes);
+- following lane 2 with the chase camera;
+- loading the example survey and racing on it, then on the ramp.
+
+The page logged no errors.
 
 ## 6. Not yet built
 
 - **Lateral racing in the workspace.** Cars race the planar model. Alignment inputs (toe, camber,
   axial play) are Release 2 controls whose legality at the event is UNKNOWN (WHL-002, WHL-005,
   WHL-009), so a workspace car has no lateral description yet.
-- **Saved race results** (DAT-001) and re-running them with a newer solver (DAT-002).
-- **Measured local track instance** in the setup. The survey tool exists (`docs/track-survey.md`)
-  but the browser cannot load a survey yet.
-- **Camera choice for the chase.** It follows the first entered lane.
-- **Version management.** Versions can be raced but not yet renamed or deleted in the interface
-  (`Store.deleteVersion` exists).
+- **Replaying a saved result as it ran.** Saved results keep outcomes, not traces; *Race again*
+  replays a fresh run.
+- **Exporting saved results** with the project file (DAT-001 lists them in the project schema).
+- **Lane-specific profiles** (Release 3): every lane of a track uses one profile.

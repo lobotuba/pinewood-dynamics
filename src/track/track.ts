@@ -68,6 +68,19 @@ export function idealRamp(p: RampParams, name = "Idealized test ramp"): Track {
   };
 }
 
+/**
+ * The idealized test ramp that ships for verification (10.3): an exact profile, not a real track.
+ * Its dimensions are defaults chosen for the purpose.
+ */
+export const TEST_RAMP: RampParams = {
+  slope: degrees(26),
+  slopeLength: 2,
+  transitionRadius: 2,
+  flatLength: 6,
+  pinS: 0.3,
+  timedDistance: sourced(7, "DEFAULT", "Idealized verification ramp"),
+};
+
 export type BestTrackLength = 35 | 42 | 49;
 
 const BESTTRACK_SPECS = "https://www.besttrack.com/track_specs.html";

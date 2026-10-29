@@ -5,16 +5,15 @@ import { weakest } from "../core/provenance.js";
 import { DEFAULT_ENVIRONMENT } from "../kit/kit.js";
 import type { CarSpec } from "../physics/car.js";
 import { inputProvenance } from "../physics/car.js";
-import { type Fidelity, type LaneResult, MAX_LANES, type Session, finishOrder, poseAt } from "../race/session.js";
+import { SOLVER_VERSION } from "../physics/race.js";
+import { type Fidelity, type LaneResult, MAX_LANES, type Session, type TrackChoice, buildTrack, finishOrder, poseAt } from "../race/session.js";
 import type { ComplianceState } from "../rules/cccs.js";
 import { CCCS_KIT_CAR_2026 } from "../rules/cccs.js";
-import type { BestTrackLength } from "../track/track.js";
-import { bestTrack } from "../track/track.js";
 import type { CarDesign } from "../geometry/design.js";
 import type { BodySolid } from "../geometry/solid.js";
 import type { SessionReply, SessionRequest } from "./race.worker.js";
 import { LANE_COLOURS, type LaneCar, type RaceCamera, RaceView } from "./raceView.js";
-import type { Store } from "./store.js";
+import type { SavedRace, Store } from "./store.js";
 
 /** What race mode needs from the design pipeline for one car. */
 export interface EvaluatedCar {
@@ -24,6 +23,21 @@ export interface EvaluatedCar {
 }
 
 const COUNTDOWN = 3;
+
+const TRACKS: readonly { readonly key: string; readonly label: string; readonly choice: TrackChoice }[] = [
+  { key: "bt35", label: "BestTrack 35 ft", choice: { kind: "besttrack", length: 35 } },
+  { key: "bt42", label: "BestTrack 42 ft", choice: { kind: "besttrack", length: 42 } },
+  { key: "bt49", label: "BestTrack 49 ft", choice: { kind: "besttrack", length: 49 } },
+  { key: "ramp", label: "Idealized test ramp", choice: { kind: "ramp" } },
+];
+
+/** What a session raced, kept to save it as a result. */
+interface Run {
+  readonly lanes: readonly ({ readonly label: string; readonly design: CarDesign; readonly compliance: string } | null)[];
+  readonly track: TrackChoice;
+  readonly fidelity: Fidelity;
+  readonly rerunOf?: SavedRace;
+}
 const esc = (s: string): string => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
 interface Pick {
@@ -34,8 +48,13 @@ interface Pick {
 export class RacePanel {
   private readonly view: RaceView;
   private choice: string[] = ["current", "", "", ""];
-  private length: BestTrackLength = 35;
+  private trackKey = "bt35";
+  /** A survey loaded this session (CHAR-005): its name, CSV, and profile status once fitted. */
+  private survey: { name: string; csv: string; status: string } | null = null;
+  private trackError = "";
   private fidelity: Fidelity = "standard";
+  private run: Run | null = null;
+  private savedThis = false;
   private seq = 0;
   private session: Session | null = null;
   private cars: (LaneCar | null)[] = [];
@@ -53,7 +72,7 @@ export class RacePanel {
     private readonly worker: Worker,
   ) {
     this.view = new RaceView(els.view);
-    this.view.setTrack(bestTrack(this.length));
+    this.view.setTrack(buildTrack(this.trackChoice()));
     this.wireBar();
     this.renderResults();
   }
@@ -63,7 +82,12 @@ export class RacePanel {
     if (r.seq !== this.seq) return;
     this.running = false;
     this.session = r.session;
+    this.savedThis = false;
     this.view.setCars(r.session, this.cars);
+    const follow = this.els.bar.querySelector<HTMLSelectElement>("#chase-lane")!;
+    follow.innerHTML = r.session.lanes
+      .flatMap((l) => (l ? [`<option value="${l.lane}">Follow lane ${l.lane + 1}</option>`] : []))
+      .join("");
     this.restart();
     this.renderSetup();
     this.renderResults();
@@ -76,6 +100,24 @@ export class RacePanel {
       this.last = performance.now();
       requestAnimationFrame((n) => this.frame(n));
     }
+  }
+
+  private trackChoice(): TrackChoice {
+    if (this.trackKey === "survey" && this.survey) return { kind: "survey", csv: this.survey.csv };
+    return (TRACKS.find((t) => t.key === this.trackKey) ?? TRACKS[0]!).choice;
+  }
+
+  private setTrack(key: string): void {
+    this.trackKey = key;
+    this.trackError = "";
+    try {
+      this.view.setTrack(buildTrack(this.trackChoice()));
+    } catch (err) {
+      this.trackError = (err as Error).message;
+      this.trackKey = "bt35";
+      this.view.setTrack(buildTrack(this.trackChoice()));
+    }
+    this.renderSetup();
   }
 
   private picks(): Map<string, Pick> {
@@ -115,11 +157,15 @@ export class RacePanel {
     this.els.setup.innerHTML = `
       <section>
         <h2>Race setup</h2>
-        <div class="row"><span>Track</span><select id="race-length">
-          ${([35, 42, 49] as const).map((n) => `<option value="${n}" ${n === this.length ? "selected" : ""}>BestTrack ${n} ft</option>`).join("")}
+        <div class="row"><span>Track</span><select id="race-track">
+          ${TRACKS.map((t) => `<option value="${t.key}" ${t.key === this.trackKey ? "selected" : ""}>${t.label}</option>`).join("")}
+          ${this.survey ? `<option value="survey" ${this.trackKey === "survey" ? "selected" : ""}>Survey: ${esc(this.survey.name)}</option>` : ""}
         </select></div>
-        <p class="prov">Profile <b>ESTIMATED</b> from the manufacturer drawing. Every lane uses the same profile until lanes are
-          calibrated, so the lane does not change a time.</p>
+        <div class="row"><span></span><button id="race-survey" class="icon-btn" title="A CSV of x, z stations along the lane (docs/track-survey.md)">Load survey…</button>
+          <input id="race-survey-file" type="file" accept=".csv,text/csv" hidden /></div>
+        ${this.trackError ? `<p class="notice">Survey not loaded: ${esc(this.trackError)}</p>` : ""}
+        <p class="prov">${this.trackNote()} Every lane uses the same profile until lanes are calibrated, so the lane does not
+          change a time.</p>
         <div class="row"><span>Ruleset</span><span>${esc(CCCS_KIT_CAR_2026.name)}</span></div>
         <div class="row"><span>Simulation fidelity</span><select id="race-fidelity">
           <option value="standard" ${this.fidelity === "standard" ? "selected" : ""}>Standard (0.5 ms step)</option>
@@ -132,38 +178,144 @@ export class RacePanel {
             : "Each car races alone on its lane under identical conditions: same track, air, solver and step."
         }</p>
         <button id="race-go" class="primary" ${this.running ? "disabled" : ""}>${this.running ? "Racing…" : "Race"}</button>
-      </section>`;
+      </section>
+      ${this.renderVersions()}
+      ${this.renderSaved()}`;
     for (const s of this.els.setup.querySelectorAll<HTMLSelectElement>("select[data-lane]"))
       s.onchange = () => {
         this.choice[Number(s.dataset.lane)] = s.value;
         this.renderSetup();
       };
-    const len = this.els.setup.querySelector<HTMLSelectElement>("#race-length")!;
-    len.onchange = () => {
-      this.length = Number(len.value) as BestTrackLength;
-      this.view.setTrack(bestTrack(this.length));
+    const tr = this.els.setup.querySelector<HTMLSelectElement>("#race-track")!;
+    tr.onchange = () => this.setTrack(tr.value);
+    const file = this.els.setup.querySelector<HTMLInputElement>("#race-survey-file")!;
+    this.els.setup.querySelector<HTMLButtonElement>("#race-survey")!.onclick = () => file.click();
+    file.onchange = async () => {
+      const f = file.files?.[0];
+      if (!f) return;
+      const csv = await f.text();
+      try {
+        const t = buildTrack({ kind: "survey", csv });
+        this.survey = { name: t.name, csv, status: t.profileStatus };
+        this.setTrack("survey");
+      } catch (err) {
+        this.trackError = (err as Error).message;
+        this.renderSetup();
+      }
     };
+    for (const i of this.els.setup.querySelectorAll<HTMLInputElement>("input[data-rename]"))
+      i.onchange = () => this.store.renameVersion(i.dataset.rename!, i.value.trim() || "Untitled");
+    for (const b of this.els.setup.querySelectorAll<HTMLButtonElement>("button[data-delete-version]"))
+      b.onclick = () => this.store.deleteVersion(b.dataset.deleteVersion!);
+    for (const b of this.els.setup.querySelectorAll<HTMLButtonElement>("button[data-rerun]"))
+      b.onclick = () => this.rerun(this.store.results.find((r) => r.id === b.dataset.rerun)!);
+    for (const b of this.els.setup.querySelectorAll<HTMLButtonElement>("button[data-delete-result]"))
+      b.onclick = () => this.store.deleteResult(b.dataset.deleteResult!);
     const fid = this.els.setup.querySelector<HTMLSelectElement>("#race-fidelity")!;
     fid.onchange = () => (this.fidelity = fid.value === "fine" ? "fine" : "standard");
     this.els.setup.querySelector<HTMLButtonElement>("#race-go")!.onclick = () => this.race();
   }
 
+  private trackNote(): string {
+    if (this.trackKey === "ramp") return "Profile <b>IDEALIZED</b>: an exact verification ramp, not a real track.";
+    if (this.trackKey === "survey" && this.survey)
+      return `Profile <b>${this.survey.status}</b> from the survey, fitted with a smoothing spline (docs/track-survey.md).`;
+    return "Profile <b>ESTIMATED</b> from the manufacturer drawing.";
+  }
+
+  private renderVersions(): string {
+    const vs = this.store.versions;
+    if (!vs.length) return "";
+    return `<section><h2>Saved versions</h2><ul class="versions">${vs
+      .map(
+        (v) => `<li><input data-rename="${v.id}" value="${esc(v.name)}" aria-label="Version name" />
+          <span class="prov">${v.savedAt.slice(0, 16).replace("T", " ")}</span>
+          <button class="icon-btn" data-delete-version="${v.id}" title="Delete this version">×</button></li>`,
+      )
+      .join("")}</ul></section>`;
+  }
+
+  private renderSaved(): string {
+    const rs = this.store.results;
+    if (!rs.length) return "";
+    return `<section><h2>Saved results</h2><ul class="saved">${[...rs]
+      .reverse()
+      .map((r) => {
+        const old = r.solverVersion !== SOLVER_VERSION;
+        const times = r.lanes.flatMap((l, i) => (l ? [`${i + 1}: ${esc(l.label)} ${l.time === null ? l.status : `${l.time.toFixed(4)} s`}`] : []));
+        return `<li><div><b>${r.savedAt.slice(0, 16).replace("T", " ")}</b> · ${esc(r.trackName)} · ${r.fidelity}
+            ${r.rerunOf ? " · re-run" : ""} <span class="tag ${old ? "" : "same"}">${esc(r.solverVersion)}${old ? ", older solver" : ""}</span></div>
+          <div class="prov">${times.join("<br>")}</div>
+          <div class="row"><button data-rerun="${r.id}">${old ? `Re-run with ${SOLVER_VERSION}` : "Race again"}</button>
+            <button class="icon-btn" data-delete-result="${r.id}" title="Delete this saved result">×</button></div></li>`;
+      })
+      .join("")}</ul>
+      <p class="hint">A saved result is never changed. Racing it again makes a new result, compared lane by lane.</p></section>`;
+  }
+
   private race(): void {
     const picks = this.picks();
-    const cars: (LaneCar | null)[] = [];
-    const entries: SessionRequest["entries"][number][] = [];
+    const lanes: Run["lanes"][number][] = [];
     for (let lane = 0; lane < MAX_LANES; lane++) {
       const p = picks.get(this.choice[lane]!);
-      const ev = p ? this.evaluate(p.design) : null;
-      cars.push(ev && p ? { design: p.design, body: ev.body } : null);
-      entries.push(ev && p ? { label: p.label, spec: ev.spec } : null);
+      lanes.push(p ? { label: p.label, design: p.design, compliance: "" } : null);
     }
+    this.start({ lanes, track: this.trackChoice(), fidelity: this.fidelity });
+  }
+
+  /** Race a saved result's cars again, on its track and fidelity, with today's solver (DAT-002). */
+  private rerun(r: SavedRace): void {
+    this.start({ lanes: r.lanes.map((l) => (l ? { label: l.label, design: l.design, compliance: "" } : null)), track: r.track, fidelity: r.fidelity, rerunOf: r });
+    try {
+      this.view.setTrack(buildTrack(r.track));
+    } catch {
+      // A saved survey that no longer parses still races as saved; the view keeps its track.
+    }
+  }
+
+  private start(run: Run): void {
+    const cars: (LaneCar | null)[] = [];
+    const entries: SessionRequest["entries"][number][] = [];
+    const lanes = run.lanes.map((l) => {
+      const ev = l ? this.evaluate(l.design) : null;
+      cars.push(ev && l ? { design: l.design, body: ev.body } : null);
+      entries.push(ev && l ? { label: l.label, spec: ev.spec } : null);
+      return ev && l ? { ...l, compliance: ev.compliance } : null;
+    });
     if (!entries.some((e) => e)) return;
     this.cars = cars;
+    this.run = { ...run, lanes };
     this.running = true;
-    const req: SessionRequest = { kind: "session", seq: ++this.seq, entries, fidelity: this.fidelity, length: this.length };
+    const req: SessionRequest = { kind: "session", seq: ++this.seq, entries, fidelity: run.fidelity, track: run.track };
     this.worker.postMessage(req);
     this.renderSetup();
+  }
+
+  private saveResult(): void {
+    const s = this.session;
+    const run = this.run;
+    if (!s || !run || this.savedThis) return;
+    this.store.saveResult({
+      solverVersion: s.solverVersion,
+      fidelity: s.fidelity,
+      dt: s.dt,
+      track: run.track,
+      trackName: s.track,
+      profileStatus: s.profileStatus,
+      context: "SANDBOX",
+      ruleset: CCCS_KIT_CAR_2026.name,
+      seed: null,
+      lanes: s.lanes.map((l, i) => {
+        const r = run.lanes[i];
+        return l && r
+          ? { label: r.label, design: r.design, compliance: r.compliance, status: l.status, message: l.message, time: l.time, finishSpeed: l.finishSpeed, maxSpeed: l.maxSpeed }
+          : null;
+      }),
+      ...(run.rerunOf ? { rerunOf: run.rerunOf.id } : {}),
+    });
+    this.savedThis = true;
+    this.renderSetup();
+    this.renderResults();
   }
 
   // --- replay (13.2) --------------------------------------------------------------------------
@@ -185,6 +337,8 @@ export class RacePanel {
       bar.querySelector<HTMLButtonElement>("#replay-pause")!.textContent = this.paused ? "Play" : "Pause";
     };
     bar.querySelector<HTMLButtonElement>("#replay-restart")!.onclick = () => this.restart();
+    const follow = bar.querySelector<HTMLSelectElement>("#chase-lane")!;
+    follow.onchange = () => this.view.chase(Number(follow.value));
   }
 
   private restart(): void {
@@ -266,6 +420,10 @@ export class RacePanel {
       if (!l.frictionConsistent) out.push(`<span class="bad">friction inconsistent</span>`);
       out.push(`residual ≤ ${l.maxResidual.toExponential(1)} J`);
       if (l.hops) out.push(`${l.hops} wheel hops`);
+      if (l.clearance) {
+        const rail = Number.isFinite(l.clearance.rail) ? `the rail by ≥ ${(1000 * l.clearance.rail).toFixed(1)} mm, ` : "";
+        out.push(`underside clears ${rail}the lane by ≥ ${(1000 * l.clearance.lane).toFixed(1)} mm`);
+      }
       out.push(l.lateral ? "lateral model" : "planar model");
       out.push(`weakest input ${l.weakestInput}`);
       return out.join(" · ");
@@ -286,9 +444,22 @@ export class RacePanel {
       .filter(([, f], i) => i < 2 || lanes.some((l) => Math.abs(f(l)) > 1e-9 * l.ledger.released))
       .map(([name, f]) => `<tr><th>${name}</th>${lanes.map((l) => `<td>${pct(l, f(l))}</td>`).join("")}</tr>`)
       .join("");
+    const prev = this.run?.rerunOf;
+    const compare = prev
+      ? `<p class="notice">Re-run of the result saved ${prev.savedAt.slice(0, 16).replace("T", " ")} with solver ${esc(prev.solverVersion)}; this run used ${esc(s.solverVersion)}.
+          ${lanes
+            .map((l) => {
+              const was = prev.lanes[l.lane];
+              if (!was || was.time === null || l.time === null) return `Lane ${l.lane + 1}: ${was?.status ?? "–"} then ${l.status}.`;
+              const d = l.time - was.time;
+              return `Lane ${l.lane + 1}: ${d === 0 ? "identical" : `${d > 0 ? "+" : "−"}${Math.abs(d).toFixed(4)} s`}.`;
+            })
+            .join(" ")}</p>`
+      : "";
     el.innerHTML = `
       <section>
-        <h2>Results</h2>
+        <div class="row"><h2>Results</h2><button id="race-save" ${this.savedThis ? "disabled" : ""}>${this.savedThis ? "Saved" : "Save result"}</button></div>
+        ${compare}
         <table class="results">
           <thead><tr><th>Place</th><th>Lane</th><th>Car</th><th>Elapsed</th><th>Finish speed</th><th>Max speed</th><th>Validity</th></tr></thead>
           <tbody>${lanes
@@ -311,6 +482,7 @@ export class RacePanel {
           <tr><th>Ledger residual</th>${lanes.map((l) => `<td>${l.ledger.residual.toExponential(1)} J</td>`).join("")}</tr></tbody></table>
       </section>`;
     for (const c of el.querySelectorAll<HTMLElement>(".chart")) lineChart(c, lanes, c.dataset.x as "distance" | "t", metric);
+    el.querySelector<HTMLButtonElement>("#race-save")!.onclick = () => this.saveResult();
   }
 }
 

@@ -4,6 +4,8 @@
 
 import type { UnitSystem } from "../core/display.js";
 import { type CarDesign, wedgeDesign } from "../geometry/design.js";
+import type { Fidelity, TrackChoice } from "../race/session.js";
+import type { RaceStatus } from "../physics/race.js";
 
 export type DisplayMode = "solid" | "xray" | "wireframe";
 export type Selection = { kind: "ballast" | "feature"; id: string } | null;
@@ -24,6 +26,38 @@ export interface SavedVersion {
   readonly design: CarDesign;
 }
 
+/**
+ * A saved race result (DAT-001, MODE-004): what was raced and what came out, with its compliance
+ * context, fidelity, ruleset and track, solver version and seed. Never rewritten (DAT-002): a re-run
+ * with a newer solver is a new result that names the one it repeats.
+ */
+export interface SavedRace {
+  readonly id: string;
+  readonly savedAt: string;
+  readonly solverVersion: string;
+  readonly fidelity: Fidelity;
+  readonly dt: number;
+  readonly track: TrackChoice;
+  readonly trackName: string;
+  readonly profileStatus: string;
+  readonly context: "SANDBOX";
+  readonly ruleset: string;
+  /** The solver is deterministic: no random seed. */
+  readonly seed: null;
+  readonly lanes: readonly ({
+    readonly label: string;
+    readonly design: CarDesign;
+    readonly compliance: string;
+    readonly status: RaceStatus;
+    readonly message: string;
+    readonly time: number | null;
+    readonly finishSpeed: number | null;
+    readonly maxSpeed: number;
+  } | null)[];
+  /** The saved result this one re-ran. */
+  readonly rerunOf?: string;
+}
+
 const KEY = "pinewood-dynamics.workspace.v1";
 
 type Listener = (why: "design" | "view") => void;
@@ -37,11 +71,13 @@ export class Store {
   design: CarDesign;
   view: View;
   versions: SavedVersion[];
+  results: SavedRace[];
 
   constructor() {
     const saved = load();
     this.design = saved?.design ?? wedgeDesign();
     this.versions = saved?.versions ?? [];
+    this.results = saved?.results ?? [];
     this.committed = this.design;
     this.view = {
       units: saved?.units ?? "metric",
@@ -122,6 +158,26 @@ export class Store {
     this.emit("design");
   }
 
+  renameVersion(id: string, name: string): void {
+    this.versions = this.versions.map((v) => (v.id === id ? { ...v, name } : v));
+    this.save();
+    this.emit("design");
+  }
+
+  saveResult(r: Omit<SavedRace, "id" | "savedAt">): SavedRace {
+    const saved: SavedRace = { ...r, id: `r${Date.now().toString(36)}${this.results.length}`, savedAt: new Date().toISOString() };
+    this.results = [...this.results, saved];
+    this.save();
+    this.emit("view");
+    return saved;
+  }
+
+  deleteResult(id: string): void {
+    this.results = this.results.filter((r) => r.id !== id);
+    this.save();
+    this.emit("view");
+  }
+
   setView(patch: Partial<View>): void {
     this.view = { ...this.view, ...patch };
     if (patch.units) this.save();
@@ -130,21 +186,22 @@ export class Store {
 
   private save(): void {
     try {
-      localStorage.setItem(KEY, JSON.stringify({ design: this.committed, units: this.view.units, versions: this.versions }));
+      localStorage.setItem(KEY, JSON.stringify({ design: this.committed, units: this.view.units, versions: this.versions, results: this.results }));
     } catch {
       // Storage can be unavailable (private mode, blocked site data); the session still works.
     }
   }
 }
 
-function load(): { design: CarDesign; units: UnitSystem; versions: SavedVersion[] } | null {
+function load(): { design: CarDesign; units: UnitSystem; versions: SavedVersion[]; results: SavedRace[] } | null {
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return null;
-    const x = JSON.parse(raw) as { design?: CarDesign; units?: UnitSystem; versions?: SavedVersion[] };
+    const x = JSON.parse(raw) as { design?: CarDesign; units?: UnitSystem; versions?: SavedVersion[]; results?: SavedRace[] };
     if (x.design?.schema !== 1) return null;
     const versions = Array.isArray(x.versions) ? x.versions.filter((v) => v?.design?.schema === 1) : [];
-    return { design: x.design, units: x.units === "english" ? "english" : "metric", versions };
+    const results = Array.isArray(x.results) ? x.results.filter((r) => typeof r?.solverVersion === "string" && Array.isArray(r.lanes)) : [];
+    return { design: x.design, units: x.units === "english" ? "english" : "metric", versions, results };
   } catch {
     return null;
   }

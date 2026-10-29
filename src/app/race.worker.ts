@@ -6,8 +6,8 @@
 import { DEFAULT_ENVIRONMENT } from "../kit/kit.js";
 import type { CarSpec } from "../physics/car.js";
 import { simulateRace } from "../physics/race.js";
-import { type Entry, type Fidelity, type Session, raceSession } from "../race/session.js";
-import { type BestTrackLength, bestTrack } from "../track/track.js";
+import { type Entry, type Fidelity, type Session, type TrackChoice, buildTrack, raceSession } from "../race/session.js";
+import { bestTrack } from "../track/track.js";
 
 export interface RaceRequest {
   readonly kind: "preview";
@@ -20,7 +20,7 @@ export interface SessionRequest {
   readonly seq: number;
   readonly entries: readonly (Entry | null)[];
   readonly fidelity: Fidelity;
-  readonly length: BestTrackLength;
+  readonly track: TrackChoice;
 }
 
 export interface RaceReply {
@@ -46,7 +46,7 @@ const preview = bestTrack(35);
 self.onmessage = (e: MessageEvent<RaceRequest | SessionRequest>): void => {
   const req = e.data;
   if (req.kind === "session") {
-    const reply: SessionReply = { kind: "session", seq: req.seq, session: raceSession(req.entries, bestTrack(req.length), DEFAULT_ENVIRONMENT, req.fidelity) };
+    const reply: SessionReply = { kind: "session", seq: req.seq, session: raceSession(req.entries, buildTrack(req.track), DEFAULT_ENVIRONMENT, req.fidelity) };
     self.postMessage(reply);
     return;
   }

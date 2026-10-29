@@ -4,7 +4,8 @@ import { describe, expect, it } from "vitest";
 import { add, dot, rotate, sub, v2 } from "../src/core/vec2.js";
 import { DEFAULT_ENVIRONMENT, demoCar } from "../src/kit/kit.js";
 import { simulateRace } from "../src/physics/race.js";
-import { type LaneResult, type LaneTrace, FIDELITY_STEP, finishOrder, poseAt, raceSession } from "../src/race/session.js";
+import { readFileSync } from "node:fs";
+import { type LaneResult, type LaneTrace, FIDELITY_STEP, buildTrack, finishOrder, poseAt, raceSession } from "../src/race/session.js";
 import { bestTrack, finishS } from "../src/track/track.js";
 
 describe("M3 race sessions", () => {
@@ -73,5 +74,20 @@ describe("M3 race sessions", () => {
     const fine = raceSession([{ label: "A", spec: demoCar() }], track, DEFAULT_ENVIRONMENT, "fine");
     expect(fine.dt).toBe(1e-4);
     expect(Math.abs(fine.lanes[0]!.time! - session.lanes[0]!.time!)).toBeLessThan(1e-6);
+  });
+
+  it("builds each track a session can choose: BestTrack as drawn, the idealized ramp, a fitted survey with the rail", () => {
+    expect(buildTrack({ kind: "besttrack", length: 42 }).name).toMatch(/42 ft/);
+    const ramp = buildTrack({ kind: "ramp" });
+    expect(ramp.profileStatus).toBe("IDEALIZED");
+    expect(ramp.timedDistance.provenance).toBe("DEFAULT");
+    const csv = readFileSync("data/surveys/EXAMPLE-besttrack-35-synthetic.csv", "utf8");
+    const surveyed = buildTrack({ kind: "survey", csv });
+    // The example is synthetic, so its profile is ESTIMATED, not MEASURED; the rail is the rulebook one.
+    expect(surveyed.profileStatus).toBe("ESTIMATED");
+    expect(surveyed.lateral?.guideRail.width.provenance).toBe("ESTIMATED");
+    // Raced in a session, the survey of the drawn profile gives the drawn profile's time to well under a millisecond.
+    const a = raceSession([{ label: "A", spec: demoCar() }], surveyed, DEFAULT_ENVIRONMENT, "standard").lanes[0]!.time!;
+    expect(Math.abs(a - session.lanes[0]!.time!)).toBeLessThan(1e-3);
   });
 });
