@@ -8,6 +8,7 @@ import { newCut, newHole } from "../geometry/presets.js";
 import { accessHole, evaluateBody, loadManifold, seatBallast } from "../geometry/solid.js";
 import { evaluateCar } from "../mass/carModel.js";
 import { inspect } from "../rules/cccs.js";
+import { bodyStl, buildSheetHtml, exportGate, packageFileName, templatesSvg } from "../build/package.js";
 import { Panels } from "./panels.js";
 import { ProfileEditor } from "./profileEditor.js";
 import { type EvaluatedCar, RacePanel } from "./racePanel.js";
@@ -125,6 +126,30 @@ async function start(): Promise<void> {
     if (s.value === "uncut") store.update(uncutDesign());
     s.value = "";
   };
+  // Build package downloads (spec 14), from the design as it stands.
+  const download = (blob: Blob, name: string): void => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+  $("panels").addEventListener("click", (e) => {
+    const kind = (e.target as HTMLElement).closest<HTMLElement>("[data-export]")?.dataset.export;
+    if (!kind) return;
+    const d = store.design;
+    const body = evaluateBody(w, d);
+    if (body.empty) return;
+    const ev = evaluateCar(d, body);
+    const ins = inspect(ev);
+    const gate = exportGate(ins);
+    if (kind === "templates") download(new Blob([templatesSvg(d, ev, gate)], { type: "image/svg+xml" }), packageFileName(d, "templates"));
+    if (kind === "sheet") download(new Blob([buildSheetHtml(d, ev, ins, gate, store.view.units)], { type: "text/html" }), packageFileName(d, "build-sheet"));
+    if (kind === "stl-mm" || kind === "stl-in") {
+      const unit = kind === "stl-mm" ? "mm" : "in";
+      download(new Blob([bodyStl(body, unit, d.name)], { type: "model/stl" }), packageFileName(d, "body", unit));
+    }
+  });
   $("save-version").onclick = () => {
     const v = store.saveVersion();
     const s = $("status");

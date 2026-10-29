@@ -6,7 +6,8 @@ clearance; see `spec/PinewoodDynamics_Controlling_Specification.txt`, the contro
 ## Status
 
 Physics core: verified against analytic solutions for gates P0–P7, including lateral dynamics,
-guide-rail contact, camber, thrust-face friction and axial play, and compared with one published experiment. Not yet validated against the
+guide-rail contact, camber, thrust-face friction, axial play and roll load transfer, with a monitor for
+the body touching the lane or rail; compared with one published experiment. Not yet validated against the
 owner's track. See `docs/physics-model.md` and `docs/validation.md`.
 
 Milestone M2, 3D design workspace: running in the browser. It has side and top profiles with arcs,
@@ -17,6 +18,10 @@ live mass and CG; a build tier for every operation; inspection; and a race previ
 Milestone M3, 3D race: up to four lanes raced by the solver and replayed in 3D, with saved versions
 as ghosts, three cameras, replay speeds, and results with speed charts and the energy ledger. See
 `docs/race.md`.
+
+Milestone M4, build outputs: 1:1 side and top templates with scale-check bars, a printable build
+sheet (targets, operations, holes, weights), and the body STL; exported as SANDBOX until there is a
+CERTIFIED context. See `docs/build.md`.
 
 ## Commands
 
@@ -43,7 +48,8 @@ npm run survey:precision   # how precisely a track must be surveyed
 - `data/surveys`: track survey files (the EXAMPLE file is synthetic)
 - `src/geometry`: master car model (design schema), profile curves, the manifold-3d body solid,
   and starting points for new holes and cuts
-- `src/build`: build capability: the shop-order operations and the tool tier each needs
+- `src/build`: build capability (the shop-order operations and the tool tier each needs) and the build
+  package (templates, build sheet, STL, export gate)
 - `src/mass`: materials, mass properties and inertia, design-to-solver car description
 - `src/rules`: data-driven ruleset and inspection
 - `src/app`: browser workspace (Three.js viewport, profile editors, panels, race mode, race worker)

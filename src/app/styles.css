@@ -169,6 +169,7 @@ h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: 
 .inspect tr.note td { color: var(--muted); font-size: 11px; padding-bottom: 5px; border-bottom: 1px solid #262d35; }
 
 #p-race.running .big { opacity: 0.5; }
+.export-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
 
 /* Mode tabs */
 .modes { display: flex; gap: 0; }

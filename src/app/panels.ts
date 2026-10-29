@@ -13,6 +13,7 @@ import { AXLE_PREPS, type CarEvaluation, shapeHalfSize, shapeVolume } from "../m
 import { LEAD_NOTICE, MATERIALS, nonLeadAlternative } from "../mass/materials.js";
 import type { Inspection, InspectionLine } from "../rules/cccs.js";
 import type { RaceReply } from "./race.worker.js";
+import { exportGate } from "../build/package.js";
 import type { Store } from "./store.js";
 
 const esc = (s: string): string => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -77,6 +78,7 @@ export class Panels {
       <section id="p-features" aria-label="Holes, cuts and build tier"><div id="p-features-list"></div><div id="p-features-form"></div>
         <p class="hint">Drag holes and cuts in either profile. A cut seen edge-on shows a handle per plane to turn it.</p></section>
       <section id="p-inspection" aria-label="Inspection"></section>
+      <section id="p-build" aria-label="Build package"></section>
       <section id="p-race" aria-label="Race preview"></section>`;
     root.addEventListener("change", (e) => this.onChange(e));
     root.addEventListener("click", (e) => this.onClick(e));
@@ -117,6 +119,22 @@ export class Panels {
     this.renderWeights(d, ev, u);
     this.renderFeatures(d, ev, u);
     this.renderInspection(ins, u);
+    this.renderBuild(ins);
+  }
+
+  /** Build package (spec 14): the downloads, and why they are not a certified export. */
+  private renderBuild(ins: Inspection): void {
+    const gate = exportGate(ins);
+    this.q("p-build").innerHTML = `
+      <h2>Build package</h2>
+      <div class="export-actions">
+        <button data-export="sheet" title="Templates, targets, operations, holes and weights on one printable page">Build sheet</button>
+        <button data-export="templates" title="Side and top outlines at 1:1, with scale-check bars">Templates (SVG)</button>
+        <button data-export="stl-mm">Body STL (mm)</button>
+        <button data-export="stl-in">Body STL (in)</button>
+      </div>
+      <p class="notice"><b>${gate.certified ? "Certified export" : `${gate.watermark}: not a certified export.`}</b> ${gate.reasons.map(esc).join(" ")}</p>
+      <p class="hint">Print the templates at 100 % and measure the scale bars before cutting. The project file is Save in the top bar.</p>`;
   }
 
   private renderConstraints(ins: Inspection): void {
