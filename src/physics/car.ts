@@ -8,6 +8,16 @@ import type { Provenance, Sourced } from "../core/provenance.js";
 import type { Vec2 } from "../core/vec2.js";
 import type { LateralCarSpec } from "./lateral.js";
 
+/** A face that holds a wheel along its axle: Coulomb friction at an effective radius. */
+export interface ThrustFace {
+  /**
+   * Effective friction radius, m: for a uniformly loaded annulus from ri to ro,
+   * 2/3 (ro^3 - ri^3) / (ro^2 - ri^2).
+   */
+  readonly radius: Sourced<number>;
+  readonly friction: Sourced<number>;
+}
+
 export interface AxleSpec {
   /** Wheel outer radius, m. */
   readonly wheelRadius: Sourced<number>;
@@ -34,6 +44,13 @@ export interface AxleSpec {
    * to the body: hub-face rubbing with a fixed preload, a seal, a viscous film. Omitted: zero.
    */
   readonly hubDrag?: Sourced<number>;
+  /**
+   * The faces that take a wheel's axial load (FRI): the axle head outboard, the body (or a washer)
+   * inboard. A wheel pushed outward bears on the head, one pushed inward on the body; the face's
+   * friction opposes the wheel's spin relative to the body. Axial loads come from the lateral model
+   * (tread and rail forces, camber); without it there are none. Omitted: frictionless faces.
+   */
+  readonly thrustFaces?: { readonly head: ThrustFace; readonly body: ThrustFace };
 }
 
 export interface CarSpec {
@@ -79,6 +96,7 @@ export interface AxleModel {
   readonly frictionExponent: number;
   readonly frictionReferenceLoad: number;
   readonly hubDrag: number;
+  readonly thrust: { readonly head: { readonly r: number; readonly mu: number }; readonly body: { readonly r: number; readonly mu: number } } | null;
 }
 
 export interface CarModel {
@@ -102,6 +120,12 @@ const axleModel = (a: AxleSpec): AxleModel => ({
   frictionExponent: a.frictionLaw?.exponent.value ?? 1,
   frictionReferenceLoad: a.frictionLaw?.referenceLoad.value ?? 1,
   hubDrag: a.hubDrag?.value ?? 0,
+  thrust: a.thrustFaces
+    ? {
+        head: { r: a.thrustFaces.head.radius.value, mu: a.thrustFaces.head.friction.value },
+        body: { r: a.thrustFaces.body.radius.value, mu: a.thrustFaces.body.friction.value },
+      }
+    : null,
 });
 
 export function carModel(spec: CarSpec): CarModel {
@@ -141,6 +165,11 @@ export function inputProvenance(spec: CarSpec, env: Environment): Record<string,
       out[`${axle}.frictionLaw.referenceLoad`] = a.frictionLaw.referenceLoad.provenance;
     }
     if (a.hubDrag) out[`${axle}.hubDrag`] = a.hubDrag.provenance;
+    if (a.thrustFaces)
+      for (const face of ["head", "body"] as const) {
+        out[`${axle}.thrustFaces.${face}.radius`] = a.thrustFaces[face].radius.provenance;
+        out[`${axle}.thrustFaces.${face}.friction`] = a.thrustFaces[face].friction.provenance;
+      }
   }
   const l = spec.lateral;
   if (l) {
@@ -152,6 +181,11 @@ export function inputProvenance(spec: CarSpec, env: Environment): Record<string,
     out["lateral.treadFriction"] = l.treadFriction.provenance;
     out["lateral.railFriction"] = l.railFriction.provenance;
     out["lateral.railRestitution"] = l.railRestitution.provenance;
+    if (l.camber) {
+      out["lateral.camber.rear"] = l.camber.rear.provenance;
+      out["lateral.camber.front"] = l.camber.front.provenance;
+      out["lateral.camber.treadWidth"] = l.camber.treadWidth.provenance;
+    }
     if (l.start) {
       out["lateral.start.offset"] = l.start.offset.provenance;
       out["lateral.start.heading"] = l.start.heading.provenance;

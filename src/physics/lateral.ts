@@ -11,11 +11,16 @@
 // Forces:
 //   tread  Coulomb friction at each axle's tread contacts, perpendicular to the wheel plane
 //          (heading psi + toe delta_i). Stick means rolling without sideways slip.
-//   rail   a wheel's inner face meets the rail's top edge, height h: normal impulse with Newton
-//          restitution e, and Coulomb friction mu_c where the face slides over the edge. The face
-//          material there moves at v sqrt(2h/r) in the wheel plane, so friction acts on the wheel's
-//          spin and, being off the CG's line, yaws the car toward that side.
+//   rail   a wheel's inner face meets the rail: normal impulse with Newton restitution e, and
+//          Coulomb friction mu_c opposing the face's slide over it. Square wheels touch the rail's
+//          top edge at height h, where the face moves at v sqrt(2h/r); friction there brakes the
+//          wheel's spin and, being off the CG's line, yaws the car toward that side. Camber tilts the
+//          face: tops out brings its lowest rim onto the rail's side face, close to the line the wheel
+//          rolls about, where it slides slowly; tops in keeps the contact on the top edge.
 //   gravity across the lane when it has a cross slope.
+//
+// Each wheel's axial load (tread and rail forces, and with camber its share of the axle load) is
+// carried by a thrust face, the axle head or the body; dynamics.ts adds that friction to the spin.
 //
 // Time stepping is Moreau's (velocity-level impulses, positions by the midpoint of the start and
 // end velocities). Each step enumerates the stick/slip state of both treads and the open/closed
@@ -54,6 +59,11 @@ export interface LateralCarSpec {
   readonly railRestitution: Sourced<number>;
   /** Rear-axle lateral offset from the lane centre and heading at the gate. Omitted: centred, straight. */
   readonly start?: { readonly offset: Sourced<number>; readonly heading: Sourced<number> };
+  /**
+   * Wheel camber, rad, the two wheels of an axle mirrored: positive tilts their tops outward (WHL-009).
+   * A cambered wheel rests on one edge of its tread, so the tread width sets its height. Omitted: square.
+   */
+  readonly camber?: { readonly rear: Sourced<number>; readonly front: Sourced<number>; readonly treadWidth: Sourced<number> };
 }
 
 export interface LateralModel {
@@ -67,7 +77,12 @@ export interface LateralModel {
   readonly railWidth: number;
   readonly railHeight: number;
   readonly toe: readonly [number, number];
+  /** Camber per axle, rad, positive tops out, and the tread width, m. */
+  readonly camber: readonly [number, number];
+  readonly treadWidth: number;
   readonly radius: readonly [number, number];
+  /** Both wheels of each axle, kg (already in m). */
+  readonly wheelMass: readonly [number, number];
   readonly muT: number;
   readonly muC: number;
   readonly e: number;
@@ -100,13 +115,39 @@ export interface LateralInput {
 export interface PlanarForce {
   readonly kind: "tread" | "rail";
   readonly axle: 0 | 1;
-  /** True: acts on the wheels (enters their spin and bore load). False: acts on the body. */
+  /** True: acts on the wheels (enters their spin and axle loads). False: acts on the body. */
   readonly onWheel: boolean;
+  /** The wheel that takes it: +1 left, -1 right. Omitted or 0: the axle's two wheels equally. */
+  readonly side?: 1 | -1 | 0;
   /** Offset of the point of application from the axle centre: along t, along n, m. */
   readonly at: { readonly t: number; readonly n: number };
   /** Force components along t and n, N. */
   readonly f: { readonly t: number; readonly n: number };
+  /** Sideways component, N: it loads the wheel's axle but is outside the planar equations. */
+  readonly y?: number;
+  /**
+   * Torque about the wheel's axle, forward-roll sense, N m. Omitted: the in-plane moment of f about
+   * the axle centre, which is exact for a square wheel and a force in the plane.
+   */
+  readonly spin?: number;
 }
+
+/** One wheel's axle, for the bore and thrust-face loads (dynamics.ts). */
+export interface WheelAxle {
+  /** Outward unit vector along the axle in the lane frame at that axle: along t, sideways (left), along n. */
+  readonly axis: { readonly t: number; readonly y: number; readonly n: number };
+  /** Sideways force the axle gives the wheel besides the external forces on it, N: m_w (a_y + g sin(cross slope)). */
+  readonly sideways: number;
+}
+
+/** Per axle (rear, front), its left and right wheels. */
+export type WheelAxles = readonly [readonly [WheelAxle, WheelAxle], readonly [WheelAxle, WheelAxle]];
+
+/** Square, unloaded sideways: the planar model's own axles. */
+export const SQUARE_AXLES: WheelAxles = [
+  [{ axis: { t: 0, y: 1, n: 0 }, sideways: 0 }, { axis: { t: 0, y: -1, n: 0 }, sideways: 0 }],
+  [{ axis: { t: 0, y: 1, n: 0 }, sideways: 0 }, { axis: { t: 0, y: -1, n: 0 }, sideways: 0 }],
+];
 
 export interface RailContact {
   readonly axle: 0 | 1;
@@ -122,6 +163,8 @@ export interface LateralStep {
   readonly contacts: readonly RailContact[];
   /** Work done on the lateral motion over the step, J, by mechanism. */
   readonly work: { readonly gravity: number; readonly tread: number; readonly railNormal: number; readonly railFriction: number };
+  /** Each wheel's axle direction and sideways load over the step. */
+  readonly wheels: WheelAxles;
   /** Tread state per axle: 0 stick, +1 or -1 sliding in that direction. */
   readonly slip: readonly [number, number];
   /** False when no stick/slip/contact combination satisfied every law (reported, not hidden). */
@@ -151,49 +194,137 @@ export const cgFromRear = (L: LateralModel, offset: number, psi: number): number
 interface Candidate {
   readonly axle: 0 | 1;
   readonly side: 1 | -1;
+  /** Distance to the rail along the contact normal, m (negative when overlapping). */
   readonly gap: number;
   /** Gap rate per generalized velocity (Y', psi'). */
   readonly G: V2;
-  /** Generalized impulse per unit normal impulse: normal plus the yaw of rail friction. */
+  /** Generalized impulse per unit normal impulse: the normal's, plus rail friction's sideways push and yaw. */
   readonly W: V2;
-  /** Contact point on the wheel face, offset from the axle centre: along the wheel plane, and height above the centre. */
-  readonly xi: number;
-  readonly z: number;
-  /** Rail-friction force on the wheel per unit normal force, in the axle path's (t, n) frame. */
-  readonly fric: { readonly t: number; readonly n: number };
+  /** The rail's force on the wheel per unit normal force, in the axle path's frame, with its axle torque. */
+  readonly force: { readonly t: number; readonly n: number; readonly y: number; readonly spin: number };
+  /** Contact point from the planar axle centre: along t, along n. */
+  readonly at: { readonly t: number; readonly n: number };
 }
 
-/** The four places a wheel face can meet the rail. */
+/** Height above the lane of an axle's wheel centres and of their inner faces' centres, m. */
+export function wheelHeights(L: LateralModel, axle: 0 | 1): { centre: number; face: number } {
+  const r = L.radius[axle];
+  const sg = Math.sin(L.camber[axle]);
+  // The lower tread edge rests on the lane: the outer edge when the tops lean out, the inner when in.
+  const centre = r * Math.cos(L.camber[axle]) + 0.5 * L.treadWidth * Math.abs(sg);
+  return { centre, face: centre + 0.5 * L.treadWidth * sg };
+}
+
+const dot3 = (a: readonly number[], b: readonly number[]): number => a[0]! * b[0]! + a[1]! * b[1]! + a[2]! * b[2]!;
+
+/**
+ * The four places a wheel face can meet the rail. A face is the disc inside its tread's inner rim,
+ * radius r, in the wheel plane: forward e1 along the heading a = psi + toe, up e2 tilted by camber.
+ * Across the lane, side * y is linear over the disc, p xi + q zeta in disc coordinates, so its least
+ * value over the part of the disc below the rail's top is either the rim point the gradient points
+ * away from (the rim on the rail's side face) or an end of the chord at the rail's height (the rim on
+ * the rail's top edge).
+ */
 function candidates(L: LateralModel, Y: number, psi: number): Candidate[] {
   const out: Candidate[] = [];
-  const h = L.railHeight;
   for (const axle of [0, 1] as const) {
     const r = L.radius[axle];
     const d = L.toe[axle];
-    // Half-chord of the wheel face below the rail's top edge.
-    const ell = h < r ? Math.sqrt(r * r - (r - h) * (r - h)) : r;
-    const along = Math.sin(psi + d);
+    const cg = Math.cos(L.camber[axle]);
+    const sg = Math.sin(L.camber[axle]);
+    const zFace = wheelHeights(L, axle).face;
+    // In-plane height of the rail's top edge above the face centre.
+    const zetaH = (L.railHeight - zFace) / cg;
+    const ca = Math.cos(psi + d);
+    const sa = Math.sin(psi + d);
     for (const side of [1, -1] as const) {
-      // The edge of the face nearest the rail: the chord end that the yaw turns toward it.
-      const xi = along === 0 ? 0 : -side * ell * Math.sign(along);
-      // Face centre on the toed axle, then along the wheel plane by xi.
-      const bx = (L.wheelbase * axle) - side * (L.spacing / 2) * Math.sin(d) + xi * Math.cos(d);
-      const by = side * (L.spacing / 2) * Math.cos(d) + xi * Math.sin(d);
-      const p = bodyPoint(L, Y, psi, bx, by);
-      const gap = side * p.y - L.railWidth / 2;
-      const G: V2 = [side, side * p.dyDpsi];
-      // The face point at the edge moves (h, -xi) r^-1 v relative to the axle centre's path frame;
-      // friction opposes that slide.
-      const z = h - r;
-      const len = Math.hypot(h, xi);
-      const fric = { t: (-L.muC * h) / len, n: (L.muC * xi) / len };
-      // Along-lane friction at lateral lever (y_P - Y) yaws the car: M = -(y_P - Y) F_u.
-      const W: V2 = [G[0], G[1] - (p.y - Y) * fric.t];
-      out.push({ axle, side, gap, G, W, xi, z, fric });
+      if (zetaH <= -r) {
+        // The rail is lower than the face's lowest rim: it cannot reach this face.
+        out.push({ axle, side, gap: Infinity, G: [0, 0], W: [0, 0], force: { t: 0, n: 0, y: 0, spin: 0 }, at: { t: 0, n: 0 } });
+        continue;
+      }
+      // Lane-frame (u, y, z) directions of this wheel: e1 forward, e2 up its plane, ax out along its axle.
+      const e1 = [ca, sa, 0];
+      const e2 = [-side * sg * sa, side * sg * ca, cg];
+      const ax = [-side * cg * sa, side * cg * ca, -sg];
+      const p = side * sa;
+      const q = sg * ca;
+      const k = Math.hypot(p, q);
+      let xi: number;
+      let zeta: number;
+      let n: number[];
+      if (k > 0 && (-r * q) / k <= zetaH) {
+        // Rim on the rail's side face.
+        xi = (-r * p) / k;
+        zeta = (-r * q) / k;
+        n = [0, side, 0];
+      } else if (p !== 0) {
+        // Rim on the rail's top edge, at the chord end nearer the rail. The normal is common to the
+        // rim and the edge: perpendicular to the rim's tangent there and to the lane direction.
+        const ell = Math.sqrt(Math.max(0, r * r - zetaH * zetaH));
+        xi = -ell * Math.sign(p);
+        zeta = zetaH;
+        const tY = -zeta * sa + xi * side * sg * ca;
+        const raw = [0, xi * cg, -tY];
+        const o = Math.sign(side * raw[1]!) / Math.hypot(raw[1]!, raw[2]!);
+        n = [0, raw[1]! * o, raw[2]! * o];
+      } else {
+        // Face parallel to the edge: they meet along the chord at the rail's height; take its middle.
+        // The normal is the face's own.
+        xi = 0;
+        zeta = Math.min(zetaH, r);
+        n = ax;
+      }
+      // Body-frame position of the contact: the face centre on the toed axle, then across the disc.
+      const half = L.spacing / 2;
+      const bx = L.wheelbase * axle - side * half * Math.sin(d) + xi * Math.cos(d) - zeta * side * sg * Math.sin(d);
+      const by = side * half * Math.cos(d) + xi * Math.sin(d) + zeta * side * sg * Math.cos(d);
+      const pt = bodyPoint(L, Y, psi, bx, by);
+      const ny = n[1]!;
+      const gap = (side * pt.y - L.railWidth / 2) * side * ny;
+      const G: V2 = [ny, ny * pt.dyDpsi];
+      // The wheel rolls about the line through its tread contact along the axle; the face point moves
+      // omega ((zeta + r) e1 - xi e2) about it. Friction opposes the part along the contact.
+      const vs = [0, 1, 2].map((j) => (zeta + r) * e1[j]! - xi * e2[j]!);
+      const vn = dot3(vs, n);
+      const vt = vs.map((x, j) => x - vn * n[j]!);
+      const speed = Math.hypot(vt[0]!, vt[1]!, vt[2]!);
+      const F = n.map((x, j) => x - (speed > 0 ? (L.muC * vt[j]!) / speed : 0));
+      // Torque about the axle: F . (j x rho), with j x rho = zeta e1 - xi e2 for the face point rho.
+      const spin = dot3(F, [0, 1, 2].map((j) => zeta * e1[j]! - xi * e2[j]!));
+      // The contact from the planar axle centre, which the planar model puts at height r.
+      const atT = xi * e1[0]! + zeta * e2[0]! - 0.5 * L.treadWidth * ax[0]!;
+      const atN = zFace + zeta * cg - r;
+      // Sideways force at the contact, and the along-lane force's yaw about the CG: M = -(y_P - Y) F_u.
+      const W: V2 = [F[1]!, F[1]! * pt.dyDpsi - (pt.y - Y) * F[0]!];
+      out.push({ axle, side, gap, G, W, force: { t: F[0]!, n: F[2]!, y: F[1]!, spin }, at: { t: atT, n: atN } });
     }
   }
   return out;
 }
+
+/** Each wheel's outward axle direction at heading psi, and its sideways load for velocity change dV over h. */
+function axles(L: LateralModel, Y: number, psi: number, dV: V2, h: number): WheelAxles {
+  const per = (axle: 0 | 1): readonly [WheelAxle, WheelAxle] => {
+    const d = L.toe[axle];
+    const cg = Math.cos(L.camber[axle]);
+    const sg = Math.sin(L.camber[axle]);
+    const ca = Math.cos(psi + d);
+    const sa = Math.sin(psi + d);
+    const wheel = (side: 1 | -1): WheelAxle => {
+      // The wheel centre: half the face spacing out along the toed axle, plus half the tread.
+      const reach = L.spacing / 2 + 0.5 * L.treadWidth * cg;
+      const pt = bodyPoint(L, Y, psi, L.wheelbase * axle - side * reach * Math.sin(d), side * reach * Math.cos(d));
+      const ay = h > 0 ? (dV[0] + pt.dyDpsi * dV[1]) / h : 0;
+      return { axis: { t: -side * cg * sa, y: side * cg * ca, n: -sg }, sideways: (L.wheelMass[axle] / 2) * (ay + L.gLat) };
+    };
+    return [wheel(1), wheel(-1)];
+  };
+  return [per(0), per(1)];
+}
+
+/** The wheels' axles with no sideways acceleration, for the instant before the first lateral step. */
+export const restingAxles = (L: LateralModel, s: Pick<LateralState, "Y" | "psi">): WheelAxles => axles(L, s.Y, s.psi, [0, 0], 0);
 
 /** Gap between a wheel face and the rail, m (negative when overlapping): axle 0 rear / 1 front, side +1 left / -1 right. */
 export function railGap(L: LateralModel, Y: number, psi: number, axle: 0 | 1, side: 1 | -1): number {
@@ -303,9 +434,18 @@ export function lateralStep(L: LateralModel, s: LateralState, inp: LateralInput)
     const lam = sol.lam[i];
     if (lam === 0) return;
     wTread += lam * dot2(tread[i]!.W, Vmid);
-    // Along-lane component of the tread force, at the tread contact. It is parallel to the axle, so it
-    // exerts no torque about it: a body force.
-    forces.push({ kind: "tread", axle: i, onWheel: false, at: { t: 0, n: -L.radius[i] }, f: { t: (-lam * tread[i]!.sin) / h, n: 0 } });
+    // The tread force, on both wheels at their tread contacts. It acts on the line each wheel rolls
+    // about, so it exerts no torque on the spin; it loads the axles, mostly along them.
+    forces.push({
+      kind: "tread",
+      axle: i,
+      onWheel: true,
+      side: 0,
+      at: { t: 0, n: -L.radius[i] },
+      f: { t: (-lam * tread[i]!.sin) / h, n: 0 },
+      y: (lam * tread[i]!.W[0]) / h,
+      spin: 0,
+    });
   });
   let wNormal = 0;
   let wFric = 0;
@@ -314,16 +454,18 @@ export function lateralStep(L: LateralModel, s: LateralState, inp: LateralInput)
     const p = sol.P[j]!;
     if (p === 0) return;
     wNormal += p * dot2(c.G, Vmid);
-    wFric += p * (c.W[1] - c.G[1]) * Vmid[1];
+    wFric += p * ((c.W[0] - c.G[0]) * Vmid[0] + (c.W[1] - c.G[1]) * Vmid[1]);
     const F = p / h;
     contacts.push({ axle: c.axle, side: c.side, force: F });
-    forces.push({ kind: "rail", axle: c.axle, onWheel: true, at: { t: c.xi, n: c.z }, f: { t: c.fric.t * F, n: c.fric.n * F } });
+    const f = c.force;
+    forces.push({ kind: "rail", axle: c.axle, onWheel: true, side: c.side, at: c.at, f: { t: f.t * F, n: f.n * F }, y: f.y * F, spin: f.spin * F });
   });
   return {
     next,
     forces,
     contacts,
     work: { gravity: h * dot2(Fs, Vmid), tread: wTread, railNormal: wNormal, railFriction: wFric },
+    wheels: axles(L, Ym, pm, [V[0] - Vm[0], V[1] - Vm[1]], h),
     slip: sol.slip,
     consistent: sol.score <= 0,
     penetration,

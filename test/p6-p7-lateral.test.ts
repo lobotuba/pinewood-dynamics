@@ -48,7 +48,10 @@ const model = (o: Partial<LateralModel> = {}): LateralModel => ({
   railWidth: inches(1.625),
   railHeight: inches(0.25),
   toe: [0, 0],
+  camber: [0, 0],
+  treadWidth: 0,
   radius: [0.015, 0.015],
+  wheelMass: [0, 0],
   muT: 0.35,
   muC: 0.3,
   e: 0.5,
@@ -181,7 +184,7 @@ describe("P7 guide-rail contact", () => {
     expect(st.work.railNormal).toBeCloseTo(-lost, 15);
   });
 
-  it("a single yawed impact obeys the effective mass 1/m_eff = 1/m + arm²/I_z", () => {
+  it("a single yawed impact obeys the effective mass 1/m_eff = g_Y²/m + g_psi²/I_z", () => {
     const L = model({ muT: 0, muC: 0, e: 0.3 });
     const psi = 0.01; // nose left: moving left, the front-right face meets the rail first
     const dY = 0.04;
@@ -190,14 +193,18 @@ describe("P7 guide-rail contact", () => {
     const st = lateralStep(L, { Y, psi, dY, dPsi: 0 }, { h, ...still });
     expect(st.contacts).toHaveLength(1);
     expect(st.contacts[0]).toMatchObject({ axle: 1, side: -1 });
-    // Gap rate before and after, from the step's own Jacobian: dg = side (Y' + arm psi').
+    // Gap rate before and after, from the gap's own Jacobian at the step's midpoint: dg = g_Y Y' + g_psi psi'.
+    // The gap is measured along the contact normal, common to the rim and the rail's edge.
     const eps = 1e-7;
     const Ym = Y + 0.5 * h * dY;
-    const arm = (railGap(L, Ym, psi + eps, 1, -1) - railGap(L, Ym, psi - eps, 1, -1)) / (2 * eps) / -1;
-    const before = -(dY + 0);
-    const after = -(st.next.dY + arm * st.next.dPsi);
+    const gY = (railGap(L, Ym + eps, psi, 1, -1) - railGap(L, Ym - eps, psi, 1, -1)) / (2 * eps);
+    const gPsi = (railGap(L, Ym, psi + eps, 1, -1) - railGap(L, Ym, psi - eps, 1, -1)) / (2 * eps);
+    // At this yaw the normal tilts from sideways by only (r - h) psi / l.
+    expect(gY).toBeCloseTo(-1, 4);
+    const before = gY * dY;
+    const after = gY * st.next.dY + gPsi * st.next.dPsi;
     expect(after).toBeCloseTo(-0.3 * before, 9);
-    const mEff = 1 / (1 / L.m + (arm * arm) / L.Iz);
+    const mEff = 1 / ((gY * gY) / L.m + (gPsi * gPsi) / L.Iz);
     const lost = lateralKinetic(L, { Y, psi, dY, dPsi: 0 }) - lateralKinetic(L, st.next);
     expect(lost / (0.5 * mEff * (1 - 0.09) * before * before)).toBeCloseTo(1, 6);
   });
@@ -218,19 +225,30 @@ describe("P7 guide-rail contact", () => {
     expect(st.contacts[0]).toMatchObject({ axle: 1, side: -1 });
     expect(Math.abs(s.psi)).toBeLessThan(1e-9);
     // Balance with psi = 0: rear stick force lr, front slide force muT Nf cos(delta) toward +y... solved
-    // from the two equations (Y, psi) with the contact's yaw lever including rail friction.
+    // from the two equations (Y, psi) with the contact's sideways force and yaw lever, rail friction
+    // included. The front-right face's rim meets the rail's top edge at the chord end ahead (toed left).
     const r = L.radius[1];
     const hR = L.railHeight;
-    const ell = Math.sqrt(r * r - (r - hR) ** 2);
-    const len = Math.sqrt(2 * r * hR);
-    const xi = ell; // front edge, toed left
+    const zeta = hR - r;
+    const ell = Math.sqrt(r * r - zeta * zeta);
+    const xi = ell;
     const bx = L.wheelbase + (L.spacing / 2) * Math.sin(delta) + xi * Math.cos(delta);
     const by = -(L.spacing / 2) * Math.cos(delta) + xi * Math.sin(delta);
     const yP = s.Y + (by - L.yc); // psi = 0
+    // Normal out of the rail, perpendicular to the lane and to the rim's tangent -zeta e1 + xi e2 there.
+    const nl = Math.hypot(ell, zeta * Math.sin(delta));
+    const n = [0, -ell / nl, (-zeta * Math.sin(delta)) / nl];
+    // The face point moves h e1 - xi e2 per unit spin about the tread's contact; friction opposes its
+    // part along the contact.
+    const vs = [hR * Math.cos(delta), hR * Math.sin(delta), -xi];
+    const vn = vs[0]! * n[0]! + vs[1]! * n[1]! + vs[2]! * n[2]!;
+    const vt = vs.map((x, j) => x - vn * n[j]!);
+    const sp = Math.hypot(vt[0]!, vt[1]!, vt[2]!);
+    const Fc = n.map((x, j) => x - (L.muC * vt[j]!) / sp);
     const lf = L.muT * N[1]; // front slides with u < 0, so the force is +
     const Wf = [Math.cos(delta), Math.cos(delta) * (L.wheelbase - L.xc)];
     const Wr = [1, -L.xc];
-    const Wc = [-1, -(bx - L.xc) + (yP - s.Y) * ((L.muC * hR) / len)];
+    const Wc = [Fc[1]!, Fc[1]! * (bx - L.xc) - (yP - s.Y) * Fc[0]!];
     // lr Wr + P Wc = -lf Wf
     const det = Wr[0]! * Wc[1]! - Wc[0]! * Wr[1]!;
     const P = (Wr[0]! * -lf * Wf[1]! - -lf * Wf[0]! * Wr[1]!) / det;

@@ -5,8 +5,8 @@ clearance; see `spec/PinewoodDynamics_Controlling_Specification.txt`, the contro
 
 ## Status
 
-Physics core: verified against analytic solutions for gates P0–P7, including lateral dynamics and
-guide-rail contact, and compared with one published experiment. Not yet validated against the
+Physics core: verified against analytic solutions for gates P0–P7, including lateral dynamics,
+guide-rail contact, camber and thrust-face friction, and compared with one published experiment. Not yet validated against the
 owner's track. See `docs/physics-model.md` and `docs/validation.md`.
 
 Milestone M2, 3D design workspace: running in the browser. It has side and top profiles with arcs,
@@ -25,7 +25,7 @@ npm run typecheck
 npm run race      # demo races on BestTrack 35 ft (manufacturer drawing, estimated curve shape)
 npm run compare:mann2012   # blind comparison with Mann, Gibbs and Sah (2012)
 npm run screen:mann2012    # which loss mechanisms could explain that experiment (about 2 min)
-npm run screen:lateral     # the same for toe, crooked starts and guide-rail contact (add --search)
+npm run screen:lateral     # the same for toe, crooked starts, rail contact and camber (--search: about 30 min)
 npm run survey -- file.csv # fit a track survey and race on it (docs/track-survey.md)
 npm run survey:precision   # how precisely a track must be surveyed
 ```

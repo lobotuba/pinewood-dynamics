@@ -1,12 +1,13 @@
 // Lateral dynamics and guide-rail contact (P6, P7) against the Duke experiment (VAL-001;
 // docs/validation.md, section 7). Their car's alignment is not published, so each plausible kind of
 // misalignment is raced as given, nothing fitted: front toe, rear toe, and a car set down crooked at
-// the gate. For each: the Table 2 car's time, the mass and CG effects, and chi² over Fig. 12.
-// Usage: npm run screen:lateral
+// the gate. Then camber, with the thrust faces that take each wheel's axial load (docs/validation.md,
+// section 8). For each: the Table 2 car's time, the mass and CG effects, and chi² over Fig. 12.
+// Usage: npm run screen:lateral [-- --search]
 
 import { sourced } from "../src/core/provenance.js";
 import { inches } from "../src/core/units.js";
-import type { CarSpec } from "../src/physics/car.js";
+import type { CarSpec, ThrustFace } from "../src/physics/car.js";
 import type { LateralCarSpec } from "../src/physics/lateral.js";
 import { type RaceResult, simulateRace } from "../src/physics/race.js";
 import { TYPICAL_LANE_LATERAL } from "../src/track/track.js";
@@ -35,6 +36,10 @@ interface Alignment {
   readonly muT?: number;
   readonly muC?: number;
   readonly e?: number;
+  /** Camber of both axles, rad, positive tops out; or of the rear and front separately. */
+  readonly camber?: number | readonly [number, number];
+  /** Friction at the thrust faces (axle heads and body). Omitted: frictionless, as in section 7. */
+  readonly faces?: boolean;
 }
 
 function lateral(a: Alignment): LateralCarSpec {
@@ -51,10 +56,34 @@ function lateral(a: Alignment): LateralCarSpec {
     railFriction: est(a.muC ?? 0.3, "Plastic wheel face on the rail, no graphite (their races): guess"),
     railRestitution: est(a.e ?? 0.5, "Plastic on the rail: guess"),
     start: { offset: est(0, "Centred at the gate"), heading: est(a.heading ?? 0, "Swept") },
+    ...(a.camber === undefined
+      ? {}
+      : {
+          camber: {
+            rear: est(typeof a.camber === "number" ? a.camber : a.camber[0], "Swept"),
+            front: est(typeof a.camber === "number" ? a.camber : a.camber[1], "Swept"),
+            treadWidth: est(inches(0.3), "Kit wheel tread width"),
+          },
+        }),
   };
 }
 
-const car = (o: Mann2012CarOptions, a: Alignment): CarSpec => ({ ...mann2012Car(o), lateral: lateral(a) });
+// Effective friction radius of a uniformly loaded annulus.
+const annulus = (ri: number, ro: number): number => ((2 / 3) * (ro ** 3 - ri ** 3)) / (ro ** 2 - ri ** 2);
+const SHANK = inches(0.087) / 2;
+const face = (radius: number, mu: number, why: string): ThrustFace => ({ radius: est(radius, why), friction: est(mu, why) });
+
+function car(o: Mann2012CarOptions, a: Alignment): CarSpec {
+  const base = mann2012Car(o);
+  if (!a.faces) return { ...base, lateral: lateral(a) };
+  const faces = {
+    // Steel nail head on the plastic hub: the bore's own pair, so its measured coefficient.
+    head: face(annulus(SHANK, inches(0.19) / 2), base.rear.axleFriction.value, "Nail head 0.19 in on the hub, mu_k of Table 2"),
+    // Plastic hub boss on the painted body.
+    body: face(annulus(SHANK, inches(0.3) / 2), 0.35, "Hub boss 0.3 in on painted wood: guess"),
+  };
+  return { ...base, rear: { ...base.rear, thrustFaces: faces }, front: { ...base.front, thrustFaces: faces }, lateral: lateral(a) };
+}
 
 function race(o: Mann2012CarOptions, a: Alignment): RaceResult {
   const r = simulateRace(car(o, a), track, env, OPTS);
@@ -83,7 +112,7 @@ function evaluate(a: Alignment): void {
       `CG ${ms(ct[4]! - ct[0]!).padStart(9)}`,
       `Table 2 ${base.elapsedTime!.toFixed(3)} s`,
       `chi² ${chi2.toFixed(0).padStart(5)}`,
-      `rail ${pct(L.railFrictionLoss + L.railImpactLoss)}, scrub ${pct(L.treadLoss)}, hops ${base.hops.count}`,
+      `rail ${pct(L.railFrictionLoss + L.railImpactLoss)}, scrub ${pct(L.treadLoss)}, faces ${pct(L.thrustLoss)}, hops ${base.hops.count}`,
     ].join("  "),
   );
 }
@@ -100,27 +129,55 @@ const cases: Alignment[] = [
 ];
 for (const c of cases) evaluate(c);
 
+// Camber, with friction at the faces that hold each wheel along its axle. Three degrees is the usual
+// bend in a canted axle.
+const deg3 = (3 * Math.PI) / 180;
+console.log("\nWith thrust-face friction, and camber (positive tops out):");
+const cambered: Alignment[] = [
+  { label: "Aligned, faces", faces: true },
+  { label: "Front toe 4 mrad, faces", toeF: 0.004, faces: true },
+  { label: "Front toe 4 mrad, tops out 3 deg", toeF: 0.004, camber: deg3, faces: true },
+  { label: "Front toe 4 mrad, tops in 3 deg", toeF: 0.004, camber: -deg3, faces: true },
+  { label: "Front toe 4 mrad, rear tops in, front out", toeF: 0.004, camber: [-deg3, deg3], faces: true },
+  { label: "Tops out 3 deg, square axles", camber: deg3, faces: true },
+  { label: "Tops in 3 deg, square axles", camber: -deg3, faces: true },
+  { label: "Crooked 10 mrad, tops out 3 deg", heading: 0.01, camber: deg3, faces: true },
+  { label: "Crooked 10 mrad, tops in 3 deg", heading: 0.01, camber: -deg3, faces: true },
+];
+for (const c of cambered) evaluate(c);
+
 // Joint search over the unknowns, inside plausible ranges: front toe, rail friction (graphite on the
-// faces can bring it well down), restitution and how crooked the car was set down. Ten data points
-// against four parameters: a good chi² here would say the class can explain the data, not that it does.
+// faces can bring it well down), restitution, how crooked the car was set down, and camber, with
+// thrust-face friction. Ten data points against five parameters: a good chi² here would say the class
+// can explain the data, not that it does. Restitution stops at 0.6: at 0.9 a wheel pressed on the rail
+// bounces hundreds of times before it settles, and race times then move by milliseconds with the step
+// (docs/physics-model.md, section 11), so a ranking there means nothing. Ranked at the 0.5 ms step.
 if (process.argv.includes("--search")) {
-  const coarse = { dt: 1e-3, traceEvery: 1_000_000 };
   const scored: { a: Alignment; chi2: number }[] = [];
-  for (const toeF of [0, 0.5e-3, 1e-3, 2e-3, 4e-3])
-    for (const muC of [0.02, 0.05, 0.1, 0.2])
-      for (const e of [0.3, 0.6, 0.9])
-        for (const heading of [0, 5e-3, 10e-3]) {
-          const a: Alignment = { label: `toe ${toeF * 1e3} mrad, mu_c ${muC}, e ${e}, crooked ${heading * 1e3} mrad`, toeF, muC, e, heading };
-          const t = (o: Mann2012CarOptions): number | null => simulateRace(car(o, a), track, env, coarse).elapsedTime;
-          let chi2 = 0;
-          for (const [pts, key] of [[massPts, "mass"], [cgPts, "xBar"]] as const)
-            for (const p of pts) {
-              const x = t({ [key]: p.x });
-              chi2 += x === null ? Infinity : ((x - p.time) / Math.hypot(p.errorBar, READING)) ** 2;
-            }
-          scored.push({ a, chi2 });
-        }
+  for (const toeF of [0, 1e-3, 2e-3, 4e-3])
+    for (const muC of [0.05, 0.1, 0.3])
+      for (const e of [0.3, 0.6])
+        for (const heading of [0, 5e-3, 10e-3])
+          for (const camber of [-deg3, 0, deg3]) {
+            const a: Alignment = {
+              label: `toe ${toeF * 1e3} mrad, mu_c ${muC}, e ${e}, crooked ${heading * 1e3} mrad, camber ${((camber * 180) / Math.PI).toFixed(0)} deg`,
+              toeF,
+              muC,
+              e,
+              heading,
+              camber,
+              faces: true,
+            };
+            const t = (o: Mann2012CarOptions): number | null => simulateRace(car(o, a), track, env, OPTS).elapsedTime;
+            let chi2 = 0;
+            for (const [pts, key] of [[massPts, "mass"], [cgPts, "xBar"]] as const)
+              for (const p of pts) {
+                const x = t({ [key]: p.x });
+                chi2 += x === null ? Infinity : ((x - p.time) / Math.hypot(p.errorBar, READING)) ** 2;
+              }
+            scored.push({ a, chi2 });
+          }
   scored.sort((p, q) => p.chi2 - q.chi2);
-  console.log(`\nJoint search (${scored.length} combinations, 1 ms steps); best five, re-raced at 0.5 ms:`);
+  console.log(`\nJoint search (${scored.length} combinations, 0.5 ms steps); best five:`);
   for (const s of scored.slice(0, 5)) evaluate(s.a);
 }

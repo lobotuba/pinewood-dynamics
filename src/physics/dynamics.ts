@@ -6,20 +6,27 @@
 //   T_i  = tangential contact force on axle i's wheels, along the direction of travel
 // Equations:
 //   2 wheel-spin equations, 2 whole-car force equations, 1 whole-car moment equation about the CG.
-// All are linear in u except the axle friction torque mu * rho * |R_i|, where R_i is the force the
-// axle exerts on its wheels. R_i follows from the wheel pair's own Newton equation and is linear in
-// u, so |R_i| = e_i . R_i with e_i its direction; e_i is found by Newton iteration. When friction
-// depends on load (AxleModel.frictionExponent), the coefficient is updated from |R_i| in the same loop.
-// Hub drag is a fixed torque and enters the wheel equations directly.
+// All are linear in u except the axle friction torques. Each wheel's axle force R_w follows from its
+// own Newton equation and is linear in u: each wheel takes half its pair's load and inertia (roll is
+// not modelled), less the external forces on that wheel, plus the sideways part the lateral model
+// gives. The bore carries R_w's part across the axle, with friction mu * rho * |R_rad| = mu rho e . R_w,
+// e its direction; a thrust face carries the part along it, A = R_w . axis, with friction
+// mu_f r_f |A| = mu_f r_f sign(A) A, at the body face when the axle pushes the wheel outward and at
+// the head when inward. Directions and signs are found by fixed-point iteration. When friction
+// depends on load (AxleModel.frictionExponent), the bore coefficient is updated from |R_rad| in the
+// same loop. Hub drag is a fixed torque and enters the wheel equations directly.
 //
-// External forces (from the lateral model: tread scrub, guide-rail friction) are given for the
-// instant. A force on a wheel enters its spin equation and its bore load; a force on the body does
-// not. Both enter the whole-car force and moment balance.
+// With square axles and nothing sideways, each wheel's load is exactly half its pair's and the
+// solution is the pair's, bit for bit.
+//
+// External forces (from the lateral model: tread scrub, guide-rail contact) are given for the
+// instant. A force on a wheel enters its spin equation and its wheel's axle load; a force on the body
+// does not. Both enter the whole-car force and moment balance.
 
 import { type Vec2, add, cross, dot, norm, scale, sub } from "../core/vec2.js";
 import type { AxleModel, CarModel } from "./car.js";
 import type { AxleState, Pose } from "./kinematics.js";
-import type { PlanarForce } from "./lateral.js";
+import { type PlanarForce, SQUARE_AXLES, type WheelAxles } from "./lateral.js";
 
 export interface LossSwitches {
   readonly axleFriction: boolean;
@@ -42,11 +49,12 @@ export interface Dynamics {
   readonly Nf: number;
   readonly Tr: number;
   readonly Tf: number;
-  /** Magnitude of the axle-bore contact force on each axle's wheels, N. */
+  /** Axle-bore contact force on each axle's wheels, the two wheels' magnitudes summed, N. */
   readonly boreR: number;
   readonly boreF: number;
-  /** Dissipated power by mechanism, W (ANA-001). pAxle includes hub drag. */
+  /** Dissipated power by mechanism, W (ANA-001). pAxle includes hub drag; pThrust is the thrust faces. */
   readonly pAxle: number;
+  readonly pThrust: number;
   /** Power of the external forces, W, by kind (negative when they take energy out). */
   readonly pTread: number;
   readonly pRail: number;
@@ -72,11 +80,36 @@ interface BoreForce {
   readonly r0: Vec2;
 }
 
+/** A vector at one wheel: x and z in the track's vertical plane, y sideways (left). */
+interface V3 {
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+}
+const dot3 = (a: V3, b: V3): number => a.x * b.x + a.y * b.y + a.z * b.z;
+const norm3 = (a: V3): number => Math.hypot(a.x, a.y, a.z);
+
+/** One wheel's axle force, R = da a - n N - t T + r0, and its outward axle direction. */
+interface WheelForce {
+  readonly da: V3;
+  readonly n: V3;
+  readonly t: V3;
+  readonly r0: V3;
+  readonly axis: V3;
+}
+
 // Direction alone converges in a few steps. A load-dependent coefficient converges geometrically with
 // ratio |1 - exponent|: 2/3 needs about 20 steps to reach 1e-10.
 const MAX_BORE_ITERATIONS = 60;
 
-export function dynamics(car: CarModel, pose: Pose, v: number, env: DynamicsEnv, ext: readonly PlanarForce[] = []): Dynamics {
+export function dynamics(
+  car: CarModel,
+  pose: Pose,
+  v: number,
+  env: DynamicsEnv,
+  ext: readonly PlanarForce[] = [],
+  wheels: WheelAxles = SQUARE_AXLES,
+): Dynamics {
   const { rear: R, front: F } = car;
   const L = env.losses;
   const v2 = v * v;
@@ -90,13 +123,14 @@ export function dynamics(car: CarModel, pose: Pose, v: number, env: DynamicsEnv,
   // Axle friction opposes wheel rotation relative to the body. At rest the car can only start forward.
   const sigma = (w: number): number => (w > 0 ? 1 : w < 0 ? -1 : 1);
 
-  // Friction coefficient at bore load |R| (both wheels). Load is floored so mu stays finite as |R| -> 0.
+  // Bore friction coefficient at one wheel's bore load. Load is floored so mu stays finite as it -> 0.
   const mu = (ax: AxleModel, load: number): number => {
     if (!L.axleFriction) return 0;
     if (ax.frictionExponent === 1) return ax.mu;
-    const perWheel = Math.max(load / 2, 1e-6 * ax.frictionReferenceLoad);
+    const perWheel = Math.max(load, 1e-6 * ax.frictionReferenceLoad);
     return ax.mu * (perWheel / ax.frictionReferenceLoad) ** (ax.frictionExponent - 1);
   };
+  const thrustOf = (ax: AxleModel) => (L.axleFriction ? ax.thrust : null);
   const crr = (ax: AxleModel): number => (L.rollingResistance ? ax.crr : 0);
   const sR = sigma(omegaR - pitchCw);
   const sF = sigma(omegaF - pitchCw);
@@ -127,15 +161,13 @@ export function dynamics(car: CarModel, pose: Pose, v: number, env: DynamicsEnv,
     const c2 = add(scale(n, kappa * ax.J * ax.J), scale(t, ax.K));
     return { da: scale(t, mw * ax.J), n, t, r0: sub(scale(c2, mw * v2), scale(grav, mw)) };
   };
-  const boreAt = (bf: BoreForce, a: number, N: number, T: number): Vec2 =>
-    add(add(scale(bf.da, a), bf.r0), add(scale(bf.n, -N), scale(bf.t, -T)));
-  const bRbase = bore(pose.rear, R.wheelMass);
-  const bFbase = bore(pose.front, F.wheelMass);
+  const bR = bore(pose.rear, R.wheelMass);
+  const bF = bore(pose.front, F.wheelMass);
 
   // External forces: position and vector in the plane; on a wheel, its forward-roll torque about the
-  // axle (z F_t - xi F_n) and its share of the wheel pair's Newton equation.
-  const extRows = { spin: [0, 0], fx: 0, fz: 0, moment: 0, onWheel: [{ x: 0, z: 0 }, { x: 0, z: 0 }] };
-  const extPts: { P: Vec2; F: Vec2; kind: PlanarForce["kind"]; axle: 0 | 1; onWheel: boolean; at: PlanarForce["at"] }[] = [];
+  // axle (given, or z F_t - xi F_n in the plane) and its share of that wheel's Newton equation.
+  const extRows = { spin: [0, 0], fx: 0, fz: 0, moment: 0 };
+  const extPts: { P: Vec2; F: Vec2; y: number; f: PlanarForce }[] = [];
   for (const f of ext) {
     const ax = f.axle === 0 ? pose.rear : pose.front;
     const { t, n } = ax.pt;
@@ -144,14 +176,53 @@ export function dynamics(car: CarModel, pose: Pose, v: number, env: DynamicsEnv,
     extRows.fx += Fv.x;
     extRows.fz += Fv.z;
     extRows.moment -= cross(sub(P, pose.cg), Fv);
-    if (f.onWheel) {
-      extRows.spin[f.axle] = extRows.spin[f.axle]! + f.at.n * f.f.t - f.at.t * f.f.n;
-      extRows.onWheel[f.axle] = add(extRows.onWheel[f.axle]!, Fv);
-    }
-    extPts.push({ P, F: Fv, kind: f.kind, axle: f.axle, onWheel: f.onWheel, at: f.at });
+    if (f.onWheel) extRows.spin[f.axle] = extRows.spin[f.axle]! + (f.spin ?? f.at.n * f.f.t - f.at.t * f.f.n);
+    extPts.push({ P, F: Fv, y: f.y ?? 0, f });
   }
-  const bR: BoreForce = { ...bRbase, r0: sub(bRbase.r0, extRows.onWheel[0]!) };
-  const bF: BoreForce = { ...bFbase, r0: sub(bFbase.r0, extRows.onWheel[1]!) };
+
+  // Each wheel's axle force: half its pair's (both wheels share the axle's load and inertia; roll is
+  // not modelled), less the external forces on that wheel, with the sideways load the lateral model
+  // gives. Index k = 2 * axle + wheel, wheel 0 left, 1 right.
+  const wheelForce = (i: 0 | 1, w: 0 | 1, bf: BoreForce): WheelForce => {
+    const side = w === 0 ? 1 : -1;
+    let ex = 0;
+    let ey = 0;
+    let ez = 0;
+    for (const e of extPts) {
+      if (!e.f.onWheel || e.f.axle !== i) continue;
+      const on = e.f.side ?? 0;
+      const share = on === 0 ? 0.5 : on === side ? 1 : 0;
+      ex += share * e.F.x;
+      ey += share * e.y;
+      ez += share * e.F.z;
+    }
+    const { t, n } = (i === 0 ? pose.rear : pose.front).pt;
+    const a = wheels[i][w].axis;
+    return {
+      da: { x: 0.5 * bf.da.x, y: 0, z: 0.5 * bf.da.z },
+      n: { x: 0.5 * bf.n.x, y: 0, z: 0.5 * bf.n.z },
+      t: { x: 0.5 * bf.t.x, y: 0, z: 0.5 * bf.t.z },
+      r0: { x: 0.5 * bf.r0.x - ex, y: wheels[i][w].sideways - ey, z: 0.5 * bf.r0.z - ez },
+      axis: { x: a.t * t.x + a.n * n.x, y: a.y, z: a.t * t.z + a.n * n.z },
+    };
+  };
+  const WF = [wheelForce(0, 0, bR), wheelForce(0, 1, bR), wheelForce(1, 0, bF), wheelForce(1, 1, bF)];
+  const axleOf = (k: number): AxleModel => (k < 2 ? R : F);
+  const wheelAt = (k: number, u: readonly number[]): V3 => {
+    const wf = WF[k]!;
+    const N = k < 2 ? u[1]! : u[2]!;
+    const T = k < 2 ? u[3]! : u[4]!;
+    const a = u[0]!;
+    return {
+      x: wf.da.x * a + wf.r0.x + (wf.n.x * -N + wf.t.x * -T),
+      y: wf.da.y * a + wf.r0.y + (wf.n.y * -N + wf.t.y * -T),
+      z: wf.da.z * a + wf.r0.z + (wf.n.z * -N + wf.t.z * -T),
+    };
+  };
+  const radial = (Rw: V3, ax: V3): V3 => {
+    const k = dot3(Rw, ax);
+    return { x: Rw.x - k * ax.x, y: Rw.y - k * ax.y, z: Rw.z - k * ax.z };
+  };
 
   // Rows: rear wheel, front wheel, force x, force z, moment (clockwise) about CG.
   const A: number[][] = [
@@ -175,99 +246,157 @@ export function dynamics(car: CarModel, pose: Pose, v: number, env: DynamicsEnv,
     Ip * pose.ddTheta * v2 - (spinR * pose.rear.K + spinF * pose.front.K) * v2 + extRows.moment,
   ];
 
-  // Friction torque f |R| linearized as f (e . R(u)) in the wheel row; columns a, N_i, T_i. f is the
-  // torque per newton of bore load, signed to oppose rotation relative to the body.
-  const withFriction = (eR: Vec2, eF: Vec2, muR: number, muF: number): number[] => {
-    const fricR = sR * muR * R.axleRadius;
-    const fricF = sF * muF * F.axleRadius;
+  // Friction torques linearized in each wheel row: the bore's f (e . R_w(u)) and the thrust face's
+  // f_th (sign . axis . R_w(u)), columns a, N_i, T_i. Each f is the torque per newton, signed to
+  // oppose rotation relative to the body.
+  const withFriction = (e: readonly V3[], mus: readonly number[], sig: readonly number[]): number[] => {
     const M = A.map((row) => [...row]);
     const rhs = [...b];
-    const addRow = (row: number, f: number, e: Vec2, bf: BoreForce, colN: number, colT: number): void => {
-      const r = M[row]!;
-      r[0] = r[0]! + f * dot(e, bf.da);
-      r[colN] = r[colN]! - f * dot(e, bf.n);
-      r[colT] = r[colT]! - f * dot(e, bf.t);
-      rhs[row] = rhs[row]! - f * dot(e, bf.r0);
-    };
-    addRow(0, fricR, eR, bR, 1, 3);
-    addRow(1, fricF, eF, bF, 2, 4);
+    for (const i of [0, 1] as const) {
+      const ax = i === 0 ? R : F;
+      const s = i === 0 ? sR : sF;
+      const th = thrustOf(ax);
+      let cA = 0;
+      let cN = 0;
+      let cT = 0;
+      let c0 = 0;
+      for (const w of [0, 1]) {
+        const k = 2 * i + w;
+        const wf = WF[k]!;
+        const terms: [number, V3][] = [[s * mus[k]! * ax.axleRadius, e[k]!]];
+        if (th && sig[k] !== 0) {
+          const face = sig[k]! > 0 ? th.body : th.head;
+          terms.push([s * face.mu * face.r * sig[k]!, wf.axis]);
+        }
+        for (const [f, c] of terms) {
+          cA += f * dot3(c, wf.da);
+          cN += f * dot3(c, wf.n);
+          cT += f * dot3(c, wf.t);
+          c0 += f * dot3(c, wf.r0);
+        }
+      }
+      const r = M[i]!;
+      r[0] = r[0]! + cA;
+      r[1 + i] = r[1 + i]! - cN;
+      r[3 + i] = r[3 + i]! - cT;
+      rhs[i] = rhs[i]! - c0;
+    }
     return solveLinear(M, rhs);
   };
 
-  // Start from the static direction (axle pushes its wheels down into the track) and the reference
-  // coefficient.
-  let eR = scale(nR, -1);
-  let eF = scale(nF, -1);
-  let muR = mu(R, 2 * R.frictionReferenceLoad);
-  let muF = mu(F, 2 * F.frictionReferenceLoad);
-  let u = withFriction(eR, eF, muR, muF);
+  // Start from the static direction (axle pushes its wheels down into the track), the reference
+  // coefficient, and no thrust.
+  const down = (n: Vec2): V3 => ({ x: n.x * -1, y: 0, z: n.z * -1 });
+  const e: V3[] = [down(nR), down(nR), down(nF), down(nF)];
+  const mus = [0, 1, 2, 3].map((k) => mu(axleOf(k), axleOf(k).frictionReferenceLoad));
+  const sig = [0, 0, 0, 0];
+  const flips = [0, 0, 0, 0];
+  const settled = [false, false, false, false];
+  let u = withFriction(e, mus, sig);
   let converged = true;
-  if (muR !== 0 || muF !== 0) {
+  if (mus.some((x) => x !== 0) || thrustOf(R) || thrustOf(F)) {
+    let lastChange = Infinity;
     for (let it = 0; ; it++) {
-      const boreVecR = boreAt(bR, u[0]!, u[1]!, u[3]!);
-      const boreVecF = boreAt(bF, u[0]!, u[2]!, u[4]!);
-      const nextR = unitOr(boreVecR, eR);
-      const nextF = unitOr(boreVecF, eF);
-      const nextMuR = mu(R, norm(boreVecR));
-      const nextMuF = mu(F, norm(boreVecF));
-      const change = Math.max(
-        norm(sub(nextR, eR)),
-        norm(sub(nextF, eF)),
-        relChange(nextMuR, muR),
-        relChange(nextMuF, muF),
-      );
-      eR = nextR;
-      eF = nextF;
-      muR = nextMuR;
-      muF = nextMuF;
-      // |R| - e.R is second order in the direction error, so 1e-10 leaves ~1e-20 relative error.
-      if (change < 1e-10) break;
+      let change = 0;
+      for (let k = 0; k < 4; k++) {
+        const Rw = wheelAt(k, u);
+        const rad = radial(Rw, WF[k]!.axis);
+        const nextE = unitOr3(rad, e[k]!);
+        const nextMu = mu(axleOf(k), norm3(rad));
+        change = Math.max(change, norm3({ x: nextE.x - e[k]!.x, y: nextE.y - e[k]!.y, z: nextE.z - e[k]!.z }), relChange(nextMu, mus[k]!));
+        e[k] = nextE;
+        mus[k] = nextMu;
+        if (thrustOf(axleOf(k)) && !settled[k]) {
+          const next = Math.sign(dot3(Rw, WF[k]!.axis));
+          if (next !== sig[k]) {
+            // An axial load that reverses with each iteration is zero at the solution: the wheel sits
+            // between its faces (Coulomb's set-valued law), and neither face carries friction.
+            if (sig[k] !== 0 && next === -sig[k]! && ++flips[k]! >= 2) {
+              settled[k] = true;
+              sig[k] = 0;
+            } else sig[k] = next;
+            change = Infinity;
+          }
+        }
+      }
+      // |R| - e.R is second order in the direction error, so 1e-10 leaves ~1e-20 relative error. Under
+      // the impulsive loads of a rail strike, rounding in R can hold the change above that; once it
+      // stops shrinking it is at rounding, and below 1e-7 the error left is under 1e-14.
+      if (change < 1e-10 || (change < 1e-7 && change >= lastChange)) break;
+      lastChange = change;
       if (it >= MAX_BORE_ITERATIONS || !u.every(Number.isFinite)) {
         converged = false;
         break;
       }
-      u = withFriction(eR, eF, muR, muF);
+      u = withFriction(e, mus, sig);
     }
   }
   const [a, Nr, Nf, Tr, Tf] = u as [number, number, number, number, number];
-  const boreR = norm(boreAt(bR, a, Nr, Tr));
-  const boreF = norm(boreAt(bF, a, Nf, Tf));
+
+  // Per-wheel loads at the solution: bore torque mu rho |R_rad|, thrust torque mu_f r_f |A|.
+  const bores = [0, 0];
+  const boreTorque = [0, 0];
+  const thrustTorque = [0, 0];
+  for (let k = 0; k < 4; k++) {
+    const i = k < 2 ? 0 : 1;
+    const ax = axleOf(k);
+    const Rw = wheelAt(k, u);
+    const load = norm3(radial(Rw, WF[k]!.axis));
+    bores[i] = bores[i]! + load;
+    boreTorque[i] = boreTorque[i]! + mu(ax, load) * ax.axleRadius * load;
+    const th = thrustOf(ax);
+    if (th && sig[k] !== 0) {
+      const face = sig[k]! > 0 ? th.body : th.head;
+      thrustTorque[i] = thrustTorque[i]! + face.mu * face.r * sig[k]! * dot3(Rw, WF[k]!.axis);
+    }
+  }
+  const boreR = bores[0]!;
+  const boreF = bores[1]!;
 
   const slipR = Math.abs(omegaR - pitchCw);
   const slipF = Math.abs(omegaF - pitchCw);
-  const pAxle =
-    (mu(R, boreR) * R.axleRadius * boreR + hubR) * slipR + (mu(F, boreF) * F.axleRadius * boreF + hubF) * slipF;
+  const pAxle = (boreTorque[0]! + hubR) * slipR + (boreTorque[1]! + hubF) * slipF;
+  const pThrust = thrustTorque[0]! * slipR + thrustTorque[1]! * slipF;
   const pRolling = crr(R) * R.r * Nr * Math.abs(omegaR) + crr(F) * F.r * Nf * Math.abs(omegaF);
   const pAero = -dot(aero, vCg);
 
   // Power of each external force at its material point: a wheel point moves with the axle centre plus
-  // the wheel's spin; a body point with the CG plus the pitch rotation.
+  // the wheel's rotation; a body point with the CG plus the pitch rotation. A wheel's rotation is its
+  // spin relative to the body, about the axle, plus the body's pitch: so a given axle torque works at
+  // the relative spin, and the force's in-plane moment about the axle centre at the pitch rate.
   let pTread = 0;
   let pRail = 0;
   const pitchCcw = pose.dTheta * v;
-  for (const e of extPts) {
-    let vel: Vec2;
-    if (e.onWheel) {
-      const ax = e.axle === 0 ? pose.rear : pose.front;
-      const w = e.axle === 0 ? omegaR : omegaF;
-      vel = add(scale(ax.pt.t, ax.J * v), scale(add(scale(ax.pt.t, e.at.n), scale(ax.pt.n, -e.at.t)), w));
+  for (const x of extPts) {
+    let pw: number;
+    if (x.f.onWheel) {
+      const ax = x.f.axle === 0 ? pose.rear : pose.front;
+      const w = x.f.axle === 0 ? omegaR : omegaF;
+      if (x.f.spin !== undefined) {
+        const inPlane = x.f.at.n * x.f.f.t - x.f.at.t * x.f.f.n;
+        pw = dot(x.F, scale(ax.pt.t, ax.J * v)) + (w - pitchCw) * x.f.spin + pitchCw * inPlane;
+      } else {
+        const at = x.f.at;
+        pw = dot(x.F, add(scale(ax.pt.t, ax.J * v), scale(add(scale(ax.pt.t, at.n), scale(ax.pt.n, -at.t)), w)));
+      }
     } else {
-      const rho = sub(e.P, pose.cg);
-      vel = add(vCg, { x: -pitchCcw * rho.z, z: pitchCcw * rho.x });
+      const rho = sub(x.P, pose.cg);
+      pw = dot(x.F, add(vCg, { x: -pitchCcw * rho.z, z: pitchCcw * rho.x }));
     }
-    const pw = dot(e.F, vel);
-    if (e.kind === "tread") pTread += pw;
+    if (x.f.kind === "tread") pTread += pw;
     else pRail += pw;
   }
 
-  return { a, Nr, Nf, Tr, Tf, boreR, boreF, pAxle, pTread, pRail, pRolling, pAero, omegaR, omegaF, vCg, converged };
+  return { a, Nr, Nf, Tr, Tf, boreR, boreF, pAxle, pThrust, pTread, pRail, pRolling, pAero, omegaR, omegaF, vCg, converged };
 }
 
 const relChange = (next: number, prev: number): number => (prev === 0 ? Math.abs(next) : Math.abs(next - prev) / prev);
 
-function unitOr(x: Vec2, fallback: Vec2): Vec2 {
-  const l = norm(x);
-  return l > 0 ? scale(x, 1 / l) : fallback;
+function unitOr3(x: V3, fallback: V3): V3 {
+  const l = norm3(x);
+  if (!(l > 0)) return fallback;
+  const k = 1 / l;
+  return { x: x.x * k, y: x.y * k, z: x.z * k };
 }
 
 /** Gaussian elimination with partial pivoting. Small dense systems only. */

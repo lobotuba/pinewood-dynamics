@@ -208,22 +208,33 @@ The paper gives none of the inputs, so all of them are ESTIMATED:
 
 Yaw inertia is held fixed across both sweeps, as the published pitch inertia already is. The
 car's alignment is unknown, so each kind of misalignment was raced as given, with nothing fitted.
-Steps were 0.5 ms (within 0.2 ms of converged for these runs).
+Steps were 0.5 ms (within 0.2 ms of converged for these runs). The table is from solver 0.5.0, with
+square wheels and frictionless thrust faces; section 8 adds both.
 
 | Alignment | Mass effect | CG effect | Table 2 car | χ² (10 points) | Rail loss |
 |---|---|---|---|---|---|
 | Aligned: the planar result | −18.8 ms | −14.9 ms | 2.235 s | 327 | 0 |
-| Front toe 1 mrad | −20.8 | −218.2 | 2.379 | 2702 | 24.8 % |
-| Front toe 4 mrad | −20.8 | −200.2 | 2.402 | 3542 | 25.8 % |
-| Front toe 8 mrad | −20.8 | −275.6 | 2.413 | 4707 | 26.1 % |
+| Front toe 1 mrad | −20.8 | −218.3 | 2.379 | 2707 | 24.8 % |
+| Front toe 4 mrad | −20.8 | −201.2 | 2.402 | 3550 | 25.8 % |
+| Front toe 8 mrad | −20.8 | −275.5 | 2.413 | 4706 | 26.1 % |
 | Rear toe 4 mrad | −20.7 | −248.6 | 2.395 | 3700 | 25.5 % |
-| Set down 5 mrad crooked, square axles | +2.1 | −95.3 | 2.596 | 19159 | 50.8 % |
-| Set down 10 mrad crooked | −20.8 | −128.9 | 2.628 | 24935 | 52.0 % |
-| Set down 20 mrad crooked | −34.2 | −48.3 | 2.731 | 35201 | 55.4 % |
-| Front toe 4 mrad, rail friction 0.15 | −19.7 | −104.7 | 2.317 | 718 | 13.7 % |
-| Set down 10 mrad crooked, restitution 0.8 | −79.8 | −204.7 | 2.634 | 22014 | 52.3 % |
+| Set down 5 mrad crooked, square axles | +2.1 | −95.5 | 2.596 | 19176 | 50.8 % |
+| Set down 10 mrad crooked | −20.6 | −128.9 | 2.628 | 24950 | 52.0 % |
+| Set down 20 mrad crooked | −33.9 | −48.7 | 2.731 | 35282 | 55.4 % |
+| Front toe 4 mrad, rail friction 0.15 | −19.7 | −104.9 | 2.317 | 719 | 13.6 % |
+| Set down 10 mrad crooked, restitution 0.8 | −82.8 | −115.9 | 2.630 | 21441 | 52.1 % |
 
 Rail loss is the share of released energy lost to wheel faces rubbing and striking the rail.
+
+Solver 0.5.0 takes the rail's normal as common to the wheel's rim and the rail's edge, where 0.4.0
+took it as exactly sideways; the two differ by about 3e-3 rad at these yaws. That moved the rows
+above by under 1 ms, except the lively wobble in the last row: its CG effect went from −205 to
+−116 ms. A car bouncing between the rail's faces is that sensitive to small changes. Rows with
+restitution 0.8 or more, here and in the joint search below, are also not converged in the step:
+at such restitution the bounces take hundreds of flights to settle, and times move by milliseconds
+with the step (`docs/physics-model.md`, section 11). They show what lively contact does, not
+reliable numbers. The conclusion below does not rest on them: their CG shortfall of about 90 ms is
+far larger than that error.
 
 **What the physics does:**
 
@@ -242,12 +253,12 @@ Rail loss is the share of released energy lost to wheel faces rubbing and striki
    lively bounces, the first mechanism in this study to come near the measured −94 ms. But the
    level is then far too slow, at 2.6–2.7 s.
 3. **The rail friction and restitution are the key unknowns.** Racers' fast "rail rider" setups
-   cant the wheels and lubricate the faces. Both mitigate exactly the loss found here: the contact
-   moves low on the face, where it slides slowly, and its friction drops.
+   cant the wheels and lubricate the faces. Lubricant lowers the rail friction directly; section 8
+   tests the camber.
 
-**Joint search.** Front toe 0 to 4 mrad, rail friction 0.02 to 0.2, restitution 0.3 to 0.9, and set
-down 0 to 10 mrad crooked: 180 combinations, ranked at 1 ms steps and re-raced at 0.5 ms. The best
-five all need very low rail friction (0.05) and very bouncy contact (e 0.9):
+**Joint search** (solver 0.4.0). Front toe 0 to 4 mrad, rail friction 0.02 to 0.2, restitution 0.3
+to 0.9, and set down 0 to 10 mrad crooked: 180 combinations, ranked at 1 ms steps and re-raced at
+0.5 ms. The best five all need very low rail friction (0.05) and very bouncy contact (e 0.9):
 
 - χ² 196 to 210, against 327 for the planar model;
 - Table 2 car 2.255 to 2.266 s, the right level;
@@ -269,9 +280,70 @@ With the planar candidates excluded in section 5, the remaining explanations are
 - **(d) Experimental artefacts.** For example, the car's setup or alignment changing between
   configurations. Re-placing magnetic weights could easily change the toe by a milliradian, which
   the table shows is worth hundreds of milliseconds.
-- **Mechanisms not yet modelled.** Camber, which moves the rail contact low; wheels sliding along
-  their axles; body contact with the rail; or roll.
+- **Mechanisms not yet modelled.** Camber, which moves the rail contact low (now modelled, section
+  8); wheels sliding along their axles; body contact with the rail; or roll.
 
 The first is consistent with how sensitive these results are to alignment. Any owner test plan
 must hold alignment fixed and measure it between configurations: spin-and-drift tests on a flat
 board give the toe to a fraction of a milliradian.
+
+## 8. Camber and thrust faces against the Duke data
+
+Solver 0.5.0 adds camber, and friction at the faces that hold each wheel along its axle
+(`docs/physics-model.md`, section 11). The new inputs are ESTIMATED:
+
+- tread width 0.3 in;
+- axle head: a 0.19 in nail head on a 0.087 in shank, effective radius 1.8 mm, with the bore's own
+  coefficient (Table 2 `μ_k`), since it is the same steel-on-plastic pair;
+- body face: a 0.3 in hub boss on painted wood, effective radius 2.7 mm, coefficient 0.35 (a guess).
+
+Three degrees of camber is the usual bend in a canted axle. Other inputs are as in section 7; steps
+0.5 ms.
+
+| Alignment, with thrust-face friction | Mass effect | CG effect | Table 2 car | χ² | Rail loss | Face loss |
+|---|---|---|---|---|---|---|
+| Aligned | −18.8 ms | −14.9 ms | 2.235 s | 327 | 0 | 0 |
+| Square wheels, 3° tops out | −18.6 | −15.3 | 2.248 | 298 | 0 | 2.0 % |
+| Square wheels, 3° tops in | −18.7 | −15.0 | 2.240 | 312 | 0 | 0.7 % |
+| Front toe 4 mrad | −21.1 | −242.8 | 2.421 | 4712 | 25.8 % | 2.5 % |
+| Front toe 4 mrad, 3° tops out | −19.1 | −42.9 | 2.271 | 278 | 2.5 % | 2.8 % |
+| Front toe 4 mrad, 3° tops in | −20.9 | −287.8 | 2.418 | 5118 | 25.6 % | 2.5 % |
+| Front toe 4 mrad, rear tops in, front tops out | −19.2 | −48.6 | 2.267 | 229 | 2.5 % | 2.2 % |
+| Crooked 10 mrad, 3° tops out | −19.0 | −21.1 | 2.261 | 300 | 0.1 % | 3.5 % |
+| Crooked 10 mrad, 3° tops in | −25.1 | −140.3 | 2.676 | 32284 | 51.7 % | 4.4 % |
+
+**What the physics does:**
+
+1. **Tops-out camber nearly removes the cost of riding the rail.** The face's lowest rim, which
+   then touches the rail, lies close to the line the wheel rolls about, so it hardly slides. With
+   4 mrad of toe, rail loss drops from 26 % of the energy to 2.5 %, and the car is back within 36 ms
+   of aligned.
+2. **Tops-in camber is no better than square.** The face still meets the rail's top edge, sliding
+   at about 0.9 v. The rail also presses that wheel up.
+3. **Thrust faces cost a few per cent.** Tops-in camber slides the wheels out onto the steel axle
+   heads; tops out slides them in onto the body, with its larger radius and coefficient. Square
+   wheels load the faces only through tread and rail forces.
+4. **Still no mass effect.** Every loss added here is proportional to load, so the scaling theorem
+   of section 5 holds; the mass effect stays at the planar 19–21 ms in every row.
+
+The common racers' setup cants the rear wheels tops in, which the model agrees cuts face friction.
+For the wheel riding the rail, though, the model says tops out, not tops in, is what cuts rail
+friction. That rests on flat wheel faces; a real face's hub boss and chamfered tread edge could
+move the contact.
+
+**Joint search.** Front toe 0 to 4 mrad, rail friction 0.05 to 0.3, restitution 0.3 and 0.6, set
+down 0 to 10 mrad crooked, and camber −3°, 0 or +3°, all with thrust-face friction: 216
+combinations at 0.5 ms steps. Restitution 0.9 is left out because it does not converge in the step
+(section 7). The best five:
+
+- χ² 228 to 244, against 327 for the planar model and 196 to 210 for the unconverged 0.4.0 search;
+- 1 to 2 mrad of toe, rail friction 0.05, no crooked start, camber 0 or −3°;
+- Table 2 car 2.272 to 2.276 s;
+- CG effect 59 to 65 ms, against the measured 140;
+- mass effect 19 ms, the planar value.
+
+**Conclusion.** Camber and thrust-face friction do not explain the Duke effects either. Camber
+changes how much riding the rail costs, but not how that cost scales with mass. With planar losses
+(section 5), lateral dynamics and rail contact (section 7), and now camber and the thrust faces all
+excluded, experimental artefacts remain the leading explanation. Unmodelled mechanisms that remain:
+axial play, body–rail contact and roll.

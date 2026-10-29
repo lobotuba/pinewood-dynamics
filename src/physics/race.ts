@@ -12,14 +12,17 @@ import {
   type LateralStep,
   type PlanarForce,
   type RailContact,
+  SQUARE_AXLES,
+  type WheelAxles,
   cgFromRear,
   lateralKinetic,
   lateralStep,
   railGap,
   rearOffset,
+  restingAxles,
 } from "./lateral.js";
 
-export const SOLVER_VERSION = "phy-009/0.4.0";
+export const SOLVER_VERSION = "phy-009/0.5.0";
 
 export interface RaceOptions {
   /** Fixed RK4 step, s. Convergence is demonstrated by step halving (PHY-005). */
@@ -65,6 +68,8 @@ export interface EnergyLedger {
   /** Spin kinetic energy of the wheels, J. */
   readonly kineticWheels: number;
   readonly axleLoss: number;
+  /** Wheels' hubs rubbing the axle heads or the body under axial load (zero without the lateral model). */
+  readonly thrustLoss: number;
   readonly rollingLoss: number;
   readonly aeroLoss: number;
   /** Lateral model (P6, P7); all zero when it is not running. Sideways and yaw kinetic energy. */
@@ -109,8 +114,11 @@ export interface RaceResult {
   };
 }
 
-/** y = [s, v, E_axle, E_rolling, E_aero, W_tread, W_rail]: W = work of the lateral model's forces on the planar motion. */
-type State = readonly [number, number, number, number, number, number, number];
+/**
+ * y = [s, v, E_axle, E_rolling, E_aero, W_tread, W_rail, E_thrust]: W = work of the lateral model's
+ * forces on the planar motion.
+ */
+type State = readonly [number, number, number, number, number, number, number, number];
 
 export function simulateRace(spec: CarSpec, track: Track, env: Environment, opts: RaceOptions = {}): RaceResult {
   const dt = opts.dt ?? 1e-4;
@@ -137,15 +145,19 @@ export function simulateRace(spec: CarSpec, track: Track, env: Environment, opts
           railWidth: track.lateral.guideRail.width.value,
           railHeight: track.lateral.guideRail.height.value,
           toe: [spec.lateral.toe.rear.value, spec.lateral.toe.front.value],
+          camber: [spec.lateral.camber?.rear.value ?? 0, spec.lateral.camber?.front.value ?? 0],
+          treadWidth: spec.lateral.camber?.treadWidth.value ?? 0,
           radius: [car.rear.r, car.front.r],
+          wheelMass: [car.rear.wheelMass, car.front.wheelMass],
           muT: spec.lateral.treadFriction.value,
           muC: spec.lateral.railFriction.value,
           e: spec.lateral.railRestitution.value,
           gLat: denv.g * Math.sin(track.lateral.crossSlope.value),
         }
       : null;
-  // Forces from the lateral model on the planar motion, held over the current step.
+  // Forces from the lateral model on the planar motion, and the wheels' axles, held over the current step.
   let ext: readonly PlanarForce[] = [];
+  let axles: WheelAxles = SQUARE_AXLES;
 
   let frontGuess: number | undefined;
   const poseAt = (s: number): Pose => {
@@ -166,8 +178,8 @@ export function simulateRace(spec: CarSpec, track: Track, env: Environment, opts
 
   const deriv = (y: State): State => {
     const pose = poseAt(y[0]);
-    const d = dynamics(car, pose, y[1], denv, ext);
-    return [y[1], d.a, d.pAxle, d.pRolling, d.pAero, d.pTread, d.pRail];
+    const d = dynamics(car, pose, y[1], denv, ext, axles);
+    return [y[1], d.a, d.pAxle, d.pRolling, d.pAero, d.pTread, d.pRail, d.pThrust];
   };
   const rk4 = (y: State, h: number): State => {
     const k1 = deriv(y);
@@ -185,6 +197,7 @@ export function simulateRace(spec: CarSpec, track: Track, env: Environment, opts
   const psi0 = start?.heading.value ?? 0;
   let lat: LateralState = { Y: L ? cgFromRear(L, start?.offset.value ?? 0, psi0) : 0, psi: psi0, dY: 0, dPsi: 0 };
   const Y0 = lat.Y;
+  if (L) axles = restingAxles(L, lat);
   const latWork = { gravity: 0, tread: 0, railNormal: 0, railFriction: 0 };
   let latInfo: { contacts: readonly RailContact[]; slip: readonly [number, number] } = { contacts: [], slip: [0, 0] };
   /** True while the forces in `ext` come from a step that carried a rail impact. */
@@ -194,7 +207,7 @@ export function simulateRace(spec: CarSpec, track: Track, env: Environment, opts
 
   const ledgerAt = (y: State): EnergyLedger => {
     const pose = poseAt(y[0]);
-    const d = dynamics(car, pose, y[1], denv, ext);
+    const d = dynamics(car, pose, y[1], denv, ext, axles);
     const releasedLat = L ? -car.mass * L.gLat * (lat.Y - Y0) : 0;
     const released = pe0 - car.mass * denv.g * pose.cg.z + releasedLat;
     const pitchRate = pose.dTheta * y[1];
@@ -207,12 +220,14 @@ export function simulateRace(spec: CarSpec, track: Track, env: Environment, opts
     const railFrictionLoss = -(latWork.railFriction + y[6]);
     const railImpactLoss = -latWork.railNormal;
     const residual =
-      released - (kineticBody + kineticWheels + kineticLateral + y[2] + y[3] + y[4] + treadLoss + railFrictionLoss + railImpactLoss);
+      released -
+      (kineticBody + kineticWheels + kineticLateral + y[2] + y[7] + y[3] + y[4] + treadLoss + railFrictionLoss + railImpactLoss);
     return {
       released,
       kineticBody,
       kineticWheels,
       axleLoss: y[2],
+      thrustLoss: y[7],
       rollingLoss: y[3],
       aeroLoss: y[4],
       kineticLateral,
@@ -226,7 +241,7 @@ export function simulateRace(spec: CarSpec, track: Track, env: Environment, opts
   const trace: TraceSample[] = [];
   const sample = (t: number, y: State): TraceSample => {
     const pose = poseAt(y[0]);
-    const d = dynamics(car, pose, y[1], denv, ext);
+    const d = dynamics(car, pose, y[1], denv, ext, axles);
     return {
       t,
       s: y[0],
@@ -270,7 +285,7 @@ export function simulateRace(spec: CarSpec, track: Track, env: Environment, opts
     status,
     message,
     elapsedTime: elapsed,
-    finishSpeed: status === "FINISHED" ? norm(dynamics(car, poseAt(y[0]), y[1], denv, ext).vCg) : null,
+    finishSpeed: status === "FINISHED" ? norm(dynamics(car, poseAt(y[0]), y[1], denv, ext, axles).vCg) : null,
     maxSpeed,
     ledger: ledgerAt(y),
     hops,
@@ -292,7 +307,7 @@ export function simulateRace(spec: CarSpec, track: Track, env: Environment, opts
     .sort((p, q) => p - q);
   let nextBreak = 0;
 
-  let y: State = [s0, 0, 0, 0, 0, 0, 0];
+  let y: State = [s0, 0, 0, 0, 0, 0, 0, 0];
   let t = 0;
   let maxSpeed = 0;
   /**
@@ -305,19 +320,22 @@ export function simulateRace(spec: CarSpec, track: Track, env: Environment, opts
   const advance = (y: State, h: number): State => {
     if (!L) return rk4(y, h);
     const pose = poseAt(y[0]);
-    const d0 = dynamics(car, pose, y[1], denv, ext);
+    const d0 = dynamics(car, pose, y[1], denv, ext, axles);
     const held = ext;
+    const heldAxles = axles;
     const v0: [number, number] = [pose.rear.J * y[1], pose.front.J * y[1]];
     let v1: [number, number] = [pose.rear.J * (y[1] + h * d0.a), pose.front.J * (y[1] + h * d0.a)];
     let out: State = y;
     for (let pass = 0; pass < 2; pass++) {
       pendingLat = lateralStep(L, lat, { h, v0, v1, N: [d0.Nr, d0.Nf], closed: latInfo.contacts });
       ext = pendingLat.forces;
+      axles = pendingLat.wheels;
       out = rk4(y, h);
       const end = poseAt(out[0]);
       v1 = [end.rear.J * out[1], end.front.J * out[1]];
     }
     ext = held;
+    axles = heldAxles;
     return out;
   };
   const commitLateral = (): boolean => {
@@ -325,6 +343,7 @@ export function simulateRace(spec: CarSpec, track: Track, env: Environment, opts
     const st: LateralStep = pendingLat;
     lat = st.next;
     ext = st.forces;
+    axles = st.wheels;
     latWork.gravity += st.work.gravity;
     latWork.tread += st.work.tread;
     latWork.railNormal += st.work.railNormal;
@@ -355,7 +374,7 @@ export function simulateRace(spec: CarSpec, track: Track, env: Environment, opts
     return best;
   };
 
-  const first = dynamics(car, pose0, 0, denv);
+  const first = dynamics(car, pose0, 0, denv, [], axles);
   if (!first.converged || !(first.a > 0)) {
     return finish("STALLED", "Car does not start: friction holds it at the gate.", y, null, 0);
   }

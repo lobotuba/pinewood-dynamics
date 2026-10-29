@@ -1,7 +1,8 @@
 # Physics model, MVP solver (PHY-009)
 
-Status: physics core, solver `phy-009/0.4.0`. Gates P0–P7 pass against analytic solutions
-(section 7); P6 and P7, lateral dynamics and guide-rail contact, are in section 11. The solver has been compared with one published experiment
+Status: physics core, solver `phy-009/0.5.0`. Gates P0–P7 pass against analytic solutions
+(section 7). P6 and P7, lateral dynamics and guide-rail contact, are in section 11, with camber and
+the thrust faces that hold each wheel on its axle. The solver has been compared with one published experiment
 (`docs/validation.md`): it gets the overall time right, but not the size of the mass and CG
 effects. It has not been validated against the owner's track. The kit and friction values are still
 ESTIMATED (section 8).
@@ -27,11 +28,11 @@ Included:
 - wheel loads from the full rigid-body balance on the slope and transition, including centripetal
   and longitudinal-acceleration effects.
 
-Lateral motion, yaw, toe and guide-rail contact are modelled when the car has a lateral description
-and the lane a guide rail (section 11); otherwise the car is raced in the vertical plane only, and
-the result record says which (`record.lateral`).
+Lateral motion, yaw, toe, camber, guide-rail contact and thrust-face friction are modelled when the
+car has a lateral description and the lane a guide rail (section 11); otherwise the car is raced in
+the vertical plane only, and the result record says which (`record.lateral`).
 
-Not modelled: roll, camber, three-wheel running, wheels sliding along their axles, start-pin
+Not modelled: roll, three-wheel running, axial play (a wheel moving between its faces), start-pin
 motion, body–track contact, wheel slip along the direction of travel, and track or car flexibility.
 
 ## 2. Geometry and kinematics (`src/track/path.ts`, `src/physics/kinematics.ts`)
@@ -98,7 +99,7 @@ solved together:
 
 | Equation | Content |
 |---|---|
-| Wheel spin, rear and front | `(I_i/r_i)(s_i' s̈ + s_i'' ṡ²) = −r_i T_i − σ_i μ_i ρ_i \|R_i\| − C_rr,i r_i N_i` |
+| Wheel spin, rear and front | `(I_i/r_i)(s_i' s̈ + s_i'' ṡ²) = −r_i T_i − σ_i Σ_w (μ_i ρ_i \|R_w,rad\| + μ_f r_f \|A_w\|) − C_rr,i r_i N_i` |
 | Whole-car force (x, z) | `m P_cg'' terms = m g + Σ(N_i n_i + T_i t_i) + F_aero` |
 | Whole-car moment about the CG (clockwise) | `I_p θ̈_cw + Σ I_i ω̇_i = Σ[−ρ_ci × (N_i n_i + T_i t_i) − C_rr,i r_i N_i]` |
 
@@ -109,6 +110,12 @@ Where:
   Newton equation, `R_i = m_wi (C_i' s̈ + C_i'' ṡ²) − m_wi g − N_i n_i − T_i t_i`, where `m_wi` is the
   wheels' mass and `C_i` is the axle centre. The track carries the wheels' weight directly, so the
   bore load is less than `N_i`.
+- `R_w` is one wheel's share: half of `R_i`, since roll is not modelled and the two wheels carry
+  equal loads, less the external forces on that wheel (section 11), with a sideways part from the
+  lateral model. The bore carries its part across the axle, `R_w,rad`; a thrust face carries its
+  part along it, `A_w = R_w · a_w`, with `a_w` the outward axle direction. With square axles and
+  nothing sideways, `|R_w,rad| = |R_i|/2` exactly, and the solution is bit-identical to the paired
+  form.
 - `σ_i` is the sign of the wheel's spin relative to the body. At rest it is +1, because the car
   can only start forward.
 - `ρ_ci` is the vector from the CG to the contact point.
@@ -119,7 +126,8 @@ Where:
 **Losses (power).**
 
 ```
-P_axle = Σ μ_i ρ_i |R_i| |ω_i − θ̇_cw|
+P_axle = Σ μ_i ρ_i |R_w,rad| |ω_i − θ̇_cw|      (sum over wheels)
+P_thrust = Σ μ_f r_f |A_w| |ω_i − θ̇_cw|
 P_roll = Σ C_rr,i N_i r_i |ω_i|
 P_aero = ½ ρ_air C_d A |v_cg|³
 ```
@@ -128,7 +136,10 @@ P_aero = ½ ρ_air C_d A |v_cg|³
 `|R_i| = e_i · R_i` with `e_i` the unit direction of `R_i` makes the system linear for a given `e_i`.
 `e_i` is then updated from the solution until it changes by less than 1e-10. That takes 2–3
 iterations, because the friction arm `μρ/r` is about 0.01–0.03. The remaining error in `|R_i|` is
-second order in the direction error, about 1e-20 relative.
+second order in the direction error, about 1e-20 relative. Per wheel, the same holds for
+`|R_w,rad| = e_w · R_w`, and `|A_w| = sign(A_w) A_w` with the sign iterated alongside. An axial load
+whose sign reverses on every iteration is zero at the solution: the wheel sits between its faces,
+where Coulomb's law allows any friction up to the limit, and here none is needed.
 
 **Friction with no consistent solution.** If `μ ρ / r` approaches 1, sliding Coulomb friction has
 no consistent solution, a Painlevé-type paradox, and the iteration does not converge. At the gate
@@ -160,11 +171,11 @@ way carries over to the other only if friction is Coulomb (CHAR-006).
 ## 4. Energy ledger (ANA-001)
 
 ```
-released PE = KE_body (translation + pitch) + KE_wheels + E_axle + E_roll + E_aero
+released PE = KE_body (translation + pitch) + KE_wheels + E_axle + E_thrust + E_roll + E_aero
             + KE_lateral + E_tread + E_rail friction + E_rail impact + residual
 ```
 
-The four lateral terms are zero unless the lateral model runs (section 11).
+The thrust and lateral terms are zero unless the lateral model runs (section 11).
 
 Loss energies are integrated as extra state variables using the same scheme as the motion. The
 residual measures the integration error; it is reported in the result and in every trace sample.
@@ -236,8 +247,15 @@ Every input is a `Sourced<T>` value carrying its provenance. The result record h
 | P6 | Car set down at heading ψ | Drifts at `v tan ψ`, heading constant | 1e-15 m |
 | P6 | Front toe δ, no rail | Model ODE `ψ' WB cos ψ = v(tan(ψ+δ) − tan ψ)`; rigid circle `sin ψ = s tan δ/WB` at ψ ≤ 0.03; no tread slip | 2e-3, 1e-3 |
 | P7 | Square impact, frictionless | `ẏ⁺ = −e ẏ⁻`; loss `½ m (1−e²) ẏ²` | 1e-12 |
-| P7 | Single yawed impact, frictionless | Gap rate `× −e`; loss with `1/m_eff = 1/m + arm²/I_z` | 1e-9, 1e-6 |
-| P7 | Steady rail riding with front toe | Rear sticks, front slides, rail force from the two-equation balance | 1e-6 |
+| P7 | Single yawed impact, frictionless | Gap rate `× −e`; loss with `1/m_eff = g_Y²/m + g_ψ²/I_z` from the gap's Jacobian | 1e-9, 1e-6 |
+| P7 | Steady rail riding with front toe | Rear sticks, front slides, rail force from the two-equation balance with the rim-on-edge normal | 1e-6 |
+| P7 camber | Gap, tops out and tops in (`test/p7-camber-thrust.test.ts`) | Lowest rim at `r sin γ` inside the face centre; chord at the rail's top, `ζ_h \|sin γ\|` outside, gap × `cos γ` | 1e-15 m |
+| P7 camber | Square, pressed on the rail | Tops out: no rail friction or axle torque. Tops in: lift `P \|sin γ\|`, drag `μ_c P` | exact, 1e-14 |
+| P7 camber | Tops out, yawed 2–4 mrad | Contact `φ = atan(\|sin a\|/(sin γ cos a))` round the rim; friction power `μ_c P · 2v sin(φ/2)`; square face `√(2h/r)`, over 15× more | 5e-3 |
+| P7 thrust | Cambered car on an incline, faces only | `a = g (m sin α − k (m − m_w) cos α)/(m + ΣI/r²)`, `k = μ_f r_f \|sin γ\|/r`: body face tops out, head tops in | 1e-12 |
+| P7 thrust | Rail riding, and tops-out camber | Thrust loss positive; tops out cuts rail friction loss below 1/5; residual / released | < 1e-6 |
+| P7 thrust | Mass scaling × 1.7 with camber and faces | Time unchanged | 1e-9 s |
+| P7 thrust | Step size 1e-3 to 2.5e-4 s, camber and faces, `e = 0.5`, against 6.25e-5 s | Every step within the tolerance | 0.1 ms |
 | P6/P7 | Race with strikes, rail riding and scrub | Each lateral loss positive; residual / released | < 1e-6 |
 | P6/P7 | Mass scaling × 1.7 with the lateral model (yaw inertia scaled too) | Time unchanged | 1e-9 s |
 | P6/P7 | Step size 1e-3 to 1.25e-4 s against 3.125e-5 s | First order: error halves and quarters; < 0.5 ms at 5e-4 s | – |
@@ -298,8 +316,10 @@ the lane direction, positive toward the car's left. The kinetic energy `½ m Ẏ
 constant mass matrix, so the discrete energy balance below is exact.
 
 **Inputs** (`LateralCarSpec`, `LaneLateral`): yaw inertia, the CG's lateral offset, inside wheel
-spacing, toe of each axle, tread friction `μ_t`, rail friction `μ_c`, rail restitution `e`, the
-start offset and heading, rail width and height, and the lane's cross slope. BestTrack's rail is
+spacing, toe and camber of each axle, tread width, tread friction `μ_t`, rail friction `μ_c`, rail
+restitution `e`, the start offset and heading, rail width and height, and the lane's cross slope.
+Each axle's thrust faces (`AxleSpec.thrustFaces`) give a coefficient and an effective friction
+radius for the axle head and the body. BestTrack's rail is
 taken as 1 5/8 in by 1/4 in, the figure local rulebooks give for a standard track. That is
 ESTIMATED, because BestTrack's own documents leave rail and lane dimensions open.
 
@@ -312,25 +332,71 @@ u_i = −v_i sin(ψ+δ_i) + cos(ψ+δ_i) (Ẏ + ψ̇ ∂y_i/∂ψ)
 with `v_i` the axle's path speed from the planar solver. Coulomb friction is perpendicular to the
 wheel plane: `|F_i| ≤ μ_t N_i`, with zero slip while sticking and opposing the slip when sliding.
 Sticking at both axles is rolling without sideways slip, so a square car drifts at `v tan ψ` and a
-toed car steers like a bicycle. The force's along-lane part, `−F_i sin(ψ+δ_i)`, goes to the planar
-solver as a body force. It is parallel to the axle, so it exerts no torque about it.
+toed car steers like a bicycle. The force acts on both wheels at their tread contacts. Its along-lane
+part, `−F_i sin(ψ+δ_i)`, enters the planar solver. It acts on the line each wheel rolls about, so it
+exerts no torque on the spin. It loads the wheels' axles, mostly along them (thrust faces, below).
+
+A rigid cambered wheel on a straight axle rolls without camber thrust: it turns about its axle,
+and its tread contact sits on that axle's line through the lane, so the contact does not slide
+sideways.
 
 Coulomb sliding is the right limit here. A Hertz estimate for a hard-plastic tread under 0.45 N gives
 a contact strip about 17 µm wide, and Kalker's linear creep theory then saturates at a creepage near
 3e-4. Any misalignment above about 0.3 mrad therefore slides the tread.
 
-**Rail.** A wheel's inner face meets the rail's top edge at the end of the face's chord at height
-`h`: offset `ξ = ±√(r² − (r−h)²)` along the wheel plane, on the side the yaw turns toward the rail.
-The gap is `side · y_P − w/2`.
+**Wheel geometry.** A wheel of radius `r` and tread width `b` has camber `γ` (positive tops out,
+mirrored left and right). It rests on the lower edge of its tread, so its centre is
+`r cos γ + (b/2)|sin γ|` above the lane. Its inner face is the disc inside the tread's inner rim, in
+the wheel plane: forward `e1` along the heading `a = ψ + δ`, up `e2` tilted by `γ`. Inside wheel
+spacing is measured between the faces' centres.
+
+**Rail.** Across the lane, `side · y` is linear over the face, `p ξ + q ζ` in disc coordinates, with
+`p = side · sin a` and `q = sin γ cos a`. The face meets the rail where that is least, over the part
+of the face below the rail's top `h`:
+
+- **Rim on the rail's side face**, at the rim point opposite the gradient, `(ξ, ζ) = −r (p, q)/√(p² + q²)`,
+  when that point is below `h`. This happens with the tops out. The normal is sideways.
+- **Rim on the rail's top edge** otherwise: square and tops-in faces. The contact is at the end of
+  the chord at height `h` nearer the rail. The normal is common to the rim and the edge,
+  perpendicular to the lane and to the rim's tangent there. With camber it tilts by about `γ`, so
+  the rail presses a tops-in wheel up. A face exactly parallel to the edge (square and unyawed)
+  meets it along the chord, with the face's own normal.
+
+The gap is measured along the normal. Then:
 
 - **Normal impulse.** Newton restitution: `ġ⁺ = −e ġ⁻` for a contact closing from open. A contact
   that carried force in the previous step is in sustained contact and uses `e = 0`.
-- **Friction.** That point of the face moves at `v (h, −ξ)/r` in the wheel plane, which is
-  `v √(2h/r)`, about 0.9 v, with no component across the rail. Friction `μ_c P` opposes that motion.
-  It acts on the wheel in the planar model, so it brakes the wheel's spin, adds to its bore load
-  and has a vertical part.
+- **Friction.** The wheel rolls about the line through its tread contact along its axle. A face
+  point moves at `ω((ζ + r) e1 − ξ e2)` about it, and friction `μ_c P` opposes the part of that
+  motion along the contact. On the top edge the point moves at `v √(2h/r)`, about 0.9 v. With the
+  tops out, the face's lowest rim lies on the rolling line. A square car touches there and does not
+  slide at all. Yawed by `a`, the contact moves `φ = atan(|sin a|/(sin γ cos a))` round the rim and
+  slides at `2 v sin(φ/2)`. At 2 mrad of yaw and 3° of camber that is about v/25, against 0.9 v
+  square.
+- **On the planar motion.** The rail force acts on the wheel: its along-lane and vertical parts, its
+  torque about the axle, and its share of that wheel's axle load. Its sideways part loads only the
+  axle.
 - **Yaw.** The friction's along-lane part acts at the rail face, off the CG's line, so it yaws the
-  car toward that side: `M = −(y_P − Y) F_u`.
+  car toward that side: `M = −(y_P − Y) F_u`. The sideways parts act at the contact's lever.
+
+**Thrust faces.** Each wheel's axle force splits into a radial part, carried by the bore, and an
+axial part `A_w`, carried by a face: the body (or a washer) when the axle pushes the wheel outward,
+and the axle head when inward. Its friction, `μ_f r_f |A_w|`, opposes the wheel's spin relative to
+the body (section 3). Axial loads come from:
+
+- the tread force, which pushes one wheel of an axle onto its head and the other onto the body;
+- the rail's push, which presses that wheel onto its head;
+- camber: `|sin γ|` of the wheel's share of the axle load. Tops in slides the wheels out onto their
+  heads; tops out slides them in onto the body;
+- the wheel's own sideways inertia and the cross slope.
+
+The faces hold the wheel exactly: axial play, where a wheel crosses between them, is not modelled.
+
+**Power of a wheel force.** A wheel turns with the body's pitch plus its own spin relative to the
+body, about the axle. A force on it works as `F · v_axle + (ω − θ̇_cw) τ_axle + θ̇_cw τ_plane`, with
+`τ_axle` its torque about the axle and `τ_plane` its moment about the axle centre in the plane. This
+is the work the planar equations do with that torque in the spin row and that moment in the car's
+moment row, so the ledger closes.
 
 **Time stepping.** The lateral part uses Moreau's scheme. Impulses are found at velocity level, and
 positions advance by the mean of the start and end velocities. In each step:
@@ -361,8 +427,9 @@ the impulse times the step's mean velocity, which is exact with the constant mas
 work is integrated in RK4 with the other states.
 
 - `E_tread`: scrub, including the along-lane component.
-- `E_rail friction`: the planar work on the wheel plus the yaw moment's work.
+- `E_rail friction`: the planar work on the wheel plus the lateral and yaw work.
 - `E_rail impact`: from the normal impulses.
+- `E_thrust`: the thrust faces' friction, integrated with the planar motion.
 
 **Wheel hops.** Where a face strikes the rail's top edge, the front-lower part of the wheel is moving
 down at about 0.8 v. The friction impulse therefore lifts that wheel, often by more than the axle
@@ -387,12 +454,34 @@ scheme merges them. Race times therefore converge at first order but not monoton
 | 2.5e-4 s | 0.06 ms |
 | 1.25e-4 s | 0.03 ms |
 
-A run without rail contact keeps the planar model's accuracy.
+A run without rail contact keeps the planar model's accuracy. With camber and thrust faces, the
+toed demo car converges the same way: 0.09 ms at 1e-3 s and under 0.02 ms below that, tops out.
+
+**Lively restitution does not converge usefully.** At `e = 0.9` a wheel pressed on the rail by its
+tread bounces hundreds of times before it settles, each flight 0.9 of the last, and the step cuts
+the sequence off at a different place each time. The hop count grows with every halving: 444 at
+1 ms to 7782 at 0.03 ms on the demo car. Times move by 0.5–12 ms between steps. On the Duke car with
+camber the mass effect swings from −41 to −164 ms. Results at `e ≥ 0.8` are not to be relied on, and
+the screens no longer rank them. Tested restitutions up to 0.5 converge.
+
+**Rounding under strikes.** In a rail strike's short step the forces are some thousand times their
+usual size. The axle-friction iteration then reaches rounding with its direction changing by about
+1e-10 per step, and stops there (section 3) rather than reporting no solution.
+
+**Approximations for camber.**
+
+- The planar model keeps a cambered axle at height `r`, not `r cos γ + (b/2)|sin γ|`. The
+  difference is about 0.2 mm at 3°. That is a uniform lift on the straights, and it changes the
+  curve's offset radius by 2e-4 relative.
+- Friction's direction comes from the rolling motion alone. The face's sideways velocity has a part
+  along a tilted normal's tangent plane, `|n_z| ẏ`, of order 1e-3 of the rolling slide.
+- Faces are flat discs. Real wheel faces have a hub boss and a chamfered tread edge, which can move
+  the contact.
 
 **Not modelled yet:**
 
-- roll and camber, so a cambered wheel's lower contact on the rail is not available;
-- wheels sliding along their axles;
+- roll;
+- axial play: wheels sliding along their axles between head and body;
 - the start pin's lateral effect;
 - aerodynamic side force;
 - contact between the body and the rail.
