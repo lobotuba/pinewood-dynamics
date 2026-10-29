@@ -192,6 +192,7 @@ export function inputProvenance(spec: CarSpec, env: Environment): Record<string,
     out["lateral.toe.rear"] = l.toe.rear.provenance;
     out["lateral.toe.front"] = l.toe.front.provenance;
     out["lateral.treadFriction"] = l.treadFriction.provenance;
+    if (l.treadCreep) out["lateral.treadCreep"] = l.treadCreep.provenance;
     out["lateral.railFriction"] = l.railFriction.provenance;
     out["lateral.railRestitution"] = l.railRestitution.provenance;
     if (l.camber) {

@@ -24,7 +24,7 @@ import {
 import { type Clearance, ClearanceMonitor } from "./clearance.js";
 import { playArrival, playKinetic, playStep, restingPlayAxles, startSlides } from "./play.js";
 
-export const SOLVER_VERSION = "phy-009/0.7.0";
+export const SOLVER_VERSION = "phy-009/0.8.0";
 
 export interface RaceOptions {
   /** Fixed RK4 step, s. Convergence is demonstrated by step halving (PHY-005). */
@@ -176,6 +176,7 @@ export function simulateRace(spec: CarSpec, track: Track, env: Environment, opts
           radius: [car.rear.r, car.front.r],
           wheelMass: [car.rear.wheelMass, car.front.wheelMass],
           muT: spec.lateral.treadFriction.value,
+          ...(spec.lateral.treadCreep ? { creep: spec.lateral.treadCreep.value } : {}),
           muC: spec.lateral.railFriction.value,
           e: spec.lateral.railRestitution.value,
           gLat: denv.g * Math.sin(track.lateral.crossSlope.value),

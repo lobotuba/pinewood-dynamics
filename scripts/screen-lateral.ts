@@ -40,6 +40,8 @@ interface Alignment {
   readonly camber?: number | readonly [number, number];
   /** Friction at the thrust faces (axle heads and body). Omitted: frictionless, as in section 7. */
   readonly faces?: boolean;
+  /** Tread saturation creepage; null for rigid Coulomb treads. Omitted: 3e-4 (Hertz and Kalker estimate). */
+  readonly creep?: number | null;
   /** Axial play of every wheel, m, the hub's restitution on its faces, and where the wheels start (fraction of the play out). */
   readonly play?: number;
   readonly playE?: number;
@@ -57,6 +59,9 @@ function lateral(a: Alignment): LateralCarSpec {
     insideWheelSpacing: est(inches(1.81), "Kit body width plus typical wheel-body gaps"),
     toe: { rear: est(a.toeR ?? 0, "Swept"), front: est(a.toeF ?? 0, "Swept") },
     treadFriction: est(a.muT ?? 0.35, "Hard plastic on the lane: guess"),
+    ...(a.creep === null
+      ? {}
+      : { treadCreep: est(a.creep ?? 3e-4, "Hertz strip about 17 um wide under 0.45 N; Kalker's linear theory saturates near 3e-4") }),
     railFriction: est(a.muC ?? 0.3, "Plastic wheel face on the rail, no graphite (their races): guess"),
     railRestitution: est(a.e ?? 0.5, "Plastic on the rail: guess"),
     start: { offset: est(0, "Centred at the gate"), heading: est(a.heading ?? 0, "Swept") },
@@ -180,6 +185,11 @@ const played: Alignment[] = [
   { label: "Front toe 4 mrad, play 0.8 mm, tops in 3 deg", toeF: 0.004, camber: -deg3, faces: true, play: 0.8 * mm },
   { label: "Tops in 3 deg, play 0.8 mm", camber: -deg3, faces: true, play: 0.8 * mm },
   { label: "Crooked 10 mrad, play 0.8 mm", heading: 0.01, faces: true, play: 0.8 * mm },
+  // How much the result depends on tread creep (docs/physics-model.md, section 11).
+  { label: "Front toe 4 mrad, play 0.8 mm, wheels in, rigid treads", toeF: 0.004, faces: true, play: 0.8 * mm, playStart: 0, creep: null },
+  { label: "Front toe 4 mrad, faces, rigid treads", toeF: 0.004, faces: true, creep: null },
+  { label: "Front toe 4 mrad, faces, creep 1e-4", toeF: 0.004, faces: true, creep: 1e-4 },
+  { label: "Front toe 4 mrad, faces, creep 1e-3", toeF: 0.004, faces: true, creep: 1e-3 },
 ];
 if (tables) for (const c of played) evaluate(c);
 

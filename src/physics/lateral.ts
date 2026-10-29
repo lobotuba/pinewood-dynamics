@@ -10,7 +10,10 @@
 //
 // Forces:
 //   tread  Coulomb friction at each axle's tread contacts, perpendicular to the wheel plane
-//          (heading psi + toe delta_i). Stick means rolling without sideways slip.
+//          (heading psi + toe delta_i). Stick means rolling without sideways slip. With creep, a
+//          rolling tread below the limit creeps sideways at a velocity proportional to its force
+//          (Kalker's linear creep): F = -mu_t N u / (nu_s v), reaching the limit at creepage nu_s.
+//          In the step that is a compliance nu_s v / (mu_t N h) on the sticking tread's row.
 //   rail   a wheel's inner face meets the rail: normal impulse with Newton restitution e, and
 //          Coulomb friction mu_c opposing the face's slide over it. Square wheels touch the rail's
 //          top edge at height h, where the face moves at v sqrt(2h/r); friction there brakes the
@@ -57,6 +60,12 @@ export interface LateralCarSpec {
   readonly toe: { readonly rear: Sourced<number>; readonly front: Sourced<number> };
   /** Coulomb coefficient of the treads on the lane, sideways. */
   readonly treadFriction: Sourced<number>;
+  /**
+   * Creepage at which a rolling tread's sideways creep force reaches the Coulomb limit (Kalker's
+   * linear theory, saturating): below it the force is mu_t N (creepage / this), above it the tread
+   * slides. Omitted: rigid Coulomb treads, which stick with no creep at all.
+   */
+  readonly treadCreep?: Sourced<number>;
   /** Coulomb coefficient of a wheel face on the guide rail. */
   readonly railFriction: Sourced<number>;
   /** Newton restitution of a wheel face striking the rail. */
@@ -100,6 +109,8 @@ export interface LateralModel {
   /** Both wheels of each axle, kg (already in m). */
   readonly wheelMass: readonly [number, number];
   readonly muT: number;
+  /** Saturation creepage of the treads; omitted for rigid Coulomb treads. */
+  readonly creep?: number;
   readonly muC: number;
   readonly e: number;
   /** g sin(cross slope), m/s^2. */
@@ -466,7 +477,10 @@ export function lateralStep(L: LateralModel, s: LateralState, inp: LateralInput)
     const a = pm + L.toe[i];
     const pt = bodyPoint(L, Ym, pm, L.wheelbase * i, 0);
     const c = Math.cos(a);
-    return { sin: Math.sin(a), W: [c, c * pt.dyDpsi] as V2, limit: L.muT * Math.max(inp.N[i], 0) * h };
+    const limit = L.muT * Math.max(inp.N[i], 0) * h;
+    // Creep: slip per unit impulse below the limit, and the slip at which the tread slides.
+    const sat = L.creep ? L.creep * Math.abs(inp.v1[i]!) : 0;
+    return { sin: Math.sin(a), W: [c, c * pt.dyDpsi] as V2, limit, compliance: sat > 0 && limit > 0 ? sat / limit : 0, sat };
   });
   const all = candidates(L, Ym, pm);
   const near = all.filter((c) => c.gap <= 0);
@@ -494,13 +508,13 @@ export function lateralStep(L: LateralModel, s: LateralState, inp: LateralInput)
       for (const i of [0, 1]) Vb = [Vb[0] + Minv[0] * tread[i]!.W[0] * lamFixed[i]!, Vb[1] + Minv[1] * tread[i]!.W[1] * lamFixed[i]!];
       // Unknown columns: sticking treads, then closed rail contacts.
       const cols: V2[] = [];
-      const rows: { a: V2; rhs: number }[] = [];
+      const rows: { a: V2; rhs: number; diag?: number }[] = [];
       mode.forEach((m, i) => {
         // An unloaded tread carries no friction: it is free, not stuck.
         if (m !== 0 || tread[i]!.limit === 0) return;
         cols.push(tread[i]!.W);
-        // u+ = -v1 sin + W.V+ = 0
-        rows.push({ a: tread[i]!.W, rhs: inp.v1[i]! * tread[i]!.sin });
+        // u+ = -v1 sin + W.V+ = 0, or with creep, -compliance times the tread's impulse.
+        rows.push({ a: tread[i]!.W, rhs: inp.v1[i]! * tread[i]!.sin, diag: tread[i]!.compliance });
       });
       for (const c of set) {
         cols.push(c.W);
@@ -510,7 +524,7 @@ export function lateralStep(L: LateralModel, s: LateralState, inp: LateralInput)
       let x: number[] = [];
       if (n > 0) {
         // rows . (Vb + Minv * sum cols x) = rhs
-        const A = rows.map((r) => cols.map((col) => r.a[0] * Minv[0] * col[0] + r.a[1] * Minv[1] * col[1]));
+        const A = rows.map((r, j) => cols.map((col, q) => r.a[0] * Minv[0] * col[0] + r.a[1] * Minv[1] * col[1] + (q === j && r.diag ? r.diag : 0)));
         const b = rows.map((r) => r.rhs - dot2(r.a, Vb));
         const sol = solveSmall(A, b);
         if (!sol) continue;
@@ -533,7 +547,7 @@ export function lateralStep(L: LateralModel, s: LateralState, inp: LateralInput)
         if (m === 0) {
           lam[i] = x[k++]!;
           score = Math.max(score, Math.abs(lam[i]) - lim - tol * (1 + lim));
-        } else score = Math.max(score, -m * u - scale);
+        } else score = Math.max(score, -m * u - scale + tread[i]!.sat);
       });
       const P = set.map(() => x[k++]!);
       P.forEach((p) => {

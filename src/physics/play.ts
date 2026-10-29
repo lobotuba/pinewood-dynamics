@@ -178,6 +178,9 @@ interface Box {
   readonly target: number;
   readonly limit: number;
   readonly scale: number;
+  /** Creep (treads only): slip per unit impulse below the limit, and the slip at which it slides. */
+  readonly compliance: number;
+  readonly sat: number;
   /** Tread elements: the axle, and the wheel (-1 for both wheels of an axle without play). */
   readonly axle: 0 | 1 | -1;
   readonly wheel: number;
@@ -236,7 +239,7 @@ export function playStep(L: LateralModel, s: LateralState, inp: LateralInput): L
     const w = loads[k]!.slip;
     const v = dXi0[k]!;
     if (w === 0 && v === 0) {
-      if (loads[k]!.friction > 0) boxes.push({ key: `h${k}`, row: e(j), target: 0, limit: loads[k]!.friction * h, scale: 1e-12, axle: -1, wheel: k });
+      if (loads[k]!.friction > 0) boxes.push({ key: `h${k}`, row: e(j), target: 0, limit: loads[k]!.friction * h, scale: 1e-12, compliance: 0, sat: 0, axle: -1, wheel: k });
     } else {
       const root = Math.hypot(w, v);
       C[j] = loads[k]!.friction / root;
@@ -265,6 +268,8 @@ export function playStep(L: LateralModel, s: LateralState, inp: LateralInput): L
     const limit = L.muT * Math.max(inp.N[i], 0) * h;
     const target = inp.v1[i]! * treadSin[i]!;
     const scale = 1e-12 * (1 + Math.abs(inp.v1[i]!));
+    const sat = L.creep ? L.creep * Math.abs(inp.v1[i]!) : 0;
+    const creep = (lim: number) => ({ compliance: sat > 0 && lim > 0 ? sat / lim : 0, sat });
     if (play.travel[i] > 0)
       for (const k of [2 * i, 2 * i + 1]) {
         // The slide moves the tread across its own rolling direction at side cos(gamma). Each tread's
@@ -272,9 +277,9 @@ export function playStep(L: LateralModel, s: LateralState, inp: LateralInput): L
         const row = [...base];
         row[idx[k]!] = sideOf(k) * Math.cos(L.camber[i]);
         const own = L.muT * Math.max(inp.N[i] / 2 + (inp.roll?.[k] ?? 0), 0) * h;
-        boxes.push({ key: `t${k}`, row, target, limit: own, scale, axle: i, wheel: k });
+        boxes.push({ key: `t${k}`, row, target, limit: own, scale, ...creep(own), axle: i, wheel: k });
       }
-    else boxes.push({ key: `a${i}`, row: base, target, limit, scale, axle: i, wheel: -1 });
+    else boxes.push({ key: `a${i}`, row: base, target, limit, scale, ...creep(limit), axle: i, wheel: -1 });
   }
 
   const unis: Uni[] = [];
@@ -314,12 +319,14 @@ export function playStep(L: LateralModel, s: LateralState, inp: LateralInput): L
     for (const i of [0, 1] as const) {
       if (!(play.travel[i] > 0)) continue;
       const locked = (k: number) => unis.some((u) => u.wheel === k && u.face && closed.has(u.key) && u.e === 0);
-      if (boxMode.get(`t${2 * i}`) === 0 && boxMode.get(`t${2 * i + 1}`) === 0 && locked(2 * i) && locked(2 * i + 1)) merged.add(i);
+      // With creep the two treads' compliances settle the split; rigid treads need the equal-split rule.
+      const rigid = !boxes.some((b) => b.axle === i && b.compliance > 0);
+      if (rigid && boxMode.get(`t${2 * i}`) === 0 && boxMode.get(`t${2 * i + 1}`) === 0 && locked(2 * i) && locked(2 * i + 1)) merged.add(i);
     }
     let Vb = [...Vfree];
     const imp = new Map<string, number>();
     const cols: number[][] = [];
-    const rows: { a: number[]; rhs: number }[] = [];
+    const rows: { a: number[]; rhs: number; diag?: number }[] = [];
     const owners: string[][] = [];
     for (const b of boxes) {
       const m = boxMode.get(b.key)!;
@@ -338,7 +345,7 @@ export function playStep(L: LateralModel, s: LateralState, inp: LateralInput): L
         continue;
       }
       cols.push(b.row);
-      rows.push({ a: b.row, rhs: b.target });
+      rows.push({ a: b.row, rhs: b.target, diag: b.compliance });
       owners.push([b.key]);
     }
     for (const u of unis) {
@@ -350,7 +357,7 @@ export function playStep(L: LateralModel, s: LateralState, inp: LateralInput): L
     let x: number[] = [];
     if (cols.length > 0) {
       const Kc = cols.map((c) => matVec(K, c));
-      const A = rows.map((r) => Kc.map((kc) => dot(r.a, kc)));
+      const A = rows.map((r, j) => Kc.map((kc, q) => dot(r.a, kc) + (q === j && r.diag ? r.diag : 0)));
       const sol = solveSmall(A, rows.map((r) => r.rhs - dot(r.a, Vb)));
       if (!sol) return null;
       x = sol;
@@ -370,7 +377,7 @@ export function playStep(L: LateralModel, s: LateralState, inp: LateralInput): L
         if (viol > 0) flips.box.set(b.key, -Math.sign(lam));
         score = Math.max(score, viol);
       } else {
-        const viol = -m * u - b.scale;
+        const viol = -m * u - b.scale + b.sat;
         if (viol > 0) flips.box.set(b.key, 0);
         score = Math.max(score, viol);
       }

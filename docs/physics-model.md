@@ -1,6 +1,6 @@
 # Physics model, MVP solver (PHY-009)
 
-Status: physics core, solver `phy-009/0.7.0`. Gates P0–P7 pass against analytic solutions
+Status: physics core, solver `phy-009/0.8.0`. Gates P0–P7 pass against analytic solutions
 (section 7). P6 and P7, lateral dynamics and guide-rail contact, are in section 11, with camber and
 the thrust faces that hold each wheel on its axle. Axial play, wheels sliding along their axles
 between those faces, is in section 12; roll and the underside's clearance over the lane and rail in
@@ -277,6 +277,9 @@ Every input is a `Sourced<T>` value carrying its provenance. The result record h
 | P7 play | Play 1e-4, 1e-5, 1e-6 m | Approaches the fixed-wheel time, error falling | < 0.15 ms at 1 µm |
 | P7 play | Mass scaling × 1.7, inelastic hubs | Time unchanged | 1e-6 s |
 | P7 play | Step size 4e-4, 2e-4 s against 5e-5 s; bouncing hubs | First order; < 1 ms at 5e-4 s either way | – |
+| Creep | Steady drift on a cross slope (`test/p6-creep.test.ts`) | `Ẏ = −ν_s v g_lat/(μ_t g)`, no yaw | 1e-12 m/s |
+| Creep | At the gate (v = 0); beyond the limit | Rigid hold; once past the creep range, acceleration `g_lat − μ_t g` | 1e-15 m/s, 1e-12 |
+| Creep | Mass scaling × 1.7 in a race with strikes and rail riding | Time unchanged; residual / released | 1e-9 s, 1e-9 |
 | Roll | CG off the centreline (`test/p7-roll-clearance.test.ts`) | Each wheel shifted `y_c (N_r + N_f)/(4b)` | 1e-14 N |
 | Roll | Cross slope, treads holding | Uphill wheels unloaded by `z_cg m g_lat/(4b)` | 1e-14 N |
 | Roll | Tipping on a cross slope | Finishes at 0.98 of the slope where the lighter axle's uphill wheel reaches zero load; at 1.02 ends with that wheel lifting in roll | – |
@@ -364,9 +367,32 @@ A rigid cambered wheel on a straight axle rolls without camber thrust: it turns 
 and its tread contact sits on that axle's line through the lane, so the contact does not slide
 sideways.
 
-Coulomb sliding is the right limit here. A Hertz estimate for a hard-plastic tread under 0.45 N gives
-a contact strip about 17 µm wide, and Kalker's linear creep theory then saturates at a creepage near
-3e-4. Any misalignment above about 0.3 mrad therefore slides the tread.
+**Creep.** A Hertz estimate for a hard-plastic tread under 0.45 N gives a contact strip about 17 µm
+wide. Kalker's linear creep theory then saturates at a creepage near `ν_s = 3e-4`, so any
+misalignment above about 0.3 mrad slides the tread, and Coulomb sliding is the right law there. Below
+the limit a rolling tread does not stick rigidly: it creeps sideways at a speed proportional to its
+force,
+
+```
+F = −μ_t N u / (ν_s v)     while |F| < μ_t N;   sliding beyond, at |u| ≥ ν_s v
+```
+
+with `v` the tread's rolling speed. That matters wherever a tread holds a sustained side load below
+the limit. A rigid stick holds it forever; a creeping tread relaxes it, at about a millimetre per
+second at race speed. In the step the law is a compliance `ν_s v/(μ_t N h)` on a sticking tread's row
+of the contact system, and a sliding tread must slip by at least `ν_s v`. At the gate (`v = 0`) the
+compliance vanishes and the tread holds rigidly. `LateralCarSpec.treadCreep` gives `ν_s`, ESTIMATED;
+omitted, the treads are rigid Coulomb, as before solver 0.8.0. The creep force is proportional to
+load, so mass scaling still holds.
+
+The bilinear law is the simplest saturating creep curve (Johnson and Vermeulen's is smooth). Its
+one parameter is the saturation creepage, which the Hertz strip width sets.
+
+What creep changed: with axial play, a wheel could end a yaw a fraction of a millimetre short of its
+axle head and be pressed against the rail. The rigid tread then held it there, wedged between rail and
+lane, rubbing the rail for the rest of the run. With the wheels started against the body, that cost
+the Duke car 0.1 s. With creep the wheel creeps out to its head, and the double contact lasts about a quarter of a second.
+The spread over start positions falls from 110 ms to 12 ms.
 
 **Wheel geometry.** A wheel of radius `r` and tread width `b` has camber `γ` (positive tops out,
 mirrored left and right). It rests on the lower edge of its tread, so its centre is
@@ -563,9 +589,10 @@ matrix stays constant, so the discrete energy balance stays exact.
 - **Gravity** across the lane on the wheel.
 
 **Two wheels as one.** When both wheels of an axle rest on faces in sustained contact with both
-treads sticking, they move with the car as one. Their tread forces then cannot be told apart: this
-is the rigid model's static indeterminacy, and the system is singular. They are taken equal, as on
-an axle without play, which is the limit of equal tread compliances.
+treads sticking, they move with the car as one. With rigid treads their forces then cannot be told
+apart: this is the rigid model's static indeterminacy, and the system is singular. They are taken
+equal, as on an axle without play, which is the limit of equal tread compliances. With tread creep
+(section 11) each tread has its own compliance and the split follows from it.
 
 **Search.** Each step starts from the previous step's stick/slip and open/closed states and corrects
 every violated law at once. If that cycles, it enumerates every combination, as section 11 does. A
