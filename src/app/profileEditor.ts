@@ -27,7 +27,7 @@ import {
 import { featureShape, wheelCentres } from "../geometry/solid.js";
 import { TYPICAL_KIT_ESTIMATE as K } from "../kit/kit.js";
 import { type CarEvaluation, shapeHalfSize } from "../mass/carModel.js";
-import { CCCS_KIT_CAR_2026 } from "../rules/cccs.js";
+import { limitOf, rulesOf } from "../rules/cccs.js";
 import type { Store } from "./store.js";
 
 const NS = "http://www.w3.org/2000/svg";
@@ -173,9 +173,12 @@ export class ProfileEditor {
     const r = K.wheelRadius.value;
     if (this.which === "side") {
       el("line", { x1: vb.x, y1: r * MM, x2: vb.x + vb.width, y2: r * MM, class: "contact" }, svg);
-      const minClear = CCCS_KIT_CAR_2026.limits.find((l) => l.id === "RUL-004")!.si;
-      el("line", { x1: vb.x, y1: -(minClear - r) * MM, x2: vb.x + vb.width, y2: -(minClear - r) * MM, class: "limit" }, svg);
-      el("text", { x: vb.x + 2, y: -(minClear - r) * MM - 1.2, class: "label limit-label" }, svg).textContent = `min clearance ${formatLength(minClear, units)}`;
+      // The design's own rules: a limit the event does not set is not drawn.
+      const minClear = limitOf(rulesOf(d), "RUL-004")?.si;
+      if (minClear !== undefined) {
+        el("line", { x1: vb.x, y1: -(minClear - r) * MM, x2: vb.x + vb.width, y2: -(minClear - r) * MM, class: "limit" }, svg);
+        el("text", { x: vb.x + 2, y: -(minClear - r) * MM - 1.2, class: "label limit-label" }, svg).textContent = `min clearance ${formatLength(minClear, units)}`;
+      }
       for (const x of [0, K.frontAxleFromRear.value - K.rearAxleFromRear.value]) {
         el("circle", { cx: x * MM, cy: 0, r: r * MM, class: "wheel" }, svg);
         el("circle", { cx: x * MM, cy: 0, r: K.axleRadius.value * MM, class: "axle" }, svg);
@@ -183,9 +186,12 @@ export class ProfileEditor {
     } else {
       const ww = K.wheelWidth.value;
       for (const c of wheelCentres()) el("rect", { x: (c[0] - r) * MM, y: -(c[1] + ww / 2) * MM, width: 2 * r * MM, height: ww * MM, class: "wheel" }, svg);
-      const halfW = CCCS_KIT_CAR_2026.limits.find((l) => l.id === "RUL-002")!.si / 2;
-      for (const y of [halfW, -halfW]) el("line", { x1: vb.x, y1: -y * MM, x2: vb.x + vb.width, y2: -y * MM, class: "limit" }, svg);
-      el("text", { x: vb.x + 2, y: -halfW * MM - 1.2, class: "label limit-label" }, svg).textContent = "max width";
+      const width = limitOf(rulesOf(d), "RUL-002")?.si;
+      if (width !== undefined) {
+        const halfW = width / 2;
+        for (const y of [halfW, -halfW]) el("line", { x1: vb.x, y1: -y * MM, x2: vb.x + vb.width, y2: -y * MM, class: "limit" }, svg);
+        el("text", { x: vb.x + 2, y: -halfW * MM - 1.2, class: "label limit-label" }, svg).textContent = "max width";
+      }
     }
 
     // The editable outline: fill, then per-edge hit paths, edge-bending handles and vertices.

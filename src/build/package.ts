@@ -15,7 +15,7 @@ import type { BodySolid } from "../geometry/solid.js";
 import { TYPICAL_KIT_ESTIMATE } from "../kit/kit.js";
 import type { CarEvaluation } from "../mass/carModel.js";
 import { MATERIALS } from "../mass/materials.js";
-import { CCCS_KIT_CAR_2026, type Inspection } from "../rules/cccs.js";
+import { type EventRules, type Inspection, type Permission, limitOf } from "../rules/cccs.js";
 
 export interface ExportGate {
   /** True only for a certified export (BLD-004). */
@@ -61,7 +61,7 @@ const f2 = (x: number): string => x.toFixed(2);
  * page), the scale-check bars measure 100 mm and 4 in. The print-scale tolerance is a GEO-007 field
  * still to be characterized, so none is claimed.
  */
-export function templatesSvg(design: CarDesign, ev: CarEvaluation, gate: ExportGate, kit = TYPICAL_KIT_ESTIMATE): string {
+export function templatesSvg(design: CarDesign, ev: CarEvaluation, gate: ExportGate, ruleset: string, kit = TYPICAL_KIT_ESTIMATE): string {
   const B = blockBox(kit);
   const L = toMm(B.max[0] - B.min[0]);
   const H = toMm(B.max[2] - B.min[2]);
@@ -124,7 +124,7 @@ export function templatesSvg(design: CarDesign, ev: CarEvaluation, gate: ExportG
 
   const head = [
     `<text x="${MARGIN}" y="9" class="t">${esc(design.name)}: cutting templates, 1:1</text>`,
-    `<text x="${MARGIN}" y="14" class="s">Pinewood Dynamics · units mm · ${esc(CCCS_KIT_CAR_2026.name)} · compliance ${gate.certified ? "CERTIFIED" : "not certified"}</text>`,
+    `<text x="${MARGIN}" y="14" class="s">Pinewood Dynamics · units mm · ${esc(ruleset)} · compliance ${gate.certified ? "CERTIFIED" : "not certified"}</text>`,
   ];
   const mark = gate.watermark
     ? `<text x="${f2(width / 2)}" y="${f2(height / 2)}" class="wm" transform="rotate(-18 ${f2(width / 2)} ${f2(height / 2)})" text-anchor="middle">${esc(gate.watermark)} · NOT CERTIFIED</text>`
@@ -200,8 +200,8 @@ export function buildSheetHtml(design: CarDesign, ev: CarEvaluation, ins: Inspec
   const M = (kg: number) => formatMass(kg, units);
   const pos = (c: readonly number[]) =>
     `${L(c[0]! - B.min[0])} from tail · ${L(Math.abs(c[1]!))} ${c[1]! >= 0 ? "left" : "right"} of centre · ${L(c[2]! - B.min[2])} up from bottom`;
-  const lim = (id: string) => CCCS_KIT_CAR_2026.limits.find((l) => l.id === id)!;
-  const massLimit = lim("RUL-006").si;
+  const rules = ins.ruleset;
+  const massRule = limitOf(rules, "RUL-006");
   const wb = kit.frontAxleFromRear.value - kit.rearAxleFromRear.value;
   const steps = new Map(ev.build.steps.map((s) => [s.id, s]));
   const holes = design.features
@@ -230,17 +230,28 @@ export function buildSheetHtml(design: CarDesign, ev: CarEvaluation, ins: Inspec
   .templates svg { display: block; }
   @media print { .templates { page-break-after: always; } }
 </style></head><body>
-<div class="templates">${templatesSvg(design, ev, gate, kit)}</div>
+<div class="templates">${templatesSvg(design, ev, gate, rules.name, kit)}</div>
 <h1>${esc(design.name)}: build sheet</h1>
-<p class="note">Pinewood Dynamics. ${esc(CCCS_KIT_CAR_2026.name)}. Units: ${units === "metric" ? "millimetres and grams" : "inches and ounces"}. Generated ${new Date().toISOString().slice(0, 10)}.</p>
+<p class="note">Pinewood Dynamics. ${esc(rules.name)}. Units: ${units === "metric" ? "millimetres and grams" : "inches and ounces"}. Generated ${new Date().toISOString().slice(0, 10)}.</p>
 <div class="status"><b>${gate.certified ? "BUILD THIS CAR: certified export" : `${gate.watermark}: not a certified export`}</b><br>${gate.reasons.map(esc).join("<br>")}</div>
 <h2>Targets</h2>
 <table>
-  <tr><th>Finished mass</th><td>${M(ev.total.mass)} predicted${ev.massUncertainty > 0 ? ` ± ${M(2 * ev.massUncertainty)} (2σ, wood density ESTIMATED: weigh the block)` : " (block weighed)"}; limit ${M(massLimit)} (${lim("RUL-006").source.value} ${lim("RUL-006").source.unit}), margin ${M(massLimit - ev.total.mass)}. The event's official scale decides.</td></tr>
+  <tr><th>Finished mass</th><td>${M(ev.total.mass)} predicted${ev.massUncertainty > 0 ? ` ± ${M(2 * ev.massUncertainty)} (2σ, wood density ESTIMATED: weigh the block)` : " (block weighed)"}; ${
+    massRule ? `limit ${M(massRule.si)} (${massRule.source.value} ${massRule.source.unit}), margin ${M(massRule.si - ev.total.mass)}. The event's official scale decides.` : "this event sets no mass limit."
+  }</td></tr>
   <tr><th>Centre of gravity</th><td>${L(cg[0])} ahead of the rear axle (${L(cg[0] - B.min[0])} from the tail), ${L(cg[2] - B.min[2])} up from the bottom, ${L(Math.abs(cg[1]))} ${cg[1] >= 0 ? "left" : "right"} of centre.</td></tr>
   <tr><th>Wheelbase</th><td>${L(wb)}, LOCAL/FROZEN: set by the kit's axle slots, which are not moved. Value ESTIMATED until the kit is measured.</td></tr>
   <tr><th>Compliance</th><td>${ins.state}</td></tr>
 </table>
+<h2>Event rules: ${esc(rules.name)}</h2>
+<p class="note">${esc(rules.organization)}, ${esc(rules.effective)}. ${esc(rules.sourceLine)}. ${rules.provenance === "LOCAL" ? "Local rules entered for this race." : "As published."} ${
+    rules.review.status === "CONFIRMED" ? `Confirmed ${esc(rules.review.date ?? "")}.` : "Not yet confirmed against the event's written rules."
+  }</p>
+<table>${rules.limits.map((l) => `<tr><th>${esc(l.label)}</th><td>${l.kind === "max" ? "at most" : "at least"} ${l.source.value} ${l.source.unit}</td></tr>`).join("")}
+${eventRows(rules.event).map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join("")}</table>
+<h3>Before check-in</h3>
+<ul>${rules.event.checklist.map((c) => `<li>☐ ${esc(c)}</li>`).join("")}</ul>
+<p class="note">The software cannot verify these; the event's officials decide them.</p>
 <h2>Operations, in shop order</h2><ol>${ops}</ol>
 <h2>Holes and pockets</h2>
 ${holes.length ? `<table><tr><th>Id</th><th>Kind</th><th>Size</th><th>Centre</th><th>How</th></tr>${holes.join("")}</table>` : `<p class="note">None.</p>`}
@@ -248,6 +259,21 @@ ${holes.length ? `<table><tr><th>Id</th><th>Kind</th><th>Size</th><th>Centre</th
 ${weights.length ? `<table><tr><th>Id</th><th>Material</th><th>Size</th><th>Mass</th><th>Mounting</th><th>Centre</th></tr>${weights.join("")}</table>` : `<p class="note">None.</p>`}
 ${design.ballast.some((b) => MATERIALS[b.material].safety === "lead") ? `<p class="note"><b>Lead:</b> wash hands after handling; an adult should handle cutting or melting (SAF-003).</p>` : ""}
 </body></html>`;
+}
+
+const PERMIT: Record<Permission, string> = { allowed: "Allowed", prohibited: "Not allowed", unknown: "Not stated: ask the event" };
+
+/** The event rules as label and reading, for the sheet. */
+function eventRows(e: EventRules): [string, string][] {
+  return [
+    ["Kit parts", e.kitPartsOnly ? "Wood, wheels and axles from the event's kit" : "Not required"],
+    ["Kit axle slots", e.axleSlots === "required" ? "Must be used" : e.axleSlots === "optional" ? "Optional (wheelbase may change)" : "Not stated: ask the event"],
+    ["Reshaping wheels", PERMIT[e.wheelReshaping]],
+    ["Bent or canted axles", PERMIT[e.bentAxles]],
+    ["Raised wheel (three-wheel running)", PERMIT[e.raisedWheel]],
+    ["Washers, bushings, bearings", PERMIT[e.washersBearings]],
+    ["Lubricant", e.lubricant === "dry only" ? "Dry lubricant only" : e.lubricant === "any" ? "Any" : e.lubricant === "none" ? "None" : "Not stated: ask the event"],
+  ];
 }
 
 // --- STL -----------------------------------------------------------------------------------------

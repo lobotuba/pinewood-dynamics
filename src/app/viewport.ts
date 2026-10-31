@@ -8,7 +8,7 @@ import type { Ballast, CarDesign, Feature, V3 } from "../geometry/design.js";
 import { type BodySolid, wheelCentres } from "../geometry/solid.js";
 import { TYPICAL_KIT_ESTIMATE as K } from "../kit/kit.js";
 import { type CarEvaluation, WHEEL_ENVELOPE_PAD } from "../mass/carModel.js";
-import { CCCS_KIT_CAR_2026 } from "../rules/cccs.js";
+import { limitOf, rulesOf } from "../rules/cccs.js";
 import { bodyMeshes, wheelSet } from "./carMesh.js";
 import type { Store } from "./store.js";
 
@@ -235,16 +235,24 @@ export class Viewport {
     const eg = this.groups.envelope;
     for (const ch of eg.children) (ch as THREE.LineSegments).geometry.dispose();
     eg.clear();
-    const lim = (id: string): number => CCCS_KIT_CAR_2026.limits.find((l) => l.id === id)!.si;
-    const box = new THREE.BoxGeometry(lim("RUL-001"), lim("RUL-002"), lim("RUL-003"));
+    // The design's own rules. A dimension the event leaves open is drawn as the car's own extent.
+    const rules = rulesOf(design);
+    const e = ev.extents;
+    const len = limitOf(rules, "RUL-001")?.si ?? e.max[0] - e.min[0];
+    const wid = limitOf(rules, "RUL-002")?.si ?? e.max[1] - e.min[1];
+    const hgt = limitOf(rules, "RUL-003")?.si ?? e.max[2] + K.wheelRadius.value;
+    const box = new THREE.BoxGeometry(len, wid, hgt);
     const env = new THREE.LineSegments(new THREE.EdgesGeometry(box), new THREE.LineBasicMaterial({ color: 0xff7a59 }));
     box.dispose();
-    env.position.set(ev.extents.min[0] + lim("RUL-001") / 2, 0, -K.wheelRadius.value + lim("RUL-003") / 2);
+    env.position.set(e.min[0] + len / 2, 0, -K.wheelRadius.value + hgt / 2);
     eg.add(env);
-    const clear = new THREE.PlaneGeometry(lim("RUL-001"), K.blockWidth.value);
-    const sheet = new THREE.Mesh(clear, new THREE.MeshBasicMaterial({ color: 0xff7a59, transparent: true, opacity: 0.18, side: THREE.DoubleSide, depthWrite: false }));
-    sheet.position.set(ev.extents.min[0] + lim("RUL-001") / 2, 0, -K.wheelRadius.value + lim("RUL-004"));
-    eg.add(sheet);
+    const minClear = limitOf(rules, "RUL-004")?.si;
+    if (minClear !== undefined) {
+      const clear = new THREE.PlaneGeometry(len, K.blockWidth.value);
+      const sheet = new THREE.Mesh(clear, new THREE.MeshBasicMaterial({ color: 0xff7a59, transparent: true, opacity: 0.18, side: THREE.DoubleSide, depthWrite: false }));
+      sheet.position.set(e.min[0] + len / 2, 0, -K.wheelRadius.value + minClear);
+      eg.add(sheet);
+    }
 
     this.applyView();
   }

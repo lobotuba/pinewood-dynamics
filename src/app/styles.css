@@ -161,6 +161,13 @@ body.sandbox #context { border-color: var(--amber); color: var(--amber); }
 .form[data-kind="cut"] [data-for~="cut"], .form[data-kind="wedge"] [data-for~="wedge"] { display: flex; }
 
 .compliance { font-size: 15px; margin-bottom: 4px; }
+.rule-limits { margin: 4px 0; padding-left: 18px; font-size: 13px; }
+.rules-edit summary { cursor: pointer; color: var(--accent); font-size: 13px; }
+.rules-edit .form { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 6px; font-size: 12px; }
+.rules-edit .form label { display: flex; flex-direction: column; gap: 2px; color: var(--muted); }
+.rules-edit .form .wide { grid-column: 1 / -1; }
+.rules-edit .form label.check { flex-direction: row; align-items: center; gap: 6px; }
+.rules-edit input:not([type="checkbox"]), .rules-edit textarea { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 3px 6px; width: 100%; color: inherit; font: inherit; }
 .compliance[data-state="NONCOMPLIANT"] b { color: var(--fail); }
 .compliance[data-state="PROVISIONALLY COMPLIANT"] b { color: var(--amber); }
 .inspect { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }

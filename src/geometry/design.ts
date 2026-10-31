@@ -8,6 +8,7 @@
 
 import { inches } from "../core/units.js";
 import { TYPICAL_KIT_ESTIMATE } from "../kit/kit.js";
+import type { Ruleset } from "../rules/cccs.js";
 
 export type P2 = readonly [number, number];
 export type V3 = readonly [number, number, number];
@@ -107,6 +108,8 @@ export interface CarDesign {
   readonly measuredBlockMass?: number;
   /** Compliance context (MODE-002). Omitted: SANDBOX. */
   readonly context?: ComplianceContext;
+  /** The ruleset this version is held to, as an immutable snapshot (9.1). Omitted: the shipped ruleset. */
+  readonly rules?: Ruleset;
 }
 
 /** Half-extent of a weight or bore shape along each car axis. */

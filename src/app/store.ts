@@ -5,6 +5,7 @@
 import type { UnitSystem } from "../core/display.js";
 import { type CarDesign, wedgeDesign } from "../geometry/design.js";
 import type { Fidelity, TrackChoice } from "../race/session.js";
+import type { Ruleset } from "../rules/cccs.js";
 import type { RaceStatus } from "../physics/race.js";
 
 export type DisplayMode = "solid" | "xray" | "wireframe";
@@ -74,12 +75,15 @@ export class Store {
   view: View;
   versions: SavedVersion[];
   results: SavedRace[];
+  /** Local rulesets entered for races (9.1 local overrides); the shipped rulesets are in the code. */
+  rulesets: Ruleset[];
 
   constructor() {
     const saved = load();
     this.design = saved?.design ?? wedgeDesign();
     this.versions = saved?.versions ?? [];
     this.results = saved?.results ?? [];
+    this.rulesets = saved?.rulesets ?? [];
     this.committed = this.design;
     this.view = {
       units: saved?.units ?? "metric",
@@ -181,6 +185,18 @@ export class Store {
     this.emit("design");
   }
 
+  /** Add a local ruleset, or replace the one with its id. */
+  saveRuleset(r: Ruleset): void {
+    this.rulesets = this.rulesets.some((x) => x.id === r.id) ? this.rulesets.map((x) => (x.id === r.id ? r : x)) : [...this.rulesets, r];
+    this.save();
+  }
+
+  deleteRuleset(id: string): void {
+    this.rulesets = this.rulesets.filter((r) => r.id !== id);
+    this.save();
+    this.emit("design");
+  }
+
   saveResult(r: Omit<SavedRace, "id" | "savedAt">): SavedRace {
     const saved: SavedRace = { ...r, id: `r${Date.now().toString(36)}${this.results.length}`, savedAt: new Date().toISOString() };
     this.results = [...this.results, saved];
@@ -203,22 +219,23 @@ export class Store {
 
   private save(): void {
     try {
-      localStorage.setItem(KEY, JSON.stringify({ design: this.committed, units: this.view.units, versions: this.versions, results: this.results }));
+      localStorage.setItem(KEY, JSON.stringify({ design: this.committed, units: this.view.units, versions: this.versions, results: this.results, rulesets: this.rulesets }));
     } catch {
       // Storage can be unavailable (private mode, blocked site data); the session still works.
     }
   }
 }
 
-function load(): { design: CarDesign; units: UnitSystem; versions: SavedVersion[]; results: SavedRace[] } | null {
+function load(): { design: CarDesign; units: UnitSystem; versions: SavedVersion[]; results: SavedRace[]; rulesets: Ruleset[] } | null {
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return null;
-    const x = JSON.parse(raw) as { design?: CarDesign; units?: UnitSystem; versions?: SavedVersion[]; results?: SavedRace[] };
+    const x = JSON.parse(raw) as { design?: CarDesign; units?: UnitSystem; versions?: SavedVersion[]; results?: SavedRace[]; rulesets?: Ruleset[] };
     if (x.design?.schema !== 1) return null;
     const versions = Array.isArray(x.versions) ? x.versions.filter((v) => v?.design?.schema === 1) : [];
     const results = Array.isArray(x.results) ? x.results.filter((r) => typeof r?.solverVersion === "string" && Array.isArray(r.lanes)) : [];
-    return { design: x.design, units: x.units === "english" ? "english" : "metric", versions, results };
+    const rulesets = Array.isArray(x.rulesets) ? x.rulesets.filter((r) => Array.isArray(r?.limits) && r.event) : [];
+    return { design: x.design, units: x.units === "english" ? "english" : "metric", versions, results, rulesets };
   } catch {
     return null;
   }

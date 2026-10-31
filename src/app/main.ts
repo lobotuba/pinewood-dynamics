@@ -7,7 +7,7 @@ import { type CarDesign, contextOf, uncutDesign, wedgeDesign } from "../geometry
 import { newCut, newHole } from "../geometry/presets.js";
 import { accessHole, evaluateBody, loadManifold, seatBallast } from "../geometry/solid.js";
 import { evaluateCar } from "../mass/carModel.js";
-import { inspect, violations } from "../rules/cccs.js";
+import { inspect, rulesOf, violations } from "../rules/cccs.js";
 import { bodyStl, buildSheetHtml, exportGate, packageFileName, templatesSvg } from "../build/package.js";
 import { Panels } from "./panels.js";
 import { ProfileEditor } from "./profileEditor.js";
@@ -45,7 +45,7 @@ async function start(): Promise<void> {
       if (body.empty) evaluated.set(d, null);
       else {
         const ev = evaluateCar(d, body);
-        evaluated.set(d, { spec: ev.spec, body, compliance: inspect(ev, undefined, contextOf(d)).state, context: contextOf(d) });
+        evaluated.set(d, { spec: ev.spec, body, compliance: inspect(ev, rulesOf(d), contextOf(d)).state, context: contextOf(d) });
       }
     }
     return evaluated.get(d)!;
@@ -93,7 +93,7 @@ async function start(): Promise<void> {
     const body = evaluateBody(w, d);
     const status = $("status");
     const ev = body.empty ? null : evaluateCar(d, body);
-    const ins = ev ? inspect(ev, undefined, context) : null;
+    const ins = ev ? inspect(ev, rulesOf(d), context) : null;
     if (context === "CERTIFIED") {
       const failed = ins ? violations(ins).map((l) => l.label) : [];
       if (failed.length) {
@@ -174,9 +174,9 @@ async function start(): Promise<void> {
     const body = evaluateBody(w, d);
     if (body.empty) return;
     const ev = evaluateCar(d, body);
-    const ins = inspect(ev, undefined, contextOf(d));
+    const ins = inspect(ev, rulesOf(d), contextOf(d));
     const gate = exportGate(ins, contextOf(d));
-    if (kind === "templates") download(new Blob([templatesSvg(d, ev, gate)], { type: "image/svg+xml" }), packageFileName(d, "templates"));
+    if (kind === "templates") download(new Blob([templatesSvg(d, ev, gate, ins.ruleset.name)], { type: "image/svg+xml" }), packageFileName(d, "templates"));
     if (kind === "sheet") download(new Blob([buildSheetHtml(d, ev, ins, gate, store.view.units)], { type: "text/html" }), packageFileName(d, "build-sheet"));
     if (kind === "stl-mm" || kind === "stl-in") {
       const unit = kind === "stl-mm" ? "mm" : "in";
@@ -193,7 +193,7 @@ async function start(): Promise<void> {
     const d = store.design;
     if (to === "CERTIFIED") {
       const body = evaluateBody(w, d);
-      const failed = body.empty ? ["the profiles leave no body"] : violations(inspect(evaluateCar(d, body), undefined, "CERTIFIED")).map((l) => l.label);
+      const failed = body.empty ? ["the profiles leave no body"] : violations(inspect(evaluateCar(d, body), rulesOf(d), "CERTIFIED")).map((l) => l.label);
       if (failed.length) {
         ($("context") as HTMLSelectElement).value = "SANDBOX";
         notice(`Cannot enter CERTIFIED: the design fails ${failed.join(", ")}.`, "blocked");

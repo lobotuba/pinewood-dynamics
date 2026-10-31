@@ -8,7 +8,7 @@ import { inputProvenance } from "../physics/car.js";
 import { SOLVER_VERSION } from "../physics/race.js";
 import { type Fidelity, type LaneResult, MAX_LANES, type Session, type TrackChoice, buildTrack, finishOrder, poseAt } from "../race/session.js";
 import type { ComplianceState } from "../rules/cccs.js";
-import { CCCS_KIT_CAR_2026 } from "../rules/cccs.js";
+import { rulesOf } from "../rules/cccs.js";
 import { type CarDesign, type ComplianceContext, contextOf } from "../geometry/design.js";
 import type { BodySolid } from "../geometry/solid.js";
 import type { SessionReply, SessionRequest } from "./race.worker.js";
@@ -146,6 +146,7 @@ export class RacePanel {
             ${
               ev
                 ? `<div class="lane-state"><span class="compliance" data-state="${ev.compliance}"><b>${ev.compliance}</b></span>
+                     <span class="prov">rules: ${esc(rulesOf(p!.design).name)}</span>
                      <span class="prov">model readiness: weakest input <b>${ready}</b></span></div>`
                 : p
                   ? `<div class="lane-state notice">The profiles leave no body; this car cannot race.</div>`
@@ -167,7 +168,7 @@ export class RacePanel {
         ${this.trackError ? `<p class="notice">Survey not loaded: ${esc(this.trackError)}</p>` : ""}
         <p class="prov">${this.trackNote()} Every lane uses the same profile until lanes are calibrated, so the lane does not
           change a time.</p>
-        <div class="row"><span>Ruleset</span><span>${esc(CCCS_KIT_CAR_2026.name)}</span></div>
+        <p class="prov">Each car is inspected against its own rules, shown in its lane. Set them in Design mode, Race rules.</p>
         <div class="row"><span>Simulation fidelity</span><select id="race-fidelity">
           <option value="standard" ${this.fidelity === "standard" ? "selected" : ""}>Standard (0.5 ms step)</option>
           <option value="fine" ${this.fidelity === "fine" ? "selected" : ""}>Fine (0.1 ms step)</option>
@@ -304,7 +305,7 @@ export class RacePanel {
       trackName: s.track,
       profileStatus: s.profileStatus,
       context: run.lanes.every((r) => !r || contextOf(r.design) === "CERTIFIED") ? "CERTIFIED" : "SANDBOX",
-      ruleset: CCCS_KIT_CAR_2026.name,
+      ruleset: [...new Set(run.lanes.flatMap((r) => (r ? [rulesOf(r.design).name] : [])))].join("; "),
       seed: null,
       lanes: s.lanes.map((l, i) => {
         const r = run.lanes[i];

@@ -106,8 +106,23 @@ highest of them.
 
 ## 4. Inspection (`src/rules/cccs.ts`, spec 9)
 
-- **Ruleset.** "CCCS Grand Prix (kit car), 2026 rules", named neutrally (9.3). Limits are stored
+- **Ruleset.** "CCCS Grand Prix (kit car), 2026 rules" ships, named neutrally (9.3). Limits are stored
   in their source units and converted exactly.
+- **Local race rules** (9.1, the Race rules panel). Local events vary, so each design carries its own
+  ruleset as a snapshot. *Edit as local rules* starts from the current set:
+  - name, event or club, effective date, and the source;
+  - each measured limit in its source units, left blank where the event sets none;
+  - the event rules: kit parts only, kit axle slots required or optional, and reshaping wheels, bent
+    axles, a raised wheel, and washers or bearings, each allowed, not allowed or not stated;
+  - the lubricant;
+  - a check-in checklist of process rules the software cannot verify (CMP-008);
+  - whether the set has been checked against the event's written rules.
+
+  Saved, it is LOCAL and joins a library of local rulesets any design can pick. The design is then
+  inspected, guarded in CERTIFIED context, raced and exported under it. A switch to rules the car
+  fails is refused in CERTIFIED, like any other edit. The build sheet prints the rules and the
+  checklist. The alignment rules are recorded now so that the Release 2 alignment controls can be
+  offered only where the event allows them (WHL-005).
 - **What is checked:**
   - length, width and height of everything, wheels and axle heads included;
   - underside clearance over the full length, from the lowest non-tread point;

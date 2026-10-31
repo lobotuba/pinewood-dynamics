@@ -2,7 +2,7 @@
 // named neutrally and paraphrased (BRD-007, spec 9.3). Pass/fail compares unrounded SI values with
 // limits converted exactly from their source units (CMP-005, spec 6.4).
 
-import type { ComplianceContext } from "../geometry/design.js";
+import type { CarDesign, ComplianceContext } from "../geometry/design.js";
 import { inches, ounces } from "../core/units.js";
 import type { CarEvaluation } from "../mass/carModel.js";
 
@@ -21,14 +21,65 @@ export interface RuleLimit {
   readonly si: number;
 }
 
+/** What an event's rules say about a practice: allowed, prohibited, or not stated (UNKNOWN until sourced). */
+export type Permission = "allowed" | "prohibited" | "unknown";
+
+/**
+ * The event's rules beyond the measured limits: what may be done to the kit, and process rules the
+ * software cannot verify (CMP-008), kept as a checklist for the build package. Alignment practices
+ * gate the Release 2 alignment controls: a control is offered only where its practice is allowed
+ * (WHL-005, WHL-009).
+ */
+export interface EventRules {
+  /** Wood, wheels and axles must come from the event's kit. */
+  readonly kitPartsOnly: boolean;
+  /** The kit's axle slots must be used (no extended wheelbase). */
+  readonly axleSlots: "required" | "optional" | "unknown";
+  /** Rounding, bevelling, cupping or lightening the wheels (RUL-008). */
+  readonly wheelReshaping: Permission;
+  /** Bent or canted axles: camber and toe. */
+  readonly bentAxles: Permission;
+  /** Running on three wheels, one raised clear of the track. */
+  readonly raisedWheel: Permission;
+  /** Washers, bushings, sleeves or bearings with the wheels or axles. */
+  readonly washersBearings: Permission;
+  readonly lubricant: "dry only" | "any" | "none" | "unknown";
+  /** Process rules: entrant present, new work, no changes after check-in, and so on. */
+  readonly checklist: readonly string[];
+}
+
+/**
+ * A ruleset (9.1, CMP-002): what it is, where it comes from, how far it is confirmed, its limits and its
+ * event rules. A design carries an immutable snapshot of its ruleset, so every inspection, race result
+ * and export says exactly which rules it was held to.
+ */
 export interface Ruleset {
   readonly id: string;
   readonly name: string;
+  /** Organization or event. */
+  readonly organization: string;
+  /** Version or effective date, as the source gives it. */
+  readonly effective: string;
   readonly sourceLine: string;
+  /** PUBLISHED: as an event published it. LOCAL: edited for a local race (a local override, 9.1). */
+  readonly provenance: "PUBLISHED" | "LOCAL";
+  readonly review: { readonly status: "UNREVIEWED" | "CONFIRMED"; readonly date?: string };
+  /** The measured limits; a limit the event does not set is simply absent. */
   readonly limits: readonly RuleLimit[];
+  readonly event: EventRules;
 }
 
-const lim = (id: string, label: string, kind: "max" | "min", value: string, unit: "in" | "oz"): RuleLimit => ({
+/** The limits inspection can measure, with their source units (6.4: limits keep their source units). */
+export const LIMIT_CATALOG: readonly { readonly id: string; readonly label: string; readonly kind: "max" | "min"; readonly unit: "in" | "oz" }[] = [
+  { id: "RUL-001", label: "Overall length", kind: "max", unit: "in" },
+  { id: "RUL-002", label: "Overall width", kind: "max", unit: "in" },
+  { id: "RUL-003", label: "Overall height", kind: "max", unit: "in" },
+  { id: "RUL-004", label: "Underside clearance", kind: "min", unit: "in" },
+  { id: "RUL-005", label: "Inside wheel spacing", kind: "min", unit: "in" },
+  { id: "RUL-006", label: "Mass", kind: "max", unit: "oz" },
+];
+
+export const ruleLimit = (id: string, label: string, kind: "max" | "min", value: string, unit: "in" | "oz"): RuleLimit => ({
   id,
   label,
   quantity: unit === "in" ? "length" : "mass",
@@ -37,10 +88,16 @@ const lim = (id: string, label: string, kind: "max" | "min", value: string, unit
   si: unit === "in" ? inches(Number(value)) : ounces(Number(value)),
 });
 
+const lim = ruleLimit;
+
 export const CCCS_KIT_CAR_2026: Ruleset = {
   id: "cccs-kit-car-2026",
   name: "CCCS Grand Prix (kit car), 2026 rules",
+  organization: "CCCS church kit-car Grand Prix",
+  effective: "2026",
   sourceLine: "Source: CCCS event rules page, accessed October 2026",
+  provenance: "PUBLISHED",
+  review: { status: "UNREVIEWED" },
   limits: [
     lim("RUL-001", "Overall length", "max", "7.000", "in"),
     lim("RUL-002", "Overall width", "max", "2.750", "in"),
@@ -49,7 +106,65 @@ export const CCCS_KIT_CAR_2026: Ruleset = {
     lim("RUL-005", "Inside wheel spacing", "min", "1.750", "in"),
     lim("RUL-006", "Mass", "max", "5.000", "oz"),
   ],
+  // Spec 9.2: what the source says, and what it leaves UNKNOWN.
+  event: {
+    kitPartsOnly: true,
+    axleSlots: "unknown",
+    wheelReshaping: "prohibited",
+    bentAxles: "unknown",
+    raisedWheel: "unknown",
+    washersBearings: "unknown",
+    lubricant: "unknown",
+    checklist: [
+      "Entrant present at check-in.",
+      "Car built for this race and not raced before.",
+      "No changes after check-in.",
+      "The child takes part in the design and build.",
+      "The kit maker's name stays visible on the wheel sidewalls (RUL-009).",
+    ],
+  },
 };
+
+/** The rules a design is held to: its own snapshot, or the shipped ruleset for designs from before rulesets travelled with them. */
+export const rulesOf = (d: Pick<CarDesign, "rules">): Ruleset => d.rules ?? CCCS_KIT_CAR_2026;
+
+/** A limit of a ruleset, or undefined where the event sets none. */
+export const limitOf = (r: Ruleset, id: string): RuleLimit | undefined => r.limits.find((l) => l.id === id);
+
+/**
+ * A local edit of a ruleset (9.1 local overrides): the given limits in their source units (null removes
+ * a limit) and event rules, under a new name, marked LOCAL and unreviewed.
+ */
+export function localRuleset(
+  base: Ruleset,
+  edit: {
+    readonly name: string;
+    readonly organization: string;
+    readonly effective: string;
+    readonly sourceLine: string;
+    readonly limits: Readonly<Record<string, string | null>>;
+    readonly event: EventRules;
+  },
+  id: string,
+): Ruleset {
+  const limits = LIMIT_CATALOG.flatMap((c) => {
+    const v = c.id in edit.limits ? edit.limits[c.id] : limitOf(base, c.id)?.source.value;
+    if (v === null || v === undefined || v.trim() === "") return [];
+    if (!(Number(v) > 0)) throw new Error(`${c.label}: "${v}" is not a positive number of ${c.unit === "in" ? "inches" : "ounces"}.`);
+    return [ruleLimit(c.id, c.label, c.kind, v.trim(), c.unit)];
+  });
+  return {
+    id,
+    name: edit.name,
+    organization: edit.organization,
+    effective: edit.effective,
+    sourceLine: edit.sourceLine,
+    provenance: "LOCAL",
+    review: { status: "UNREVIEWED" },
+    limits,
+    event: edit.event,
+  };
+}
 
 export interface InspectionLine {
   readonly id: string;

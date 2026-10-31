@@ -11,7 +11,7 @@ import { CUT_PRESETS, type CutPreset, HOLE_FACES, type HoleFace } from "../geome
 import type { MountState } from "../geometry/solid.js";
 import { AXLE_PREPS, type CarEvaluation, shapeHalfSize, shapeVolume } from "../mass/carModel.js";
 import { LEAD_NOTICE, MATERIALS, nonLeadAlternative } from "../mass/materials.js";
-import type { Inspection, InspectionLine } from "../rules/cccs.js";
+import { CCCS_KIT_CAR_2026, type EventRules, type Inspection, type InspectionLine, LIMIT_CATALOG, type Permission, type Ruleset, limitOf, localRuleset, rulesOf } from "../rules/cccs.js";
 import type { RaceReply } from "./race.worker.js";
 import { exportGate } from "../build/package.js";
 import { contextOf } from "../geometry/design.js";
@@ -78,6 +78,7 @@ export class Panels {
         <p class="hint">Drag weights in the 3D view or in either profile.</p></section>
       <section id="p-features" aria-label="Holes, cuts and build tier"><div id="p-features-list"></div><div id="p-features-form"></div>
         <p class="hint">Drag holes and cuts in either profile. A cut seen edge-on shows a handle per plane to turn it.</p></section>
+      <section id="p-rules" aria-label="Race rules"><div id="p-rules-summary"></div><div id="p-rules-form"></div></section>
       <section id="p-inspection" aria-label="Inspection"></section>
       <section id="p-build" aria-label="Build package"></section>
       <section id="p-race" aria-label="Race preview"></section>`;
@@ -120,7 +121,110 @@ export class Panels {
     this.renderWeights(d, ev, u);
     this.renderFeatures(d, ev, u);
     this.renderInspection(ins, u);
+    this.renderRules(d);
     this.renderBuild(ins);
+  }
+
+  // --- race rules (9.1) -----------------------------------------------------------------------
+
+  private rulesError = "";
+
+  /** The rulesets a design can take: the shipped ones, the local ones, and its own snapshot if it is neither. */
+  private rulesChoices(d: CarDesign): Ruleset[] {
+    const all: Ruleset[] = [CCCS_KIT_CAR_2026, ...this.store.rulesets];
+    const own = rulesOf(d);
+    return all.some((r) => r.id === own.id) ? all : [...all, own];
+  }
+
+  private renderRules(d: CarDesign): void {
+    const r = rulesOf(d);
+    const u = this.store.view.units;
+    const choices = this.rulesChoices(d);
+    const limits = r.limits.map((l) => `<li>${esc(l.label)} ${formatLimit(l.si, l.source, l.kind, u)}</li>`).join("");
+    const open = LIMIT_CATALOG.filter((c) => !limitOf(r, c.id)).map((c) => c.label);
+    this.q("p-rules-summary").innerHTML = `
+      <h2>Race rules</h2>
+      <div class="row"><select id="rules-pick" aria-label="Rules this car is held to">${choices
+        .map((c) => `<option value="${esc(c.id)}" ${c.id === r.id ? "selected" : ""}>${esc(c.name)}${c.provenance === "LOCAL" ? " (local)" : ""}</option>`)
+        .join("")}</select>
+        ${this.store.rulesets.some((x) => x.id === r.id) ? `<button class="icon-btn" id="rules-delete" title="Delete this local ruleset">×</button>` : ""}</div>
+      <p class="prov">${esc(r.organization)}, ${esc(r.effective)}. ${esc(r.sourceLine)}.
+        <span class="tag">${r.provenance}</span> <span class="tag">${r.review.status === "CONFIRMED" ? `CONFIRMED ${esc(r.review.date ?? "")}` : "UNREVIEWED"}</span></p>
+      <ul class="rule-limits">${limits}</ul>
+      ${open.length ? `<p class="hint">No limit set for: ${open.join(", ")}.</p>` : ""}`;
+    // The edit form is rebuilt only when the rules themselves change, so typing in it survives updates.
+    const lim = (id: string) => limitOf(r, id)?.source.value ?? "";
+    const sel = (id: string, value: string, options: [string, string][]) =>
+      `<select id="${id}">${options.map(([v, l]) => `<option value="${v}" ${v === value ? "selected" : ""}>${l}</option>`).join("")}</select>`;
+    const permit: [string, string][] = [
+      ["unknown", "Not stated"],
+      ["allowed", "Allowed"],
+      ["prohibited", "Not allowed"],
+    ];
+    this.form("p-rules-form", `${u}|${JSON.stringify(r)}|${this.rulesError}`, () => `
+      <details class="rules-edit" data-form="rl"><summary>Edit as local rules</summary>
+        <p class="hint">Local events vary. Copy your event's written rules here; the car is then inspected, blocked in
+          CERTIFIED context, raced and exported under them. Leave a limit blank if your event does not set it.</p>
+        <div class="form">
+          <label>Name <input id="rl-name" value="${esc(r.provenance === "LOCAL" ? r.name : `${r.name} (local)`)}"></label>
+          <label>Event or club <input id="rl-org" value="${esc(r.organization)}"></label>
+          <label>Effective (year or date) <input id="rl-effective" value="${esc(r.effective)}"></label>
+          <label>Source <input id="rl-source" value="${esc(r.provenance === "LOCAL" ? r.sourceLine : "Our event's rules sheet")}"></label>
+          ${LIMIT_CATALOG.map(
+            (c) => `<label>${c.label}, ${c.kind === "max" ? "at most" : "at least"} (${c.unit}) <input id="rl-${c.id}" inputmode="decimal" value="${esc(lim(c.id))}"></label>`,
+          ).join("")}
+          <label>Kit parts only ${sel("rl-kit", r.event.kitPartsOnly ? "yes" : "no", [["yes", "Required"], ["no", "Not required"]])}</label>
+          <label>Kit axle slots ${sel("rl-slots", r.event.axleSlots, [["unknown", "Not stated"], ["required", "Must be used"], ["optional", "Optional"]])}</label>
+          <label>Reshaping wheels ${sel("rl-wheels", r.event.wheelReshaping, permit)}</label>
+          <label>Bent or canted axles ${sel("rl-bent", r.event.bentAxles, permit)}</label>
+          <label>Raised wheel ${sel("rl-raised", r.event.raisedWheel, permit)}</label>
+          <label>Washers, bearings ${sel("rl-washers", r.event.washersBearings, permit)}</label>
+          <label>Lubricant ${sel("rl-lube", r.event.lubricant, [["unknown", "Not stated"], ["dry only", "Dry only"], ["any", "Any"], ["none", "None"]])}</label>
+          <label class="wide">Check-in checklist, one per line <textarea id="rl-checklist" rows="4">${esc(r.event.checklist.join("\n"))}</textarea></label>
+          <label class="wide check"><input type="checkbox" id="rl-confirmed" ${r.review.status === "CONFIRMED" ? "checked" : ""}> Checked against the event's written rules</label>
+          ${this.rulesError ? `<p class="bad wide">${esc(this.rulesError)}</p>` : ""}
+          <button id="rl-save" class="wide">Save and use these rules</button>
+        </div></details>`);
+  }
+
+  private saveRules(): void {
+    const d = this.store.design;
+    const base = rulesOf(d);
+    const v = (id: string) => this.root.querySelector<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(`#${id}`)!.value;
+    const limits: Record<string, string | null> = {};
+    for (const c of LIMIT_CATALOG) limits[c.id] = v(`rl-${c.id}`).trim() || null;
+    try {
+      const id = base.provenance === "LOCAL" ? base.id : `local-${Date.now().toString(36)}`;
+      const made = localRuleset(
+        base,
+        {
+          name: v("rl-name").trim() || "Local rules",
+          organization: v("rl-org").trim(),
+          effective: v("rl-effective").trim(),
+          sourceLine: v("rl-source").trim(),
+          limits,
+          event: {
+            kitPartsOnly: v("rl-kit") === "yes",
+            axleSlots: v("rl-slots") as EventRules["axleSlots"],
+            wheelReshaping: v("rl-wheels") as Permission,
+            bentAxles: v("rl-bent") as Permission,
+            raisedWheel: v("rl-raised") as Permission,
+            washersBearings: v("rl-washers") as Permission,
+            lubricant: v("rl-lube") as EventRules["lubricant"],
+            checklist: v("rl-checklist").split("\n").map((x) => x.trim()).filter(Boolean),
+          },
+        },
+        id,
+      );
+      const confirmed = this.root.querySelector<HTMLInputElement>("#rl-confirmed")!.checked;
+      const rules: Ruleset = confirmed ? { ...made, review: { status: "CONFIRMED", date: new Date().toISOString().slice(0, 10) } } : made;
+      this.rulesError = "";
+      this.store.saveRuleset(rules);
+      this.store.update({ ...d, rules });
+    } catch (err) {
+      this.rulesError = (err as Error).message;
+      this.renderRules(d);
+    }
   }
 
   /** Build package (spec 14): the downloads, and why they are not a certified export. */
@@ -436,6 +540,11 @@ export class Panels {
       }
       return;
     }
+    if (t.id === "rules-pick") {
+      const chosen = this.rulesChoices(d).find((r) => r.id === t.value);
+      if (chosen) this.store.update({ ...d, rules: chosen });
+      return;
+    }
     if (t.id === "axle-prep") this.store.update({ ...d, axlePrep: t.value as CarDesign["axlePrep"] });
     else if (t.id === "paint") this.store.update({ ...d, paint: t.value });
     else if (t.id === "block-mass") {
@@ -494,6 +603,17 @@ export class Panels {
   private onClick(e: Event): void {
     const t = e.target as HTMLElement;
     const d = this.store.design;
+    if (t.id === "rl-save") {
+      this.saveRules();
+      return;
+    }
+    if (t.id === "rules-delete") {
+      const gone = rulesOf(d).id;
+      // The design keeps its snapshot as the shipped rules; the local set leaves the library.
+      this.store.update({ ...d, rules: CCCS_KIT_CAR_2026 });
+      this.store.deleteRuleset(gone);
+      return;
+    }
     const del = t.closest<HTMLElement>("[data-delete]");
     if (del) {
       this.store.update({ ...d, ballast: d.ballast.filter((b) => b.id !== del.dataset.delete) });

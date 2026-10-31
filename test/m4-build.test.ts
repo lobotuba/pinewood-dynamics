@@ -47,7 +47,7 @@ describe("M4 build package", () => {
 
   it("draws the templates at 1:1 in millimetres: the profiles themselves, and 100 mm and 4 in scale bars", () => {
     const { d, ev, gate } = setup();
-    const svg = templatesSvg(d, ev, gate);
+    const svg = templatesSvg(d, ev, gate, "CCCS Grand Prix (kit car), 2026 rules");
     const L = toMm(B.max[0] - B.min[0]);
     expect(svg).toContain(`width="${(L + 16).toFixed(2)}mm"`);
     expect(svg).toMatch(new RegExp(`viewBox="0 0 ${(L + 16).toFixed(2)} `));
