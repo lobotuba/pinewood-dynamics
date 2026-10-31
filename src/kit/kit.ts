@@ -50,10 +50,13 @@ export const EVENT_KIT_K1: KitDefinition = {
 const EST = "Typical derby-kit value from general knowledge; not measured on the event kit.";
 const est = <T = number>(x: T, note = EST): Sourced<T> => sourced(x, "ESTIMATED", note);
 
+/** The standard block's nominal size, confirmed by the owner; real blocks vary until one is measured (CHAR-001). */
+const BLOCK = "Standard pinewood derby block, 7 x 1-3/4 x 1-1/4 in nominal (owner, 2026-10-31; matches kit listings).";
+
 export const TYPICAL_KIT_ESTIMATE = {
-  blockLength: est(inches(7)),
-  blockWidth: est(inches(1.75)),
-  blockHeight: est(inches(1.25)),
+  blockLength: est(inches(7), BLOCK),
+  blockWidth: est(inches(1.75), BLOCK),
+  blockHeight: est(inches(1.25), BLOCK),
   rearAxleFromRear: est(inches(0.875)),
   frontAxleFromRear: est(inches(5.25)),
   wheelRadius: est(inches(1.18) / 2),
