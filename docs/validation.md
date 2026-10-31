@@ -44,6 +44,21 @@ followed by a short straight would leave the flat lanes 6.5 in above the floor, 
 drawing's low legs. Uniform curvature also matches the Duke track's published 1.17 m start height
 (1.179 m rebuilt). The real curve is probably eased near its ends, which a survey will show.
 
+A 48 in bend of 26° centred in the 41 in section, with straight tails, also fits: it drops 9.07 in
+against the uniform arc's 9.14 in. The two readings give race times within 0.15 ms of each other,
+and CG effects within 0.02 ms, so the question does not matter for results.
+
+BestTrack's FAQ (besttrack.com/faq.htm, read 2026-10-30) settles the lane, now MANUFACTURER in
+`BESTTRACK_LANE_LATERAL`:
+
+- lanes 3.50 in wide, at 3.50 in centre to centre;
+- centre wheel guide 1/4 in tall by 1-5/8 in wide, the value already used;
+- a 1 in flat down the guide's middle, between its two raised edges, cleared so a weight hung under
+  a car cannot drag. The clearance monitor now checks only the raised edges against the rail.
+
+The drawing gives the start pin: vinyl-covered stainless steel, non-magnetic, about 2 in above the
+lane. Its diameter and face shape are not published, so the starting-gate rule stays unevaluated.
+
 ## 3. Duke experiment (Mann, Gibbs and Sah 2012)
 
 **Rebuilt** in `src/validation/mann2012.ts`. Every value is labelled.

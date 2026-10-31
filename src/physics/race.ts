@@ -197,9 +197,13 @@ export function simulateRace(spec: CarSpec, track: Track, env: Environment, opts
 
   // Underside clearance (validity monitor). The rail can be under any body point within its half-width
   // plus how far the car can move across: the wheel faces' gap to the rail, and any axial play.
+  // A rail with a cleared middle has no top there: only points over its raised edges can meet it.
+  const shift = L ? (L.spacing - L.railWidth) / 2 + Math.max(0, ...(L.play?.travel ?? [0])) : 0;
   const railBand = track.lateral
-    ? track.lateral.guideRail.width.value / 2 +
-      (L ? (L.spacing - L.railWidth) / 2 + Math.max(0, ...(L.play?.travel ?? [0])) : 0)
+    ? {
+        outer: track.lateral.guideRail.width.value / 2 + shift,
+        inner: Math.max(0, (track.lateral.guideRail.clearMiddle?.value ?? 0) / 2 - shift),
+      }
     : undefined;
   const monitor = spec.underbody ? new ClearanceMonitor(spec.underbody.value, track, [car.rear.r, car.front.r], car.wheelbase, railBand) : null;
   let clearance: Clearance | null = null;

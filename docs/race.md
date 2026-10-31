@@ -42,7 +42,7 @@ that does not finish has no place, and its status and message are shown.
 - **Track model.** The lane profile swept across four lanes. Guide rails are 1 5/8 by 1/4 in, as the
   lateral model takes them (ESTIMATED). Also drawn: a lane-colour tile at each start, the start gate
   that drops at release, the finish line and gantry, the floor and support posts. The lane pitch
-  (4 in) and board thickness are display only, because each lane is raced alone.
+  (3.5 in, BestTrack's) and board thickness are display only, because each lane is raced alone.
 - **Cars.** Each lane's own body solid in its own paint, with wheels that turn through the distance
   travelled over their radius.
 - **Countdown and release.** 3, 2, 1, GO, in real time; then the race at the replay speed.

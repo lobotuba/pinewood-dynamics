@@ -34,16 +34,16 @@ export class ClearanceMonitor {
   private readonly railHeight: number;
 
   /**
-   * points: the underbody. radii: rear and front wheel radii; wheelbase. railBand: the half-width
-   * across the body, m, that can be over the rail's top (rail half-width plus how far the car can
-   * move across); omitted when the lane has no rail.
+   * points: the underbody. radii: rear and front wheel radii; wheelbase. railBand: the band across
+   * the body, |y| from inner to outer, m, that can be over the rail's top (its raised edges, widened by
+   * how far the car can move across); omitted when the lane has no rail.
    */
   constructor(
     points: readonly UnderbodyPoint[],
     private readonly track: Track,
     radii: readonly [number, number],
     wheelbase: number,
-    railBand: number | undefined,
+    railBand: { readonly inner: number; readonly outer: number } | undefined,
   ) {
     this.railHeight = track.lateral?.guideRail.height.value ?? 0;
     // Per station: the lowest point anywhere (it can meet the lane) and within the rail band.
@@ -51,7 +51,7 @@ export class ClearanceMonitor {
     for (const p of points) {
       const st = stations.get(p.x) ?? { lane: Infinity, rail: Infinity };
       st.lane = Math.min(st.lane, p.z);
-      if (railBand !== undefined && Math.abs(p.y) <= railBand) st.rail = Math.min(st.rail, p.z);
+      if (railBand !== undefined && Math.abs(p.y) <= railBand.outer && Math.abs(p.y) >= railBand.inner) st.rail = Math.min(st.rail, p.z);
       stations.set(p.x, st);
     }
     // A point need only be watched if the lane's curvature could bring it to contact. On an arc of

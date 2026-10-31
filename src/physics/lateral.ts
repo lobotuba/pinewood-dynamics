@@ -43,7 +43,13 @@ import type { Sourced } from "../core/provenance.js";
 
 /** The lane's guide rail and cross slope (TRK geometry; dimensions are not yet sourced for BestTrack). */
 export interface LaneLateral {
-  readonly guideRail: { readonly width: Sourced<number>; readonly height: Sourced<number> };
+  /**
+   * The centre guide rail. clearMiddle: the width of a cleared flat down the rail's middle, between
+   * two raised edges, where a weight hung under a car cannot drag. Omitted: a solid rail.
+   */
+  readonly guideRail: { readonly width: Sourced<number>; readonly height: Sourced<number>; readonly clearMiddle?: Sourced<number> };
+  /** Lane centre to lane centre, m (drawing only: each lane is raced alone). Omitted: not known. */
+  readonly lanePitch?: Sourced<number>;
   /** Lane tilt across, rad: positive raises the +y (left) side, so gravity pulls toward -y. */
   readonly crossSlope: Sourced<number>;
 }

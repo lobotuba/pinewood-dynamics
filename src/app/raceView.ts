@@ -17,10 +17,10 @@ export type RaceCamera = "track" | "chase" | "finish";
 export const LANE_COLOURS = ["#3987e5", "#d95926", "#199e70", "#c98500"] as const;
 
 /**
- * Lane pitch, m. Display only: each lane is raced alone, so it has no effect on a result. BestTrack's
- * pitch is not yet sourced; 4 in is an estimate.
+ * Lane pitch, m, when the track does not give one. Display only: each lane is raced alone, so it has
+ * no effect on a result. BestTrack gives 3.5 in (LaneLateral.lanePitch).
  */
-const LANE_PITCH = inches(4);
+let LANE_PITCH = inches(3.5);
 const LANES = 4;
 const BOARD = 0.019; // track board thickness, display only
 
@@ -82,6 +82,7 @@ export class RaceView {
   /** Build the track model: the lane profile swept across four lanes, guide rails, gate and finish. */
   setTrack(track: Track): void {
     this.track = track;
+    LANE_PITCH = track.lateral?.lanePitch?.value ?? inches(3.5);
     const g = this.trackGroup;
     g.traverse((o) => (o as Partial<THREE.Mesh>).geometry?.dispose());
     g.clear();

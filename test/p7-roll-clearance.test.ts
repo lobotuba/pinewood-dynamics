@@ -92,8 +92,9 @@ describe("Underside clearance over the lane and the rail", () => {
   const r = demoCar().rear.wheelRadius.value;
   const WB = demoCar().wheelbase.value;
   const h = inches(0.25);
-  // One low point 60 mm ahead of the front axle, across the middle of the body.
-  const nosePoint = (aboveRail: number): UnderbodyPoint[] => [{ x: WB + 0.06, y: 0, z: -r + h + aboveRail }];
+  // One low point 60 mm ahead of the front axle, over the rail's raised edge (BestTrack's rail is
+  // cleared down its middle 1 in, so only its edges, 0.5 to 0.8125 in out, have a top).
+  const nosePoint = (aboveRail: number): UnderbodyPoint[] => [{ x: WB + 0.06, y: inches(0.65), z: -r + h + aboveRail }];
   const car = (pts: UnderbodyPoint[] | null): CarSpec => {
     const c = demoCar();
     return pts ? { ...c, underbody: d(pts) } : c;
@@ -124,6 +125,13 @@ describe("Underside clearance over the lane and the rail", () => {
     const res = simulateRace(car(nosePoint(3e-4)), track, DEFAULT_ENVIRONMENT, { dt: 5e-4 });
     expect(res.status).toBe("OUTSIDE_MODEL_VALIDITY");
     expect(res.message).toMatch(/touches the guide rail 171\.1 mm ahead of the rear axle/);
+  });
+
+  it("lets a point over the rail's cleared middle pass where a solid rail would stop it", () => {
+    const pts: UnderbodyPoint[] = [{ x: WB + 0.06, y: 0, z: -r + h + 3e-4 }];
+    const res = simulateRace(car(pts), track, DEFAULT_ENVIRONMENT, { dt: 5e-4 });
+    expect(res.status).toBe("FINISHED");
+    expect(res.clearance!.rail).toBe(Infinity);
   });
 
   it("checks against the lane, not the rail, beside the rail's reach", () => {

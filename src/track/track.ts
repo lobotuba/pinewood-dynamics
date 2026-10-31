@@ -84,6 +84,7 @@ export const TEST_RAMP: RampParams = {
 export type BestTrackLength = 35 | 42 | 49;
 
 const BESTTRACK_SPECS = "https://www.besttrack.com/track_specs.html";
+const BESTTRACK_FAQ = "https://www.besttrack.com/faq.htm";
 const BESTTRACK_DRAWING = "https://www.besttrack.com/tracklayoutsketch2.pdf";
 /** Start pin to the middle timer hole, in (MANUFACTURER, BESTTRACK_SPECS). */
 const BESTTRACK_TIMED_IN: Record<BestTrackLength, number> = { 35: 358, 42: 442, 49: 526 };
@@ -104,13 +105,40 @@ export const TYPICAL_LANE_LATERAL: LaneLateral = {
 };
 
 /**
+ * BestTrack's lane, from the manufacturer's FAQ: 3.50 in lanes at 3.50 in centre to centre, a centre
+ * wheel guide 1/4 in tall by 1-5/8 in wide, and a 1 in flat between the guide's two raised edges,
+ * cleared so a weight hung under a car cannot drag. The lane is taken as level across (DEFAULT).
+ */
+export const BESTTRACK_LANE_LATERAL: LaneLateral = {
+  guideRail: {
+    width: sourced(inches(1.625), "MANUFACTURER", `${BESTTRACK_FAQ}: centre wheel guide 1/4 in tall by 1-5/8 in wide`),
+    height: sourced(inches(0.25), "MANUFACTURER", `${BESTTRACK_FAQ}: centre wheel guide 1/4 in tall by 1-5/8 in wide`),
+    clearMiddle: sourced(inches(1), "MANUFACTURER", `${BESTTRACK_FAQ}: flat centre area between the rail guides 1 in wide`),
+  },
+  lanePitch: sourced(inches(3.5), "MANUFACTURER", `${BESTTRACK_FAQ}: lane width 3.50 in, as is lane centre to lane centre`),
+  crossSlope: sourced(0, "DEFAULT", "Level across until surveyed"),
+};
+
+/**
+ * BestTrack's start pin (manufacturer drawing): vinyl-covered stainless steel, non-magnetic, standing
+ * about 2 in above the lane. Its diameter and the shape of its face are not published, so the
+ * starting-gate face rule stays unevaluated (RUL-007, CHAR-004).
+ */
+export const BESTTRACK_START_PIN = {
+  height: sourced(inches(2), "MANUFACTURER", "Drawing: start pin extends about 2 in above the track surface"),
+  material: "vinyl-covered stainless steel, non-magnetic",
+} as const;
+
+/**
  * BestTrack aluminium track built from the manufacturer's layout drawing and specification page.
  *
  * MANUFACTURER: a 7 ft start lane at 26 deg; a curved lane 41 in long; 7 ft straight lanes plus a
  * 40 in stop section; the start pin 8 in down the start lane from its top end; the timed distance
  * from the pin to the middle timer hole (358, 442 or 526 in).
  *
- * ESTIMATED: the curved lane has uniform curvature, turning 26 deg over 41 in (radius 90.35 in).
+ * MANUFACTURER (FAQ): the lane, its spacing and the guide rail (BESTTRACK_LANE_LATERAL), and the start pin.
+
+ESTIMATED: the curved lane has uniform curvature, turning 26 deg over 41 in (radius 90.35 in).
  * The drawing labels it "4 ft radius", but a 41 in arc of 48 in radius would turn 49 deg, not 26.
  * Uniform curvature fits the drawing's other numbers: the curve top at 11-3/8 in, the track top
  * at about 48 in and the pin at about 45 in above the floor, and the 33 ft 11 in footprint of the
@@ -140,6 +168,6 @@ export function bestTrack(length: BestTrackLength = 35): Track {
       "curved lane assumed uniform (41 in turning 26 deg, radius 90.35 in) pending the CHAR-005 survey.",
     pinS: inches(8),
     timedDistance: sourced(inches(BESTTRACK_TIMED_IN[length]), "MANUFACTURER", BESTTRACK_SPECS),
-    lateral: TYPICAL_LANE_LATERAL,
+    lateral: BESTTRACK_LANE_LATERAL,
   };
 }

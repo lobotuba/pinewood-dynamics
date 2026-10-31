@@ -347,8 +347,7 @@ spacing, toe and camber of each axle, tread width, tread friction `μ_t`, rail f
 restitution `e`, the start offset and heading, rail width and height, and the lane's cross slope.
 Each axle's thrust faces (`AxleSpec.thrustFaces`) give a coefficient and an effective friction
 radius for the axle head and the body. BestTrack's rail is
-taken as 1 5/8 in by 1/4 in, the figure local rulebooks give for a standard track. That is
-ESTIMATED, because BestTrack's own documents leave rail and lane dimensions open.
+1 5/8 in by 1/4 in with a 1 in cleared middle, from the manufacturer's FAQ (MANUFACTURER).
 
 **Treads.** Axle `i` points along `ψ + δ_i`. Its sideways slip is
 
