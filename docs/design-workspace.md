@@ -219,9 +219,11 @@ In the browser, headless Edge was driven through these paths with no page errors
 
 - **Display modes.** These modes and overlays from 12.2 are missing:
   - "CG and mass properties" as its own mode;
-  - wheel swept envelopes drawn in 3D;
-  - the gate-contact zone;
-  - axle structural zones.
+  - the gate-contact zone, which waits on the pin geometry (CHAR-004);
+  - axle structural zones, which wait on the kit's slot dimensions (CHAR-002).
+
+  The wheel swept envelopes are drawn (Wheel envelopes, in the view bar): each wheel's bounding box
+  plus 1/32 in, the box the inspection checks.
 - **Build tiers.** The tier rules are provisional and classify only the kind of operation. Minimum
   feature size, wall thickness and precision per tier wait on characterization (CHAR-007, D-10).
   Nothing yet requires CNC/DIGITAL.

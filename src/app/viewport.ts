@@ -5,9 +5,9 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { inches } from "../core/units.js";
 import type { Ballast, CarDesign, Feature, V3 } from "../geometry/design.js";
-import type { BodySolid } from "../geometry/solid.js";
+import { type BodySolid, wheelCentres } from "../geometry/solid.js";
 import { TYPICAL_KIT_ESTIMATE as K } from "../kit/kit.js";
-import type { CarEvaluation } from "../mass/carModel.js";
+import { type CarEvaluation, WHEEL_ENVELOPE_PAD } from "../mass/carModel.js";
 import { CCCS_KIT_CAR_2026 } from "../rules/cccs.js";
 import { bodyMeshes, wheelSet } from "./carMesh.js";
 import type { Store } from "./store.js";
@@ -48,6 +48,8 @@ export class Viewport {
     cg: new THREE.Group(),
     datums: new THREE.Group(),
     envelope: new THREE.Group(),
+    /** Protected zones (9.6): each wheel's swept envelope, as the inspection checks it. */
+    zones: new THREE.Group(),
     /** The selected hole or cut, drawn as a ghost so it can be found even where it removes nothing. */
     selection: new THREE.Group(),
   };
@@ -151,6 +153,19 @@ export class Viewport {
     const r = K.wheelRadius.value;
     const outer = K.blockWidth.value / 2 + K.wheelBodyGap.value + K.wheelWidth.value;
     this.groups.wheels.add(wheelSet().group);
+
+    // Wheel swept envelopes: the wheel's bounding box plus the pad, the box the inspection uses.
+    const pad = WHEEL_ENVELOPE_PAD;
+    const zoneGeo = new THREE.BoxGeometry(2 * (r + pad), K.wheelWidth.value + 2 * pad, 2 * (r + pad));
+    const zoneMat = new THREE.MeshBasicMaterial({ color: 0xff7a59, transparent: true, opacity: 0.14, depthWrite: false });
+    const zoneEdge = new THREE.LineBasicMaterial({ color: 0xff7a59 });
+    for (const c of wheelCentres()) {
+      const box = new THREE.Mesh(zoneGeo, zoneMat);
+      box.position.set(...c);
+      const edges = new THREE.LineSegments(new THREE.EdgesGeometry(zoneGeo), zoneEdge);
+      edges.position.set(...c);
+      this.groups.zones.add(box, edges);
+    }
 
     // Datums (12.2): axle axes and the wheelbase dimension on the contact plane.
     const datum = new THREE.LineDashedMaterial({ color: 0x5fb3ff, dashSize: 0.004, gapSize: 0.003 });
@@ -300,6 +315,7 @@ export class Viewport {
     this.groups.cg.visible = v.show.cg;
     this.groups.datums.visible = v.show.datums;
     this.groups.envelope.visible = v.show.envelope;
+    this.groups.zones.visible = v.show.zones;
     const m = this.bodyMaterial;
     m.wireframe = v.display === "wireframe";
     m.transparent = v.display === "xray";

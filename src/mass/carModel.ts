@@ -66,6 +66,9 @@ export const AXLE_PREPS: Readonly<Record<CarDesign["axlePrep"], AxlePrep>> = {
 /** C_D for a derby body: a guess until measured (AERO-001). */
 export const DRAG_COEFFICIENT = sourced(0.45, "ESTIMATED", "Bluff body near the ground; AERO-001 estimate");
 
+/** Clearance added all round a wheel's bounding box to make its protected swept envelope (spec 9.6), m. */
+export const WHEEL_ENVELOPE_PAD = 0.0254 / 32;
+
 export function shapeVolume(shape: BallastShape): number {
   return shape.kind === "cylinder" ? Math.PI * (shape.diameter / 2) ** 2 * shape.length : shape.size[0] * shape.size[1] * shape.size[2];
 }
@@ -160,7 +163,7 @@ export function evaluateCar(design: CarDesign, body: BodySolid, kit = TYPICAL_KI
     if (bl.center[2] - h[2] < low.z) low = { z: bl.center[2] - h[2], what: `weight ${bl.id}` };
   }
   // Wheel swept envelope: the wheel's bounding box plus 1/32 in all round (strictest reading).
-  const pad = 0.03 * 0.0254;
+  const pad = WHEEL_ENVELOPE_PAD;
   const intrusions = design.ballast
     .filter((bl) => {
       const h = shapeHalfSize(bl.shape);

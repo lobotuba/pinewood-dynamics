@@ -13,7 +13,7 @@ export type Selection = { kind: "ballast" | "feature"; id: string } | null;
 export interface View {
   readonly units: UnitSystem;
   readonly display: DisplayMode;
-  readonly show: { body: boolean; wheels: boolean; ballast: boolean; cg: boolean; datums: boolean; envelope: boolean };
+  readonly show: { body: boolean; wheels: boolean; ballast: boolean; cg: boolean; datums: boolean; envelope: boolean; zones: boolean };
   readonly selection: Selection;
 }
 
@@ -84,7 +84,7 @@ export class Store {
     this.view = {
       units: saved?.units ?? "metric",
       display: "solid",
-      show: { body: true, wheels: true, ballast: true, cg: true, datums: true, envelope: false },
+      show: { body: true, wheels: true, ballast: true, cg: true, datums: true, envelope: false, zones: false },
       selection: null,
     };
   }
