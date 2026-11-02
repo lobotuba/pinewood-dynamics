@@ -4,6 +4,7 @@
 
 import type { UnitSystem } from "../core/display.js";
 import { type CarDesign, upgradeDesign, wedgeDesign } from "../geometry/design.js";
+import { type BlockKit, type KitChoice, type WheelSet, catalogueKit, kitChoice } from "../kit/kit.js";
 import type { Fidelity, TrackChoice } from "../race/session.js";
 import type { Ruleset } from "../rules/cccs.js";
 import type { RaceStatus } from "../physics/race.js";
@@ -77,6 +78,11 @@ export class Store {
   results: SavedRace[];
   /** Local rulesets entered for races (9.1 local overrides); the shipped rulesets are in the code. */
   rulesets: Ruleset[];
+  /**
+   * The player's own kit records (CHAR-001..003): blocks and wheel sets they measured or turned, by id.
+   * Their next car on that kit starts from them.
+   */
+  kits: { blocks: BlockKit[]; wheels: WheelSet[] };
 
   /** True when nothing was saved before: the first launch, when the player is asked for their kit. */
   readonly firstRun: boolean;
@@ -88,6 +94,7 @@ export class Store {
     this.versions = saved?.versions ?? [];
     this.results = saved?.results ?? [];
     this.rulesets = saved?.rulesets ?? [];
+    this.kits = saved?.kits ?? { blocks: [], wheels: [] };
     this.committed = this.design;
     this.view = {
       units: saved?.units ?? "metric",
@@ -195,6 +202,22 @@ export class Store {
     this.save();
   }
 
+  /** A block and wheels as the player has them: their own record where there is one, else the library's. */
+  kitFor(block: BlockKit, wheels: WheelSet = block.wheels): KitChoice {
+    return kitChoice(this.kits.blocks.find((b) => b.id === block.id) ?? block, this.kits.wheels.find((w) => w.id === wheels.id) ?? wheels);
+  }
+
+  /** Keep the player's record of this kit, or forget it where it is back to the library's values. */
+  rememberKit(k: KitChoice): void {
+    const lib = catalogueKit(k);
+    const keep = <T extends { id: string }>(all: T[], x: T, same: boolean): T[] => [...all.filter((y) => y.id !== x.id), ...(same ? [] : [x])];
+    this.kits = {
+      blocks: keep(this.kits.blocks, k.block, JSON.stringify(k.block) === JSON.stringify(lib.block)),
+      wheels: keep(this.kits.wheels, k.wheels, JSON.stringify(k.wheels) === JSON.stringify(lib.wheels)),
+    };
+    this.save();
+  }
+
   deleteRuleset(id: string): void {
     this.rulesets = this.rulesets.filter((r) => r.id !== id);
     this.save();
@@ -223,18 +246,32 @@ export class Store {
 
   private save(): void {
     try {
-      localStorage.setItem(KEY, JSON.stringify({ design: this.committed, units: this.view.units, versions: this.versions, results: this.results, rulesets: this.rulesets }));
+      localStorage.setItem(KEY, JSON.stringify({ design: this.committed, units: this.view.units, versions: this.versions, results: this.results, rulesets: this.rulesets, kits: this.kits }));
     } catch {
       // Storage can be unavailable (private mode, blocked site data); the session still works.
     }
   }
 }
 
-function load(): { design: CarDesign; units: UnitSystem; versions: SavedVersion[]; results: SavedRace[]; rulesets: Ruleset[] } | null {
+function load(): {
+  design: CarDesign;
+  units: UnitSystem;
+  versions: SavedVersion[];
+  results: SavedRace[];
+  rulesets: Ruleset[];
+  kits: { blocks: BlockKit[]; wheels: WheelSet[] };
+} | null {
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return null;
-    const x = JSON.parse(raw) as { design?: CarDesign; units?: UnitSystem; versions?: SavedVersion[]; results?: SavedRace[]; rulesets?: Ruleset[] };
+    const x = JSON.parse(raw) as {
+      design?: CarDesign;
+      units?: UnitSystem;
+      versions?: SavedVersion[];
+      results?: SavedRace[];
+      rulesets?: Ruleset[];
+      kits?: { blocks?: BlockKit[]; wheels?: WheelSet[] };
+    };
     if (x.design?.schema !== 1) return null;
     // Designs saved before kits were chosen keep their place on the wood (upgradeDesign).
     const versions = Array.isArray(x.versions) ? x.versions.filter((v) => v?.design?.schema === 1).map((v) => ({ ...v, design: upgradeDesign(v.design) })) : [];
@@ -244,7 +281,10 @@ function load(): { design: CarDesign; units: UnitSystem; versions: SavedVersion[
           .map((r) => ({ ...r, lanes: r.lanes.map((l) => (l ? { ...l, design: upgradeDesign(l.design) } : l)) }))
       : [];
     const rulesets = Array.isArray(x.rulesets) ? x.rulesets.filter((r) => Array.isArray(r?.limits) && r.event) : [];
-    return { design: upgradeDesign(x.design), units: x.units === "english" ? "english" : "metric", versions, results, rulesets };
+    const own = <T extends { id: string; length?: unknown; diameter?: unknown }>(a: T[] | undefined, key: "length" | "diameter"): T[] =>
+      Array.isArray(a) ? a.filter((y) => typeof y?.id === "string" && y[key]) : [];
+    const kits = { blocks: own(x.kits?.blocks, "length"), wheels: own(x.kits?.wheels, "diameter") };
+    return { design: upgradeDesign(x.design), units: x.units === "english" ? "english" : "metric", versions, results, rulesets, kits };
   } catch {
     return null;
   }

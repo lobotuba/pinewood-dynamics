@@ -4,7 +4,7 @@
 // before the car is started on another one.
 
 import { type UnitSystem, formatLength } from "../core/display.js";
-import { type BlockKit, BLOCK_KITS, type KitChoice, blockKit, kitChoice, kitWheels, wheelChoices } from "../kit/kit.js";
+import { type BlockKit, BLOCK_KITS, type KitChoice, blockKit, kitWheels, slotPositions, wheelChoices } from "../kit/kit.js";
 import { CCCS_KIT_CAR_2026, type Ruleset, starterRules } from "../rules/cccs.js";
 import { kitOf } from "../geometry/design.js";
 import type { Store } from "./store.js";
@@ -22,7 +22,15 @@ const STARTER = "starter";
 
 const dims = (b: BlockKit, u: UnitSystem): string =>
   `${formatLength(b.length.value, u)} × ${formatLength(b.width.value, u)} × ${formatLength(b.height.value, u)} block, ` +
-  `${formatLength(b.frontAxleFromRear.value - b.rearAxleFromRear.value, u)} wheelbase, ${b.slots} slots`;
+  `${formatLength(slotPositions(b).front.value - slotPositions(b).rear.value, u)} wheelbase, ${b.slots} slots`;
+
+/** What the card says about the slots and the player's own record of the kit. */
+const slotNote = (b: BlockKit, own: BlockKit): string =>
+  own !== b
+    ? `. Your measurements${own.turned ? ", block turned end for end" : ""}`
+    : slotPositions(b).rear.provenance === "ESTIMATED"
+      ? ". Slot positions estimated: set yours in the Kit panel"
+      : "";
 
 /** Why a ruleset will not pass a car on this kit, or "" if it can. */
 function conflict(r: Ruleset, kit: KitChoice): string {
@@ -51,7 +59,9 @@ export function askKit(dlg: HTMLDialogElement, store: Store, o: { readonly first
       <fieldset class="kit-list"><legend>Block</legend>
         ${BLOCK_KITS.map(
           (b) => `<label class="kit-card"><input type="radio" name="kd-block" value="${b.id}" ${b.id === (current || BLOCK_KITS[0]!.id) ? "checked" : ""}>
-            <span><b>${esc(b.name)}</b><span class="hint">${esc(dims(b, u))}${b.notModelled ? ". Driver cut-out not in the block: cut it as a pocket" : ""}</span></span></label>`,
+            <span><b>${esc(b.name)}</b><span class="hint">${esc(dims(store.kitFor(b).block, u))}${b.notModelled ? ". Driver cut-out not in the block: cut it as a pocket" : ""}${esc(
+              slotNote(b, store.kitFor(b).block),
+            )}</span></span></label>`,
         ).join("")}
       </fieldset>
       <div class="kit-fields">
@@ -72,7 +82,7 @@ export function askKit(dlg: HTMLDialogElement, store: Store, o: { readonly first
   const block = (): BlockKit => blockKit(dlg.querySelector<HTMLInputElement>('input[name="kd-block"]:checked')!.value)!;
   const kit = (): KitChoice => {
     const b = block();
-    return kitChoice(b, wheelChoices(b).find((w) => w.id === wheelsSel.value) ?? b.wheels);
+    return store.kitFor(b, wheelChoices(b).find((w) => w.id === wheelsSel.value) ?? b.wheels);
   };
   const fill = (): void => {
     const b = block();

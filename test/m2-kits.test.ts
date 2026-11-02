@@ -7,7 +7,20 @@ import { designFromFile } from "../src/app/store.js";
 import { inches, toInches } from "../src/core/units.js";
 import { type CarDesign, blockBox, kitOf, uncutDesign, upgradeDesign, wedgeDesign, withKit } from "../src/geometry/design.js";
 import { evaluateBody, loadManifold } from "../src/geometry/solid.js";
-import { BLOCK_KITS, DEFAULT_KIT, TYPICAL_KIT_ESTIMATE as K, WHEEL_SETS, blockKit, kitChoice, kitValues, measuredKit, unmeasured } from "../src/kit/kit.js";
+import {
+  BLOCK_KITS,
+  DEFAULT_KIT,
+  TYPICAL_KIT_ESTIMATE as K,
+  WHEEL_SETS,
+  blockKit,
+  catalogueKit,
+  kitChoice,
+  kitValues,
+  measuredKit,
+  slotPositions,
+  turnedKit,
+  unmeasured,
+} from "../src/kit/kit.js";
 import { evaluateCar } from "../src/mass/carModel.js";
 import { CCCS_KIT_CAR_2026, inspect, limitOf, starterRules } from "../src/rules/cccs.js";
 
@@ -108,6 +121,35 @@ describe("Changing kit", () => {
     expect(up.kit).toBeUndefined();
     expect(upgradeDesign(up)).toBe(up);
     expect(designFromFile(JSON.stringify({ format: "pinewood-dynamics-design", ...legacy })).side).toEqual(up.side);
+  });
+
+  it("sets the slot positions the player measures, and turns an offset block end for end", () => {
+    const std = kitOf(withKit(wedgeDesign(), DEFAULT_KIT));
+    // The standard kit's offset slots are estimated (the catalogue does not place them).
+    expect(slotPositions(std.block).rear.provenance).toBe("ESTIMATED");
+    // Turned: the overhangs swap, the wheelbase stays, and turning back is no change.
+    const t = turnedKit(std);
+    const p = slotPositions(t.block);
+    expect(toInches(p.rear.value)).toBeCloseTo(7 - 0.875 - 4.375, 9);
+    expect(toInches(p.front.value - p.rear.value)).toBeCloseTo(4.375, 9);
+    expect(turnedKit(t)).toEqual(std);
+    expect(turnedKit(kitChoice(club))).toEqual(kitChoice(club));
+    // On a turned car the shape stays as drawn and the wheels move (the design's origin is the rear axle).
+    const d = withKit(wedgeDesign(), std);
+    const moved = withKit(d, t);
+    const A = blockBox(kitValues(std));
+    const B = blockBox(kitValues(t));
+    expect(toInches(B.min[0] - A.min[0])).toBeCloseTo(-(1.75 - 0.875), 9);
+    expect(moved.side.points.map((q) => +(q[0] - B.min[0]).toFixed(9))).toEqual(d.side.points.map((q) => +(q[0] - A.min[0]).toFixed(9)));
+    // Measured positions are where the slots sit on the car as it is: MEASURED, and the turn cleared.
+    const m = measuredKit(t, { frontAxleFromRear: inches(5.3) }, "test");
+    expect(m.block.turned).toBeUndefined();
+    expect(slotPositions(m.block).front.provenance).toBe("MEASURED");
+    expect(toInches(slotPositions(m.block).front.value)).toBeCloseTo(5.3, 9);
+    expect(slotPositions(m.block).rear.value).toBeCloseTo(p.rear.value, 12);
+    // It is still the same kit, and the catalogue values come back on request.
+    expect(m.block.id).toBe("standard");
+    expect(catalogueKit(m)).toEqual(std);
   });
 
   it("travels with the design file", () => {

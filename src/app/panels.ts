@@ -7,7 +7,19 @@ import { type UnitSystem, formatAgainstLimit, formatLength, formatLimit, formatM
 import { inches, ounces, toInches, toMm, toOunces } from "../core/units.js";
 import type { Axis, Ballast, BallastShape, CarDesign, Cut, Feature, MaterialId, Plane, V3 } from "../geometry/design.js";
 import { blockBox, kitOf, kitValuesOf, withKit } from "../geometry/design.js";
-import { BLOCK_KITS, type Measurable, blockKit, kitChoice, kitNote, kitWheels, measuredKit, wheelChoices } from "../kit/kit.js";
+import {
+  BLOCK_KITS,
+  type KitChoice,
+  type Measurable,
+  blockKit,
+  catalogueKit,
+  kitNote,
+  kitWheels,
+  measuredKit,
+  slotPositions,
+  turnedKit,
+  wheelChoices,
+} from "../kit/kit.js";
 import type { Provenance, Sourced } from "../core/provenance.js";
 import { CUT_PRESETS, type CutPreset, HOLE_FACES, type HoleFace } from "../geometry/presets.js";
 import type { MountState } from "../geometry/solid.js";
@@ -20,6 +32,14 @@ import { contextOf } from "../geometry/design.js";
 import type { Store } from "./store.js";
 
 const esc = (s: string): string => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+
+/** Why a kit's slots cannot sit where it puts them, or "". */
+function slotsWrong(k: KitChoice): string {
+  const p = slotPositions(k.block);
+  return p.rear.value > 0 && p.front.value > p.rear.value && p.front.value < k.block.length.value
+    ? ""
+    : "The front slot must be ahead of the rear slot, and both within the block.";
+}
 
 /** A length typed in the display units, back to metres. */
 const parseLength = (text: string, u: UnitSystem): number | null => {
@@ -140,6 +160,7 @@ export class Panels {
     const w = k.wheels;
     const L = (s: Sourced<number>) => formatLength(s.value, u);
     const tag = (...p: Provenance[]) => `<span class="tag">${[...new Set(p)].join("/")}</span>`;
+    const pos = slotPositions(b);
     this.q("p-kit-summary").innerHTML = `
       <h2>Kit</h2>
       ${d.kit ? "" : `<p class="notice"><b>No kit chosen.</b> The standard kit is assumed. Which kit is your car built from?</p>`}
@@ -153,8 +174,7 @@ export class Panels {
       </div>
       <table class="kv">
         <tr><th>Block</th><td>${L(b.length)} × ${L(b.width)} × ${L(b.height)}${tag(b.length.provenance, b.width.provenance, b.height.provenance)}</td></tr>
-        <tr><th>Wheelbase (${b.slots} slots)</th><td>${formatLength(b.frontAxleFromRear.value - b.rearAxleFromRear.value, u)}${tag(b.rearAxleFromRear.provenance, b.frontAxleFromRear.provenance)}</td></tr>
-        <tr><th>Rear axle from the rear face</th><td>${L(b.rearAxleFromRear)}${tag(b.rearAxleFromRear.provenance)}</td></tr>
+        <tr><th>Wheelbase (${b.slots} slots)</th><td>${formatLength(pos.front.value - pos.rear.value, u)}${tag(pos.rear.provenance, pos.front.provenance)}</td></tr>
         <tr><th>Slot depth</th><td>${L(b.slotDepth)}${tag(b.slotDepth.provenance)}</td></tr>
         <tr><th>Wheel</th><td>⌀ ${L(w.diameter)}, ${formatMass(w.mass.value, u)}${tag(w.diameter.provenance, w.mass.provenance)}</td></tr>
         <tr><th>Axle</th><td>⌀ ${L(w.axleDiameter)} × ${L(w.axleLength)}${tag(w.axleDiameter.provenance, w.axleLength.provenance)}</td></tr>
@@ -169,8 +189,6 @@ export class Panels {
       ["width", "Block width", "length", b.width],
       ["height", "Block height", "length", b.height],
       ["slotDepth", "Axle slot depth", "length", b.slotDepth],
-      ["rearAxleFromRear", "Rear slot centre from the rear face", "length", b.rearAxleFromRear],
-      ["frontAxleFromRear", "Front slot centre from the rear face", "length", b.frontAxleFromRear],
       ["diameter", "Wheel diameter", "length", w.diameter],
       ["wheelWidth", "Wheel width, hub to outer face", "length", w.width],
       ["mass", "One wheel's mass", "mass", w.mass],
@@ -178,7 +196,37 @@ export class Panels {
     ];
     const shown = (q: "length" | "mass", s: Sourced<number>) =>
       q === "length" ? showLength(s.value, u) : u === "metric" ? (s.value * 1000).toFixed(2) : toOunces(s.value).toFixed(3);
-    this.form("p-kit-form", `${u}|${JSON.stringify(k)}|${this.kitError}`, () => `
+    const own = JSON.stringify(k) !== JSON.stringify(catalogueKit(k));
+    const estimated = pos.rear.provenance === "ESTIMATED" || pos.front.provenance === "ESTIMATED";
+    const overhang = (s: Sourced<number>, front: boolean) => formatLength(front ? b.length.value - s.value : s.value, u);
+    this.form("p-kit-form", `${u}|${JSON.stringify(k)}|${this.kitError}|${this.slotError}`, () => `
+      <div class="kit-edit kit-slots">
+        <h3>Axle slots</h3>
+        <table class="kv">
+          <tr><th>Rear slot centre from the rear face</th><td>${L(pos.rear)}${tag(pos.rear.provenance)}</td></tr>
+          <tr><th>Front slot centre from the rear face</th><td>${L(pos.front)}${tag(pos.front.provenance)}</td></tr>
+          <tr><th>Overhang, rear and front</th><td>${overhang(pos.rear, false)} / ${overhang(pos.front, true)}</td></tr>
+        </table>
+        ${
+          estimated
+            ? `<p class="hint">${
+                b.slots === "offset" ? "The catalogue does not say where this kit's offset slots sit: these are the standard kit's, an estimate." : "Estimated."
+              } Measure from the car's rear face to the centre of each slot and set them here.</p>`
+            : ""
+        }
+        <div class="form">
+          <label>Rear slot (${lengthUnit(u)}) <input id="ks-rear" inputmode="decimal" placeholder="${showLength(pos.rear.value, u)}"></label>
+          <label>Front slot (${lengthUnit(u)}) <input id="ks-front" inputmode="decimal" placeholder="${showLength(pos.front.value, u)}"></label>
+          ${this.slotError ? `<p class="bad wide">${esc(this.slotError)}</p>` : ""}
+          <button id="ks-save" class="wide">Set slot positions</button>
+          ${
+            b.slots === "offset"
+              ? `<button id="ks-turn" class="wide">Turn the block end for end</button>
+                 <p class="hint wide">Swaps the overhangs: the slots move, the shape you drew stays as it is.${b.turned ? " The block is turned from the kit's way round." : ""}</p>`
+              : ""
+          }
+        </div>
+      </div>
       <details class="kit-edit" data-form="km"><summary>Enter your kit's measurements</summary>
         <p class="hint">Measure the parts in your kit box and type what you find; leave a field blank to keep the value shown.
           Typed values are marked MEASURED for this car. Weigh the block in Mass and CG.</p>
@@ -193,14 +241,19 @@ export class Panels {
             .join("")}
           ${this.kitError ? `<p class="bad wide">${esc(this.kitError)}</p>` : ""}
           <button id="km-save" class="wide">Use these measurements</button>
-        </div></details>`);
+        </div></details>
+      ${
+        own
+          ? `<p class="hint">Your measurements are kept for your next car on this kit.</p><button id="km-reset">Back to the catalogue values</button>`
+          : ""
+      }`);
   }
 
   private saveKitMeasurements(): void {
     const d = this.store.design;
     const u = this.store.view.units;
     const m: Partial<Record<Measurable, number>> = {};
-    const ids: Measurable[] = ["length", "width", "height", "slotDepth", "rearAxleFromRear", "frontAxleFromRear", "diameter", "wheelWidth", "mass", "axleDiameter"];
+    const ids: Measurable[] = ["length", "width", "height", "slotDepth", "diameter", "wheelWidth", "mass", "axleDiameter"];
     for (const id of ids) {
       const text = this.root.querySelector<HTMLInputElement>(`#km-${id}`)!.value.trim();
       if (!text) continue;
@@ -214,13 +267,48 @@ export class Panels {
       m[id] = si;
     }
     const next = measuredKit(kitOf(d), m, `Measured by the player, ${new Date().toISOString().slice(0, 10)}`);
-    if (next.block.frontAxleFromRear.value <= next.block.rearAxleFromRear.value || next.block.frontAxleFromRear.value > next.block.length.value) {
-      this.kitError = "The front slot must be ahead of the rear slot and within the block.";
+    const why = slotsWrong(next);
+    if (why) {
+      this.kitError = why;
       this.renderKit(d);
       return;
     }
     this.kitError = "";
-    this.store.update(withKit(d, next));
+    this.useKit(d, next);
+  }
+
+  private slotError = "";
+
+  /** Set the slot positions the player measured on their car (blank keeps the one shown). */
+  private saveSlots(): void {
+    const d = this.store.design;
+    const u = this.store.view.units;
+    const m: Partial<Record<Measurable, number>> = {};
+    for (const [id, key] of [["ks-rear", "rearAxleFromRear"], ["ks-front", "frontAxleFromRear"]] as const) {
+      const text = this.root.querySelector<HTMLInputElement>(`#${id}`)!.value.trim();
+      if (!text) continue;
+      const si = Number(text) > 0 ? parseLength(text, u) : null;
+      if (si === null) {
+        this.slotError = `"${text}" is not a positive number.`;
+        this.renderKit(d);
+        return;
+      }
+      m[key] = si;
+    }
+    if (m.rearAxleFromRear === undefined && m.frontAxleFromRear === undefined) return;
+    const next = measuredKit(kitOf(d), m, `Measured by the player, ${new Date().toISOString().slice(0, 10)}`);
+    this.slotError = slotsWrong(next);
+    if (this.slotError) {
+      this.renderKit(d);
+      return;
+    }
+    this.useKit(d, next);
+  }
+
+  /** Put the car on this kit and keep it as the player's record of the kit for their next car. */
+  private useKit(d: CarDesign, k: KitChoice): void {
+    this.store.rememberKit(k);
+    this.store.update(withKit(d, k));
   }
 
   // --- race rules (9.1) -----------------------------------------------------------------------
@@ -648,7 +736,8 @@ export class Panels {
       if (!b) return;
       // A new block comes with its own wheels unless the car runs on a set from outside the kit.
       const keep = t.id === "kit-wheels" ? wheelChoices(b).find((x) => x.id === t.value) : kitWheels(k) ? undefined : wheelChoices(b).find((x) => x.id === k.wheels.id);
-      this.store.update(withKit(d, kitChoice(b, keep ?? b.wheels)));
+      // The player's own record of the kit (measured, turned) where they have one.
+      this.store.update(withKit(d, this.store.kitFor(b, keep ?? b.wheels)));
       return;
     }
     if (t.id === "rules-pick") {
@@ -720,6 +809,19 @@ export class Panels {
     }
     if (t.id === "km-save") {
       this.saveKitMeasurements();
+      return;
+    }
+    if (t.id === "ks-save") {
+      this.saveSlots();
+      return;
+    }
+    if (t.id === "ks-turn") {
+      this.useKit(d, turnedKit(kitOf(d)));
+      return;
+    }
+    if (t.id === "km-reset") {
+      this.kitError = this.slotError = "";
+      this.useKit(d, catalogueKit(kitOf(d)));
       return;
     }
     if (t.id === "rules-delete") {

@@ -8,7 +8,8 @@
 // The block figures come from one retailer's comparison of kits (source record below); the slot
 // positions it calls "offset" are not dimensioned, so they are taken from the standard kit. Nothing
 // here has been measured on a real kit: every value is ESTIMATED or MANUFACTURER until the player
-// enters a measurement (MEASURED), and must not be shown as a kit fact (LOC-AX-004).
+// enters a measurement (MEASURED), and must not be shown as a kit fact (LOC-AX-004). The slot
+// positions in particular are the player's to set: measured, or the block turned end for end.
 
 import { type Provenance, type Sourced, sourced, weakest } from "../core/provenance.js";
 import { STANDARD_GRAVITY, grams, inches, ounces } from "../core/units.js";
@@ -28,6 +29,11 @@ export interface BlockKit {
   /** Depth of the axle slots (or channels) in the bottom face, m; the axle seats at the slot's closed end. */
   readonly slotDepth: Sourced<number>;
   readonly slots: "offset" | "centred";
+  /**
+   * Turned end for end: the slots sit mirrored about the block's middle, so on offset slots the long
+   * overhang changes ends. The datums above stay as the kit has them; slotPositions gives the car's.
+   */
+  readonly turned?: boolean;
   /** What the kit has that the block solid leaves out, shown with the kit. */
   readonly notModelled?: string;
   readonly wheels: WheelSet;
@@ -194,6 +200,19 @@ export const DEFAULT_KIT: KitChoice = kitChoice(STANDARD);
 /** The wheels a block can run on: its own, then the sets sold separately. */
 export const wheelChoices = (block: BlockKit): readonly WheelSet[] => [block.wheels, ...WHEEL_SETS];
 
+/** A wheel set in the library by id: a kit's own, or one sold separately. */
+export const wheelSet = (id: string): WheelSet | undefined => [...BLOCK_KITS.map((b) => b.wheels), ...WHEEL_SETS].find((w) => w.id === id);
+
+/** The kit as the library has it: the player's measurements and any turn undone. */
+export const catalogueKit = (k: KitChoice): KitChoice => ({ block: blockKit(k.block.id) ?? k.block, wheels: wheelSet(k.wheels.id) ?? k.wheels });
+
+/** The same kit with its block turned end for end; centred slots are unchanged by it. Turning twice is no change. */
+export function turnedKit(k: KitChoice): KitChoice {
+  if (k.block.slots === "centred") return k;
+  const { turned, ...b } = k.block;
+  return { ...k, block: turned ? b : { ...b, turned: true } };
+}
+
 /** True when the car runs on the wheels its kit came with. */
 export const kitWheels = (k: KitChoice): boolean => k.wheels.kit === k.block.id;
 
@@ -212,20 +231,24 @@ export type Measurable =
 
 /**
  * The same kit with the player's measurements (CHAR-001..003), SI, each labelled MEASURED. It stays the
- * same kit (same ids), so an event's kit rule still recognises it.
+ * same kit (same ids), so an event's kit rule still recognises it. Slot positions are measured on the car
+ * from its rear face, so setting either one records both where they now sit and clears the turn.
  */
 export function measuredKit(k: KitChoice, m: Partial<Record<Measurable, number>>, note: string): KitChoice {
   const at = (key: Measurable, old: Sourced<number>): Sourced<number> => (m[key] === undefined ? old : sourced(m[key]!, "MEASURED", note));
-  const b = k.block;
+  const { turned, ...b } = k.block;
   const w = k.wheels;
+  const setsSlots = m.rearAxleFromRear !== undefined || m.frontAxleFromRear !== undefined;
+  const pos = setsSlots ? slotPositions(k.block) : { rear: b.rearAxleFromRear, front: b.frontAxleFromRear };
   return {
     block: {
       ...b,
+      ...(turned && !setsSlots ? { turned } : {}),
       length: at("length", b.length),
       width: at("width", b.width),
       height: at("height", b.height),
-      rearAxleFromRear: at("rearAxleFromRear", b.rearAxleFromRear),
-      frontAxleFromRear: at("frontAxleFromRear", b.frontAxleFromRear),
+      rearAxleFromRear: at("rearAxleFromRear", pos.rear),
+      frontAxleFromRear: at("frontAxleFromRear", pos.front),
       slotDepth: at("slotDepth", b.slotDepth),
     },
     wheels: { ...w, diameter: at("diameter", w.diameter), width: at("wheelWidth", w.width), mass: at("mass", w.mass), axleDiameter: at("axleDiameter", w.axleDiameter) },
@@ -263,17 +286,25 @@ const derived = (value: number, from: Provenance[], how: string): Sourced<number
   return sourced(value, p === "MEASURED" || p === "MANUFACTURER" || p === "RULE" ? "DERIVED" : p, how);
 };
 
+/** Where the axle slots sit on the car, from its rear face: the kit's datums, mirrored when the block is turned. */
+export function slotPositions(b: BlockKit): { readonly rear: Sourced<number>; readonly front: Sourced<number> } {
+  if (!b.turned) return { rear: b.rearAxleFromRear, front: b.frontAxleFromRear };
+  const mirror = (s: Sourced<number>) => derived(b.length.value - s.value, [b.length.provenance, s.provenance], `Block turned end for end: its length less this. ${s.source}`);
+  return { rear: mirror(b.frontAxleFromRear), front: mirror(b.rearAxleFromRear) };
+}
+
 export function kitValues(k: KitChoice): KitValues {
   const b = k.block;
   const w = k.wheels;
   const r = w.diameter.value / 2;
   const ra = w.axleDiameter.value / 2;
+  const pos = slotPositions(b);
   return {
     blockLength: b.length,
     blockWidth: b.width,
     blockHeight: b.height,
-    rearAxleFromRear: b.rearAxleFromRear,
-    frontAxleFromRear: b.frontAxleFromRear,
+    rearAxleFromRear: pos.rear,
+    frontAxleFromRear: pos.front,
     wheelRadius: half(w.diameter),
     wheelMass: w.mass,
     // 0.6 m r^2: most of a derby wheel's mass is in the tread ring.
@@ -306,8 +337,8 @@ export function unmeasured(k: KitChoice): string[] {
     ["block length", b.length],
     ["block width", b.width],
     ["block height", b.height],
-    ["axle slots", b.rearAxleFromRear],
-    ["axle slots", b.frontAxleFromRear],
+    ["axle slots", slotPositions(b).rear],
+    ["axle slots", slotPositions(b).front],
     ["slot depth", b.slotDepth],
     ["wheel diameter", w.diameter],
     ["wheel width", w.width],

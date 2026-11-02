@@ -69,8 +69,8 @@ measured kit travels with the file.
 - **Sources.** The blocks come from one retailer's comparison of kits. The kits behind the generic
   names are in the source record in `kit.ts`. Its figures describe other makers' kits, so they are
   ESTIMATED. The catalogue does not place "offset" slots, so their rear slot is put 7/8 in from the
-  rear face, as on the standard kit. The long-wheelbase kit's driver cut-out is not in the block:
-  cut it as a pocket.
+  rear face, as on the standard kit: an estimate the player sets right (Axle slots, below). The
+  long-wheelbase kit's driver cut-out is not in the block: cut it as a pocket.
 - **Wheels.** Each kit comes with its own wheels and axles. The club kit's are from retailers'
   listings: raw 1.190 to 1.200 in, about 2.2 g, bore 0.098 in, replacement axle 0.092 in. Other kits'
   wheels are the typical estimate: 1.18 in, 2.6 g, 0.087 in axle. The precision set (1.192 in, 2.4 g,
@@ -82,9 +82,21 @@ measured kit travels with the file.
   block. They are then the lowest non-tread point for the clearance rule. The rail check ignores
   them: they are outboard of it.
 - **The Kit panel** shows the block, slots, wheels and axles with their provenance. Its selects
-  change the block kit or the wheels. *Enter your kit's measurements* takes the block, slot and wheel
-  dimensions the player measures. A typed value is MEASURED, and a blank keeps the value shown. A
-  measured kit is still the same kit for the event's kit rule.
+  change the block kit or the wheels. *Enter your kit's measurements* takes the block, slot depth and
+  wheel dimensions the player measures. A typed value is MEASURED, and a blank keeps the value shown.
+  A measured kit is still the same kit for the event's kit rule.
+- **Axle slots** (always shown in the Kit panel) gives each slot centre's distance from the car's
+  rear face, with its provenance, and the two overhangs. Where the positions are estimated it says
+  so. The player types where the slots are on their car (*Set slot positions*, MEASURED; a blank
+  keeps the one shown). On offset slots, *Turn the block end for end* swaps the overhangs
+  (`turnedKit`, `slotPositions`): the slots move and the drawn shape stays, by the kit-change rule
+  below. A turned position is the block length less the kit's datum, so it is no better than the
+  length. Positions set on a turned block are where the slots now sit, so setting them clears the
+  turn. The front slot must be ahead of the rear one, both within the block.
+- **Your kit, kept.** Measurements and a turn are kept as the player's record of that block kit and
+  wheel set (`Store.kits`, browser storage). Their next car on the kit, from the kit question or the
+  Kit panel's select, starts from it, and the kit question says so on the kit's card. *Back to the
+  catalogue values* returns the car to the library's values and forgets the record.
 - **Changing kit** keeps the shape on the wood. A point on or beyond a face of the old block keeps
   its place relative to that face. Anything inside keeps its distance from the rear face, the
   centreline and the bottom face. So an uncut block stays uncut, a top-mounted weight stays on top,
@@ -260,6 +272,9 @@ Headless tests:
   - changing kit keeps edges on the edges, the weight's distance from the rear face and its access;
   - a weighed block mass is dropped with the block and kept on re-measuring;
   - measurements are MEASURED and keep the kit's identity;
+  - slot positions set by the player, and an offset block turned end for end: overhangs swap,
+    wheelbase and drawn shape stay, turning twice is no change, setting positions clears the turn,
+    and the catalogue values come back;
   - older files are moved without changing their shape on the wood;
   - the kit travels with the file;
   - the kit rule passes the event's kit, fails another kit or other wheels, and waits while no kit
