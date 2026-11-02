@@ -8,9 +8,9 @@
 // against it for how a drill meets the surface, and against the finished body for a clear way in.
 
 import Module, { type CrossSection, type Manifold, type ManifoldToplevel } from "manifold-3d";
-import { TYPICAL_KIT_ESTIMATE } from "../kit/kit.js";
+import { type KitValues, TYPICAL_KIT_ESTIMATE } from "../kit/kit.js";
 import type { Axis, Ballast, BallastShape, CarDesign, Cut, Feature, P2, V3 } from "./design.js";
-import { blockBox, shapeHalfSize } from "./design.js";
+import { blockBox, kitValuesOf, shapeHalfSize } from "./design.js";
 import { FACETS_PER_TURN, outline } from "./profile.js";
 
 let loading: Promise<ManifoldToplevel> | null = null;
@@ -152,7 +152,7 @@ interface Solids {
 }
 
 /** All solids of a design, owned by `s`. */
-function buildSolids(w: ManifoldToplevel, s: Scope, design: CarDesign, kit = TYPICAL_KIT_ESTIMATE): Solids {
+function buildSolids(w: ManifoldToplevel, s: Scope, design: CarDesign, kit: KitValues = kitValuesOf(design)): Solids {
   const b = blockBox(kit);
   const size: V3 = [b.max[0] - b.min[0], b.max[1] - b.min[1], b.max[2] - b.min[2]];
   const block = s.keep(s.keep(w.Manifold.cube([...size])).translate([...b.min]));
@@ -246,7 +246,7 @@ function holeAccess(blank: Manifold, body: Manifold, shape: BallastShape, center
   return out;
 }
 
-export function evaluateBody(w: ManifoldToplevel, design: CarDesign, kit = TYPICAL_KIT_ESTIMATE): BodySolid {
+export function evaluateBody(w: ManifoldToplevel, design: CarDesign, kit: KitValues = kitValuesOf(design)): BodySolid {
   const s = new Scope();
   try {
     const { profiled, blank, body, cutRegions, holeSolids } = buildSolids(w, s, design, kit);
@@ -307,7 +307,7 @@ export function evaluateBody(w: ManifoldToplevel, design: CarDesign, kit = TYPIC
  * hang an underside weight from the lowest, and put a side weight against the outermost face on its
  * side. Rays are cast at the footprint's centre and corners.
  */
-export function seatBallast(w: ManifoldToplevel, design: CarDesign, bl: Ballast, kit = TYPICAL_KIT_ESTIMATE): Ballast {
+export function seatBallast(w: ManifoldToplevel, design: CarDesign, bl: Ballast, kit: KitValues = kitValuesOf(design)): Ballast {
   if (bl.mounting === "cavity") return bl;
   const s = new Scope();
   try {
@@ -350,7 +350,7 @@ function surfaceOn(blank: Manifold, at: V3, k: number, sign: 1 | -1): number | n
   return hit ? hit.position[k]! : null;
 }
 
-function withBlank<T>(w: ManifoldToplevel, design: CarDesign, kit: typeof TYPICAL_KIT_ESTIMATE, f: (blank: Manifold) => T): T {
+function withBlank<T>(w: ManifoldToplevel, design: CarDesign, kit: KitValues, f: (blank: Manifold) => T): T {
   const s = new Scope();
   try {
     return f(buildSolids(w, s, design, kit).blank);
@@ -378,7 +378,7 @@ export interface HoleRequest {
 }
 
 /** A bore or pocket made from a face to a depth below the actual (sawn) surface there. */
-export function placeHole(w: ManifoldToplevel, design: CarDesign, req: HoleRequest, kit = TYPICAL_KIT_ESTIMATE): Feature {
+export function placeHole(w: ManifoldToplevel, design: CarDesign, req: HoleRequest, kit: KitValues = kitValuesOf(design)): Feature {
   const k = AXES.indexOf(req.axis);
   const b = blockBox(kit);
   const surf = withBlank(w, design, kit, (blank) => surfaceOn(blank, req.at, k, req.sign)) ?? (req.sign > 0 ? b.max[k]! : b.min[k]!);
@@ -399,7 +399,7 @@ export function placeHole(w: ManifoldToplevel, design: CarDesign, req: HoleReque
  * so the weight can be pushed in: a bore along a cylinder's axis, or a pocket off a block's nearest
  * face. It runs from inside the cavity to just outside the surface. Null if no end is buried.
  */
-export function accessHole(w: ManifoldToplevel, design: CarDesign, bl: Ballast, id: string, kit = TYPICAL_KIT_ESTIMATE): Feature | null {
+export function accessHole(w: ManifoldToplevel, design: CarDesign, bl: Ballast, id: string, kit: KitValues = kitValuesOf(design)): Feature | null {
   if (bl.mounting !== "cavity") return null;
   const h = shapeHalfSize(bl.shape);
   const dirs = bl.shape.kind === "cylinder" ? [AXES.indexOf(bl.shape.axis)] : [0, 1, 2];
@@ -427,7 +427,7 @@ export function accessHole(w: ManifoldToplevel, design: CarDesign, bl: Ballast, 
 }
 
 /** Wheel centres: rear left, rear right, front left, front right. */
-export function wheelCentres(kit = TYPICAL_KIT_ESTIMATE): V3[] {
+export function wheelCentres(kit: KitValues = TYPICAL_KIT_ESTIMATE): V3[] {
   const y = kit.blockWidth.value / 2 + kit.wheelBodyGap.value + kit.wheelWidth.value / 2;
   const xf = kit.frontAxleFromRear.value - kit.rearAxleFromRear.value;
   return [
@@ -442,6 +442,6 @@ export function wheelCentres(kit = TYPICAL_KIT_ESTIMATE): V3[] {
  * Where a tool coming in along `axis` from the `sign` side first meets the sawn blank through `at`
  * (its coordinate along `axis`), or null if it misses the body.
  */
-export function surfaceAlong(w: ManifoldToplevel, design: CarDesign, at: V3, axis: Axis, sign: 1 | -1, kit = TYPICAL_KIT_ESTIMATE): number | null {
+export function surfaceAlong(w: ManifoldToplevel, design: CarDesign, at: V3, axis: Axis, sign: 1 | -1, kit: KitValues = kitValuesOf(design)): number | null {
   return withBlank(w, design, kit, (blank) => surfaceOn(blank, at, AXES.indexOf(axis), sign));
 }

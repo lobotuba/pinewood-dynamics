@@ -6,8 +6,9 @@
 //
 //   Body = Block ∩ Extrude_Y(side) ∩ Extrude_Z(top) − axle slots − features − ballast cavities
 
+import { sourced } from "../core/provenance.js";
 import { inches } from "../core/units.js";
-import { TYPICAL_KIT_ESTIMATE } from "../kit/kit.js";
+import { DEFAULT_KIT, type KitChoice, type KitValues, TYPICAL_KIT_ESTIMATE, kitValues } from "../kit/kit.js";
 import type { Ruleset } from "../rules/cccs.js";
 
 export type P2 = readonly [number, number];
@@ -96,6 +97,7 @@ export const contextOf = (d: Pick<CarDesign, "context">): ComplianceContext => d
 export interface CarDesign {
   readonly schema: 1;
   readonly name: string;
+  /** The kit, as "block/wheels" ids; "typical-kit-estimate" marks a design saved before kits were chosen. */
   readonly kitId: string;
   readonly side: Profile;
   readonly top: Profile;
@@ -110,7 +112,15 @@ export interface CarDesign {
   readonly context?: ComplianceContext;
   /** The ruleset this version is held to, as an immutable snapshot (9.1). Omitted: the shipped ruleset. */
   readonly rules?: Ruleset;
+  /** The kit the player said the car is built from, as a snapshot (KIT-001). Omitted: not chosen; the default kit is assumed. */
+  readonly kit?: KitChoice;
 }
+
+/** The kit a design is built from: its own choice, or the default kit when none was made. */
+export const kitOf = (d: Pick<CarDesign, "kit">): KitChoice => d.kit ?? DEFAULT_KIT;
+/** The kit's values for the geometry and the mass model. */
+export const kitValuesOf = (d: Pick<CarDesign, "kit">): KitValues => (d.kit ? kitValues(d.kit) : TYPICAL_KIT_ESTIMATE);
+const kitKey = (k: KitChoice): string => `${k.block.id}/${k.wheels.id}`;
 
 /** Half-extent of a weight or bore shape along each car axis. */
 export function shapeHalfSize(shape: BallastShape): V3 {
@@ -121,7 +131,7 @@ export function shapeHalfSize(shape: BallastShape): V3 {
 }
 
 /** The block's extent in the car frame, from the kit's datums. */
-export function blockBox(kit = TYPICAL_KIT_ESTIMATE): { min: V3; max: V3 } {
+export function blockBox(kit: KitValues = TYPICAL_KIT_ESTIMATE): { min: V3; max: V3 } {
   const xr = -kit.rearAxleFromRear.value;
   const zb = -kit.axleAboveBlockBottom.value;
   const w = kit.blockWidth.value / 2;
@@ -144,12 +154,13 @@ const rect = (x0: number, a0: number, x1: number, a1: number): Profile => ({
  * Profiles that cut nothing: exactly the block's outlines, so what the editor shows on the block's
  * edge is where the saw goes (manifold resolves the coincident faces exactly).
  */
-export function uncutDesign(kit = TYPICAL_KIT_ESTIMATE): CarDesign {
-  const b = blockBox(kit);
+export function uncutDesign(kit?: KitChoice): CarDesign {
+  const b = blockBox(kit ? kitValues(kit) : TYPICAL_KIT_ESTIMATE);
   return {
     schema: 1,
     name: "Uncut block",
-    kitId: "typical-kit-estimate",
+    kitId: kitKey(kit ?? DEFAULT_KIT),
+    ...(kit ? { kit } : {}),
     side: rect(b.min[0], b.min[2], b.max[0], b.max[2]),
     top: rect(b.min[0], b.min[1], b.max[0], b.max[1]),
     features: [],
@@ -164,8 +175,8 @@ export function uncutDesign(kit = TYPICAL_KIT_ESTIMATE): CarDesign {
  * A starting design: a wedge falling from 1.0 in at the rear to 0.25 in at the nose, with a tungsten
  * cylinder in a cavity across the car just ahead of the rear axle, drilled in from the left side.
  */
-export function wedgeDesign(kit = TYPICAL_KIT_ESTIMATE): CarDesign {
-  const b = blockBox(kit);
+export function wedgeDesign(kit?: KitChoice): CarDesign {
+  const b = blockBox(kit ? kitValues(kit) : TYPICAL_KIT_ESTIMATE);
   const base = uncutDesign(kit);
   const zb = b.min[2];
   const xr = b.min[0];
@@ -198,4 +209,77 @@ export function wedgeDesign(kit = TYPICAL_KIT_ESTIMATE): CarDesign {
       },
     ],
   };
+}
+
+/**
+ * A coordinate on axis k moved from one block to another. What lies on or beyond a face of the old block
+ * keeps its place relative to that face; anything inside keeps its distance from the rear face (X), the
+ * centreline (Y) or the bottom face (Z). So the shape stays on the wood and the wheels go wherever the new
+ * kit's slots are.
+ */
+function mover(from: KitValues, to: KitValues): (c: number, k: number) => number {
+  const a = blockBox(from);
+  const b = blockBox(to);
+  const EPS = 1e-7;
+  return (c, k) => {
+    if (c >= a.max[k]! - EPS) return c + b.max[k]! - a.max[k]!;
+    if (c <= a.min[k]! + EPS) return c + b.min[k]! - a.min[k]!;
+    return k === 1 ? c : c + b.min[k]! - a.min[k]!;
+  };
+}
+
+/** The design moved from one set of kit values to another (see `mover`). */
+export function moveDesign(d: CarDesign, from: KitValues, to: KitValues): CarDesign {
+  const m = mover(from, to);
+  const pt = (p: V3): V3 => [m(p[0], 0), m(p[1], 1), m(p[2], 2)];
+  const prof = (pr: Profile, ka: number): Profile => ({ ...pr, points: pr.points.map((q) => [m(q[0], 0), m(q[1], ka)] as const) });
+  /** A span [c - s/2, c + s/2] on axis k moved end by end, so a hole open to a face stays open to it. */
+  const span = (c: number, size: number, k: number): [number, number] => {
+    const lo = m(c - size / 2, k);
+    const hi = m(c + size / 2, k);
+    return [(lo + hi) / 2, hi - lo];
+  };
+  const features = d.features.map((f): Feature => {
+    if (f.kind === "cut") return { ...f, planes: f.planes.map((pl) => ({ ...pl, point: pt(pl.point) })) as unknown as Cut["planes"] };
+    if (f.kind === "pocket") {
+      const s = [0, 1, 2].map((k) => span(f.center[k]!, f.size[k]!, k));
+      return { ...f, center: [s[0]![0], s[1]![0], s[2]![0]], size: [s[0]![1], s[1]![1], s[2]![1]] };
+    }
+    const k = "xyz".indexOf(f.axis);
+    const [c, depth] = span(f.center[k]!, f.depth, k);
+    const center = pt(f.center).map((x, i) => (i === k ? c : x)) as unknown as V3;
+    return { ...f, center, depth };
+  });
+  return {
+    ...d,
+    side: prof(d.side, 2),
+    top: prof(d.top, 1),
+    features,
+    ballast: d.ballast.map((bl) => ({ ...bl, center: pt(bl.center) })),
+  };
+}
+
+/**
+ * The design on another kit, or on the same kit re-measured. A weighed block mass belongs to the block
+ * it was weighed on, so it goes when the block kit changes.
+ */
+export function withKit(d: CarDesign, kit: KitChoice): CarDesign {
+  const { measuredBlockMass, ...rest } = moveDesign(d, kitValuesOf(d), kitValues(kit));
+  const sameBlock = kitOf(d).block.id === kit.block.id;
+  return { ...rest, kitId: kitKey(kit), kit, ...(sameBlock && measuredBlockMass !== undefined ? { measuredBlockMass } : {}) };
+}
+
+/**
+ * The kit values designs were drawn on before kits were chosen: the standard kit, with the axle 3/16 in
+ * above the block's bottom (an estimate the slot depth has since replaced).
+ */
+const EARLIER_ESTIMATE: KitValues = { ...TYPICAL_KIT_ESTIMATE, axleAboveBlockBottom: sourced(inches(3 / 16), "ESTIMATED", "Earlier estimate") };
+
+/**
+ * A design saved before kits were chosen, moved onto the default kit so its shape keeps its place on the
+ * wood. The kit stays not chosen. Anything newer comes back unchanged.
+ */
+export function upgradeDesign(d: CarDesign): CarDesign {
+  if (d.kitId !== "typical-kit-estimate" || d.kit) return d;
+  return { ...moveDesign(d, EARLIER_ESTIMATE, TYPICAL_KIT_ESTIMATE), kitId: kitKey(DEFAULT_KIT) };
 }

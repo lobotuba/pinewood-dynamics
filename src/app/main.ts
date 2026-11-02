@@ -4,6 +4,7 @@
 
 import wasmUrl from "manifold-3d/manifold.wasm?url";
 import { type CarDesign, contextOf, uncutDesign, wedgeDesign } from "../geometry/design.js";
+import { askKit } from "./kitDialog.js";
 import { newCut, newHole } from "../geometry/presets.js";
 import { accessHole, evaluateBody, loadManifold, seatBallast } from "../geometry/solid.js";
 import { evaluateCar } from "../mass/carModel.js";
@@ -153,10 +154,21 @@ async function start(): Promise<void> {
   units.value = store.view.units;
   units.onchange = () => store.setView({ units: units.value === "english" ? "english" : "metric" });
   $<HTMLInputElement>("design-name").onchange = (e) => store.update({ ...store.design, name: (e.target as HTMLInputElement).value || "Untitled" });
+  /** Replace the design with another (new, opened): it is judged on its own, not refused back to this one. */
+  const replace = (d: CarDesign): void => {
+    lastValid = null;
+    store.update(d);
+  };
+  // The kit question (KIT-001): asked for every new car, since races use different kits.
+  const startCar = async (first: boolean, shape: "wedge" | "uncut"): Promise<void> => {
+    const a = await askKit($<HTMLDialogElement>("kit-dialog"), store, { first, shape });
+    if (!a) return;
+    if (a.newRules) store.saveRuleset(a.rules);
+    replace({ ...(a.shape === "wedge" ? wedgeDesign(a.kit) : uncutDesign(a.kit)), rules: a.rules });
+  };
   $<HTMLSelectElement>("new-design").onchange = (e) => {
     const s = e.target as HTMLSelectElement;
-    if (s.value === "wedge") store.update(wedgeDesign());
-    if (s.value === "uncut") store.update(uncutDesign());
+    if (s.value === "wedge" || s.value === "uncut") void startCar(false, s.value);
     s.value = "";
   };
   // Build package downloads (spec 14), from the design as it stands.
@@ -215,7 +227,7 @@ async function start(): Promise<void> {
     const f = open.files?.[0];
     if (!f) return;
     try {
-      store.update(designFromFile(await f.text()) as CarDesign);
+      replace(designFromFile(await f.text()));
     } catch (err) {
       alert((err as Error).message);
     }
@@ -255,6 +267,7 @@ async function start(): Promise<void> {
 
   refresh();
   document.body.classList.add("ready");
+  if (store.firstRun) void startCar(true, "wedge");
 }
 
 start().catch((err: unknown) => {

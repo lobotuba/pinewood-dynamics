@@ -160,6 +160,29 @@ body.sandbox #context { border-color: var(--amber); color: var(--amber); }
 .form[data-kind="bore"] [data-for~="bore"], .form[data-kind="pocket"] [data-for~="pocket"],
 .form[data-kind="cut"] [data-for~="cut"], .form[data-kind="wedge"] [data-for~="wedge"] { display: flex; }
 
+.kit-dialog { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; width: min(560px, calc(100vw - 32px)); }
+.kit-dialog::backdrop { background: rgb(0 0 0 / 0.55); }
+.kit-dialog h2 { margin: 0 0 6px; font-size: 17px; }
+.kit-list { border: 0; padding: 0; margin: 10px 0; display: flex; flex-direction: column; gap: 6px; }
+.kit-list legend { color: var(--muted); font-size: 12px; margin-bottom: 4px; }
+.kit-card { display: flex; gap: 8px; align-items: flex-start; border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; cursor: pointer; }
+.kit-card:has(input:checked) { border-color: var(--accent); background: #1f3d5c; }
+.kit-card > span { display: flex; flex-direction: column; gap: 2px; }
+.kit-fields { display: grid; grid-template-columns: 1fr; gap: 6px; font-size: 13px; }
+.kit-fields label { display: flex; justify-content: space-between; gap: 8px; align-items: center; color: var(--muted); }
+.kit-fields select { max-width: 340px; color: var(--text); }
+.kit-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+button.primary { background: #1f3d5c; border-color: var(--accent); }
+.kit-edit summary { cursor: pointer; color: var(--accent); font-size: 13px; }
+.kit-edit .form { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 6px; font-size: 12px; }
+.kit-edit .form label { display: flex; flex-direction: column; gap: 2px; color: var(--muted); }
+.kit-edit .form .wide { grid-column: 1 / -1; }
+.kit-edit input { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 3px 6px; width: 100%; }
+.kit-pick { display: flex; flex-direction: column; gap: 4px; margin: 6px 0; font-size: 13px; }
+.kit-pick label { display: flex; justify-content: space-between; gap: 8px; align-items: center; color: var(--muted); }
+.kit-pick select { max-width: 230px; color: var(--text); }
+.kv td .tag { margin-left: 4px; }
+
 .compliance { font-size: 15px; margin-bottom: 4px; }
 .rule-limits { margin: 4px 0; padding-left: 18px; font-size: 13px; }
 .rules-edit summary { cursor: pointer; color: var(--accent); font-size: 13px; }

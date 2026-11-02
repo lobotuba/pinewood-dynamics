@@ -184,12 +184,13 @@ describe("Mass model and solver bridge (7.6, MAT-001)", () => {
     expect(raised.length).toBeGreaterThan(0);
     for (const p of raised) expect(axleX.some((x) => Math.abs(p.x - x) < 0.003)).toBe(true);
     for (const p of pts) expect(p.z).toBeGreaterThan(B.min[2] - 1e-7);
-    // The uncut block clears the rail by its underside height less the rail's 1/4 in on the straights.
-    // In the transition (radius R) the lane comes up under the nose by x (x - WB) / (2R), x its
-    // distance from the rear axle: 1.5 mm for the block's 44 mm overhang.
+    // The uncut block clears the rail by its bottom's height less the rail's 1/4 in on the straights (the
+    // axle heads, which may hang lower, are outboard of the rail). In the transition (radius R) the lane
+    // comes up under the nose by x (x - WB) / (2R), x its distance from the rear axle: 1.5 mm for the
+    // block's 44 mm overhang.
     const r = simulateRace(ev.spec, bestTrack(35), DEFAULT_ENVIRONMENT, { dt: 1e-3 });
     expect(r.status).toBe("FINISHED");
-    const flat = ev.extents.underside.height - inches(0.25);
+    const flat = K.wheelRadius.value + B.min[2] - inches(0.25);
     const R = inches(41) / ((26 * Math.PI) / 180);
     const WBk = K.frontAxleFromRear.value - K.rearAxleFromRear.value;
     const nose = (B.max[0] * (B.max[0] - WBk)) / (2 * R);
@@ -213,8 +214,9 @@ describe("Inspection (CMP-004..006, spec 9.7)", () => {
     expect(len.state).toBe("PASS");
     expect(ins.lines.find((l) => l.id === "RUL-007")!.state).toBe("NOT EVALUATED");
     expect(ins.state).toBe("PROVISIONALLY COMPLIANT");
+    // The lowest non-tread point: the block's bottom, or the axle heads where they hang below it.
     const under = ins.lines.find((l) => l.id === "RUL-004")!;
-    close(under.value!, K.wheelRadius.value - K.axleAboveBlockBottom.value, 1e-6);
+    close(under.value!, K.wheelRadius.value - Math.max(K.axleAboveBlockBottom.value, K.axleHeadDiameter.value / 2), 1e-6);
   });
 
   it("fails an overweight car and says NONCOMPLIANT, never a binary legal badge", () => {

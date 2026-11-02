@@ -4,9 +4,11 @@
 
 import { type BuildStep, SQUARE_ENTRY, tierTools } from "../build/tiers.js";
 import { type UnitSystem, formatAgainstLimit, formatLength, formatLimit, formatMass } from "../core/display.js";
-import { inches, toInches, toMm } from "../core/units.js";
+import { inches, ounces, toInches, toMm, toOunces } from "../core/units.js";
 import type { Axis, Ballast, BallastShape, CarDesign, Cut, Feature, MaterialId, Plane, V3 } from "../geometry/design.js";
-import { blockBox } from "../geometry/design.js";
+import { blockBox, kitOf, kitValuesOf, withKit } from "../geometry/design.js";
+import { BLOCK_KITS, type Measurable, blockKit, kitChoice, kitNote, kitWheels, measuredKit, wheelChoices } from "../kit/kit.js";
+import type { Provenance, Sourced } from "../core/provenance.js";
 import { CUT_PRESETS, type CutPreset, HOLE_FACES, type HoleFace } from "../geometry/presets.js";
 import type { MountState } from "../geometry/solid.js";
 import { AXLE_PREPS, type CarEvaluation, shapeHalfSize, shapeVolume } from "../mass/carModel.js";
@@ -72,6 +74,7 @@ export class Panels {
     private readonly tools: PanelTools,
   ) {
     root.innerHTML = `
+      <section id="p-kit" aria-label="Kit"><div id="p-kit-summary"></div><div id="p-kit-form"></div></section>
       <section id="p-constraints" aria-label="Design constraints"></section>
       <section id="p-mass" aria-label="Mass and centre of gravity"></section>
       <section id="p-weights" aria-label="Weights"><div id="p-weights-list"></div><div id="p-weights-form"></div>
@@ -123,6 +126,101 @@ export class Panels {
     this.renderInspection(ins, u);
     this.renderRules(d);
     this.renderBuild(ins);
+    this.renderKit(d);
+  }
+
+  // --- kit (KIT-001, CHAR-001..003) -------------------------------------------------------------
+
+  private kitError = "";
+
+  private renderKit(d: CarDesign): void {
+    const u = this.store.view.units;
+    const k = kitOf(d);
+    const b = k.block;
+    const w = k.wheels;
+    const L = (s: Sourced<number>) => formatLength(s.value, u);
+    const tag = (...p: Provenance[]) => `<span class="tag">${[...new Set(p)].join("/")}</span>`;
+    this.q("p-kit-summary").innerHTML = `
+      <h2>Kit</h2>
+      ${d.kit ? "" : `<p class="notice"><b>No kit chosen.</b> The standard kit is assumed. Which kit is your car built from?</p>`}
+      <div class="kit-pick">
+        <label>Block kit <select id="kit-block">${d.kit ? "" : `<option value="" selected>Not chosen (standard assumed)</option>`}${BLOCK_KITS.map(
+          (x) => `<option value="${x.id}" ${d.kit && x.id === b.id ? "selected" : ""}>${esc(x.name)}</option>`,
+        ).join("")}</select></label>
+        <label>Wheels <select id="kit-wheels">${wheelChoices(b)
+          .map((x) => `<option value="${x.id}" ${x.id === w.id ? "selected" : ""}>${x.kit ? "The kit's own wheels and axles" : esc(x.name)}</option>`)
+          .join("")}</select></label>
+      </div>
+      <table class="kv">
+        <tr><th>Block</th><td>${L(b.length)} × ${L(b.width)} × ${L(b.height)}${tag(b.length.provenance, b.width.provenance, b.height.provenance)}</td></tr>
+        <tr><th>Wheelbase (${b.slots} slots)</th><td>${formatLength(b.frontAxleFromRear.value - b.rearAxleFromRear.value, u)}${tag(b.rearAxleFromRear.provenance, b.frontAxleFromRear.provenance)}</td></tr>
+        <tr><th>Rear axle from the rear face</th><td>${L(b.rearAxleFromRear)}${tag(b.rearAxleFromRear.provenance)}</td></tr>
+        <tr><th>Slot depth</th><td>${L(b.slotDepth)}${tag(b.slotDepth.provenance)}</td></tr>
+        <tr><th>Wheel</th><td>⌀ ${L(w.diameter)}, ${formatMass(w.mass.value, u)}${tag(w.diameter.provenance, w.mass.provenance)}</td></tr>
+        <tr><th>Axle</th><td>⌀ ${L(w.axleDiameter)} × ${L(w.axleLength)}${tag(w.axleDiameter.provenance, w.axleLength.provenance)}</td></tr>
+      </table>
+      ${b.notModelled ? `<p class="hint">${esc(b.notModelled)}</p>` : ""}
+      ${!kitWheels(k) ? `<p class="hint">Wheels from outside the kit: check that your event allows them (Race rules, Kit parts).</p>` : ""}
+      <p class="prov">${esc(kitNote(k))}</p>
+      <p class="hint">Changing the kit keeps the shape on the wood; the wheels move to the new kit's slots.</p>`;
+    // Measurements: blank keeps the value shown, a typed value is MEASURED.
+    const fields: [Measurable, string, "length" | "mass", Sourced<number>][] = [
+      ["length", "Block length", "length", b.length],
+      ["width", "Block width", "length", b.width],
+      ["height", "Block height", "length", b.height],
+      ["slotDepth", "Axle slot depth", "length", b.slotDepth],
+      ["rearAxleFromRear", "Rear slot centre from the rear face", "length", b.rearAxleFromRear],
+      ["frontAxleFromRear", "Front slot centre from the rear face", "length", b.frontAxleFromRear],
+      ["diameter", "Wheel diameter", "length", w.diameter],
+      ["wheelWidth", "Wheel width, hub to outer face", "length", w.width],
+      ["mass", "One wheel's mass", "mass", w.mass],
+      ["axleDiameter", "Axle diameter", "length", w.axleDiameter],
+    ];
+    const shown = (q: "length" | "mass", s: Sourced<number>) =>
+      q === "length" ? showLength(s.value, u) : u === "metric" ? (s.value * 1000).toFixed(2) : toOunces(s.value).toFixed(3);
+    this.form("p-kit-form", `${u}|${JSON.stringify(k)}|${this.kitError}`, () => `
+      <details class="kit-edit" data-form="km"><summary>Enter your kit's measurements</summary>
+        <p class="hint">Measure the parts in your kit box and type what you find; leave a field blank to keep the value shown.
+          Typed values are marked MEASURED for this car. Weigh the block in Mass and CG.</p>
+        <div class="form">
+          ${fields
+            .map(
+              ([id, label, q, s]) =>
+                `<label>${label} (${q === "length" ? lengthUnit(u) : u === "metric" ? "g" : "oz"}) <input id="km-${id}" inputmode="decimal" placeholder="${shown(q, s)}${
+                  s.provenance === "MEASURED" ? " measured" : ""
+                }"></label>`,
+            )
+            .join("")}
+          ${this.kitError ? `<p class="bad wide">${esc(this.kitError)}</p>` : ""}
+          <button id="km-save" class="wide">Use these measurements</button>
+        </div></details>`);
+  }
+
+  private saveKitMeasurements(): void {
+    const d = this.store.design;
+    const u = this.store.view.units;
+    const m: Partial<Record<Measurable, number>> = {};
+    const ids: Measurable[] = ["length", "width", "height", "slotDepth", "rearAxleFromRear", "frontAxleFromRear", "diameter", "wheelWidth", "mass", "axleDiameter"];
+    for (const id of ids) {
+      const text = this.root.querySelector<HTMLInputElement>(`#km-${id}`)!.value.trim();
+      if (!text) continue;
+      const x = Number(text);
+      const si = !(x > 0) ? null : id === "mass" ? (u === "metric" ? x / 1000 : ounces(x)) : parseLength(text, u);
+      if (si === null) {
+        this.kitError = `"${text}" is not a positive number.`;
+        this.renderKit(d);
+        return;
+      }
+      m[id] = si;
+    }
+    const next = measuredKit(kitOf(d), m, `Measured by the player, ${new Date().toISOString().slice(0, 10)}`);
+    if (next.block.frontAxleFromRear.value <= next.block.rearAxleFromRear.value || next.block.frontAxleFromRear.value > next.block.length.value) {
+      this.kitError = "The front slot must be ahead of the rear slot and within the block.";
+      this.renderKit(d);
+      return;
+    }
+    this.kitError = "";
+    this.store.update(withKit(d, next));
   }
 
   // --- race rules (9.1) -----------------------------------------------------------------------
@@ -150,7 +248,9 @@ export class Panels {
         ${this.store.rulesets.some((x) => x.id === r.id) ? `<button class="icon-btn" id="rules-delete" title="Delete this local ruleset">×</button>` : ""}</div>
       <p class="prov">${esc(r.organization)}, ${esc(r.effective)}. ${esc(r.sourceLine)}.
         <span class="tag">${r.provenance}</span> <span class="tag">${r.review.status === "CONFIRMED" ? `CONFIRMED ${esc(r.review.date ?? "")}` : "UNREVIEWED"}</span></p>
-      <ul class="rule-limits">${limits}</ul>
+      <ul class="rule-limits">${limits}<li>Kit: ${
+        !r.event.kitPartsOnly ? "parts from outside the kit allowed" : r.event.issuedKit ? `the event's own (${esc(blockKit(r.event.issuedKit)?.name ?? r.event.issuedKit)})` : "the event's own (which kit not recorded)"
+      }</li></ul>
       ${open.length ? `<p class="hint">No limit set for: ${open.join(", ")}.</p>` : ""}`;
     // The edit form is rebuilt only when the rules themselves change, so typing in it survives updates.
     const lim = (id: string) => limitOf(r, id)?.source.value ?? "";
@@ -174,6 +274,7 @@ export class Panels {
             (c) => `<label>${c.label}, ${c.kind === "max" ? "at most" : "at least"} (${c.unit}) <input id="rl-${c.id}" inputmode="decimal" value="${esc(lim(c.id))}"></label>`,
           ).join("")}
           <label>Kit parts only ${sel("rl-kit", r.event.kitPartsOnly ? "yes" : "no", [["yes", "Required"], ["no", "Not required"]])}</label>
+          <label>Event kit ${sel("rl-issued", r.event.issuedKit ?? "", [["", "Not stated"], ...BLOCK_KITS.map((b): [string, string] => [b.id, esc(b.name)])])}</label>
           <label>Kit axle slots ${sel("rl-slots", r.event.axleSlots, [["unknown", "Not stated"], ["required", "Must be used"], ["optional", "Optional"]])}</label>
           <label>Reshaping wheels ${sel("rl-wheels", r.event.wheelReshaping, permit)}</label>
           <label>Bent or canted axles ${sel("rl-bent", r.event.bentAxles, permit)}</label>
@@ -205,6 +306,7 @@ export class Panels {
           limits,
           event: {
             kitPartsOnly: v("rl-kit") === "yes",
+            ...(v("rl-issued") ? { issuedKit: v("rl-issued") } : {}),
             axleSlots: v("rl-slots") as EventRules["axleSlots"],
             wheelReshaping: v("rl-wheels") as Permission,
             bentAxles: v("rl-bent") as Permission,
@@ -270,7 +372,7 @@ export class Panels {
     ];
     const sum = (g: string): number => ev.components.filter((c) => c.group === g).reduce((a, c) => a + c.mass, 0);
     const [cx, cy, cz] = ev.total.centroid;
-    const wb = blockBox();
+    const wb = blockBox(kitValuesOf(d));
     const band = 2 * ev.massUncertainty;
     this.q("p-mass").innerHTML = `
       <h2>Mass and CG</h2>
@@ -421,7 +523,7 @@ export class Panels {
       .filter((k) => (kind === "wedge" ? k === "notch" : k !== "notch"))
       .map((k) => `<option value="${k}" ${this.sel("af-preset", k, kind === "wedge" ? "notch" : "nose")}>${CUT_PRESETS[k]}</option>`)
       .join("");
-    const xm = (blockBox().max[0] + blockBox().min[0]) / 2;
+    const xm = (blockBox(kitValuesOf(d)).max[0] + blockBox(kitValuesOf(d)).min[0]) / 2;
     this.q("p-features-list").innerHTML = `
       <h2>Holes and cuts</h2>
       <div class="build-tier">Build tier <b class="tier" data-tier="${plan.tier}">${plan.tier}</b> <span class="cls">${plan.provenance}</span>
@@ -540,6 +642,15 @@ export class Panels {
       }
       return;
     }
+    if (t.id === "kit-block" || t.id === "kit-wheels") {
+      const k = kitOf(d);
+      const b = t.id === "kit-block" ? blockKit(t.value) : k.block;
+      if (!b) return;
+      // A new block comes with its own wheels unless the car runs on a set from outside the kit.
+      const keep = t.id === "kit-wheels" ? wheelChoices(b).find((x) => x.id === t.value) : kitWheels(k) ? undefined : wheelChoices(b).find((x) => x.id === k.wheels.id);
+      this.store.update(withKit(d, kitChoice(b, keep ?? b.wheels)));
+      return;
+    }
     if (t.id === "rules-pick") {
       const chosen = this.rulesChoices(d).find((r) => r.id === t.value);
       if (chosen) this.store.update({ ...d, rules: chosen });
@@ -605,6 +716,10 @@ export class Panels {
     const d = this.store.design;
     if (t.id === "rl-save") {
       this.saveRules();
+      return;
+    }
+    if (t.id === "km-save") {
+      this.saveKitMeasurements();
       return;
     }
     if (t.id === "rules-delete") {
@@ -704,7 +819,7 @@ export class Panels {
       shape = { kind: "block", size: [a, b, height] };
     }
     const d = this.store.design;
-    const bb = blockBox();
+    const bb = blockBox(kitValuesOf(d));
     const n = d.ballast.length;
     const id = newId("w");
     // Surface mountings start against the block's face; cavity weights low in the body.

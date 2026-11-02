@@ -5,7 +5,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { inches } from "../core/units.js";
-import type { CarDesign } from "../geometry/design.js";
+import { type CarDesign, kitValuesOf } from "../geometry/design.js";
 import type { BodySolid } from "../geometry/solid.js";
 import { type Session, poseAt } from "../race/session.js";
 import { type Track, TYPICAL_LANE_LATERAL, finishS } from "../track/track.js";
@@ -189,7 +189,7 @@ export class RaceView {
       const root = new THREE.Group();
       const mat = new THREE.MeshStandardMaterial({ color: c.design.paint, roughness: 0.75, side: THREE.DoubleSide });
       for (const m of bodyMeshes(c.body, mat)) root.add(m);
-      const ws = wheelSet(true);
+      const ws = wheelSet(kitValuesOf(c.design), true);
       root.add(ws.group);
       g.add(root);
       return { root, wheels: ws.wheels };

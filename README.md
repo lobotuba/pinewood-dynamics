@@ -56,7 +56,7 @@ npm run survey:precision   # how precisely a track must be surveyed
 - `src/app`: browser workspace (Three.js viewport, profile editors, panels, race mode, race worker)
 - `src/race`: race sessions: lanes under identical conditions, replay traces, finish order
 - `src/physics`: car description, kinematics, dynamics, race simulation with energy ledger
-- `src/kit`: event-kit record (UNKNOWN until measured) and labelled typical-kit estimates
+- `src/kit`: the kit library (every catalogued block kit, its wheels, a precision wheel set), each value labelled, and the player's measured kits
 - `src/validation`: published comparison datasets, every value labelled published or assumed
 - `test`: verification tests, named by requirement ID and physics gate
 - `spec`, `branding`: requirements and brand documents

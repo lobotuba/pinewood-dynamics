@@ -49,6 +49,52 @@ then drilling"). Holes are checked against it (section 3).
 Projects save and open as `.pdesign.json` files. The current design also persists in browser
 storage. Nothing leaves the machine (PLT-004).
 
+### The kit (`src/kit/kit.ts`, KIT-001)
+
+Local races use different kits, so the kit is the player's choice, asked when a car is started: on
+first launch, and for every New design. The dialog offers every kit in the library, the wheels it can
+run on, the rules to hold the car to, and the starting shape. "Not sure: decide later" keeps the
+standard kit as an assumption. The design carries its choice as a snapshot, like its rules, so a
+measured kit travels with the file.
+
+| Kit (generic name, BRD-007) | Block, W × H × L in | Slots | Wheelbase, in |
+|---|---|---|---|
+| Standard kit | 1-3/4 × 1-1/4 × 7 | offset, 1/8 deep | 4-3/8 |
+| Club kit | 1-3/4 × 1-1/2 × 6-13/16 | centred, 3/16 deep | 3-13/16 |
+| Wide kit | 2-1/4 × 1-1/8 × 6-15/16 | offset, 7/32 deep | 3-11/16 |
+| Hobby kit | 1-3/4 × 1-5/16 × 7 | offset, 1/16 deep | 4-7/16 |
+| Narrow kit | 1-5/8 × 1-3/8 × 7 | offset, 1/8 deep | 4-3/16 |
+| Long-wheelbase kit | 1-3/4 × 1-5/16 × 6-15/16 | centred channels, 3/16 deep | 5 |
+
+- **Sources.** The blocks come from one retailer's comparison of kits. The kits behind the generic
+  names are in the source record in `kit.ts`. Its figures describe other makers' kits, so they are
+  ESTIMATED. The catalogue does not place "offset" slots, so their rear slot is put 7/8 in from the
+  rear face, as on the standard kit. The long-wheelbase kit's driver cut-out is not in the block:
+  cut it as a pocket.
+- **Wheels.** Each kit comes with its own wheels and axles. The club kit's are from retailers'
+  listings: raw 1.190 to 1.200 in, about 2.2 g, bore 0.098 in, replacement axle 0.092 in. Other kits'
+  wheels are the typical estimate: 1.18 in, 2.6 g, 0.087 in axle. The precision set (1.192 in, 2.4 g,
+  0.319 in tread, 0.095 in bore, 0.087 in × 1 in axle) is the maker's published spec, MANUFACTURER.
+  Bore and tread are recorded but not modelled yet.
+- **Axle height.** The axle seats at the slot's closed end, so its axis sits the slot depth less its
+  radius above the block's bottom. On the standard kit that is 0.0815 in; the earlier estimate was
+  3/16 in. With the shallower slot, the axle heads (0.2 in across, ESTIMATED) hang slightly below the
+  block. They are then the lowest non-tread point for the clearance rule. The rail check ignores
+  them: they are outboard of it.
+- **The Kit panel** shows the block, slots, wheels and axles with their provenance. Its selects
+  change the block kit or the wheels. *Enter your kit's measurements* takes the block, slot and wheel
+  dimensions the player measures. A typed value is MEASURED, and a blank keeps the value shown. A
+  measured kit is still the same kit for the event's kit rule.
+- **Changing kit** keeps the shape on the wood. A point on or beyond a face of the old block keeps
+  its place relative to that face. Anything inside keeps its distance from the rear face, the
+  centreline and the bottom face. So an uncut block stays uncut, a top-mounted weight stays on top,
+  a cavity weight keeps its place in the wood, an access bore still reaches its face, and the wheels
+  go wherever the new kit's slots are. A weighed block mass is dropped when the block kit changes.
+  In CERTIFIED context a kit change that breaks the rules is refused, like any edit.
+- **Older files.** Designs saved before kits were chosen were drawn with the axle 3/16 in above the
+  block's bottom. They are moved onto the standard kit on opening, by the same rule, and their kit
+  stays not chosen.
+
 ## 2. Solid and mass (`src/geometry/solid.ts`, `src/mass/`)
 
 - **Booleans.** manifold-3d, so the body is always a closed, valid solid (GEO-002). Circles are
@@ -115,6 +161,7 @@ highest of them.
   - the event rules: kit parts only, kit axle slots required or optional, and reshaping wheels, bent
     axles, a raised wheel, and washers or bearings, each allowed, not allowed or not stated;
   - the lubricant;
+  - which kit the event issues (Event kit);
   - a check-in checklist of process rules the software cannot verify (CMP-008);
   - whether the set has been checked against the event's written rules.
 
@@ -123,6 +170,13 @@ highest of them.
   fails is refused in CERTIFIED, like any other edit. The build sheet prints the rules and the
   checklist. The alignment rules are recorded now so that the Release 2 alignment controls can be
   offered only where the event allows them (WHL-005).
+- **Kit parts** (spec 9.2). Where the event requires its own kit, the car must be on the kit it
+  issues, with that kit's wheels and axles. The shipped ruleset's source requires the club's kit. The
+  line is NOT EVALUATED while the car's kit is not chosen, or the event's kit is not recorded. Where
+  the event allows other parts it passes.
+- **Starter rules.** Away from the shipped event, the kit question offers starter rules: length
+  7 in and mass 5 oz only, since width, height and clearances depend on the kit, and the chosen kit as
+  the event's. They are LOCAL and unreviewed until the player enters their event's own rules.
 - **What is checked:**
   - length, width and height of everything, wheels and axle heads included;
   - underside clearance over the full length, from the lowest non-tread point;
@@ -200,6 +254,17 @@ Headless tests:
   - a rearward weight races faster;
   - inspection;
   - weight mounting and seating.
+- **`test/m2-kits.test.ts`:**
+  - every catalogued kit, with its catalogue wheelbase and no brand in any name;
+  - the axle seated at the slot's end, and a car evaluated on every kit;
+  - changing kit keeps edges on the edges, the weight's distance from the rear face and its access;
+  - a weighed block mass is dropped with the block and kept on re-measuring;
+  - measurements are MEASURED and keep the kit's identity;
+  - older files are moved without changing their shape on the wood;
+  - the kit travels with the file;
+  - the kit rule passes the event's kit, fails another kit or other wheels, and waits while no kit
+    is chosen;
+  - starter rules hold length and mass only.
 - **`test/m2-features.test.ts`:**
   - a plain polyline is unchanged;
   - a dragged arc is the exact circle, with the half 128-gon's area;
@@ -246,8 +311,9 @@ In the browser, headless Edge was driven through these paths with no page errors
   edited by number. There is no front profile yet (later release, 6.1).
 - **Races.** The panel's race preview is one lane on BestTrack 35 ft. The 3D race, with up to four
   lanes and saved versions as ghosts, is race mode (`docs/race.md`).
-- **Kit values.** Every kit dimension is still ESTIMATED. Measuring the event kit (CHAR-001..003)
-  replaces them in one place: `TYPICAL_KIT_ESTIMATE` in `src/kit/kit.ts`.
+- **Kit values.** Every library kit dimension is ESTIMATED, except the precision wheel set's. The
+  player's own measurements (Kit panel) replace them for their car. A shared record of a measured event
+  kit (CHAR-001..003) still waits on measuring one.
 - **Licence notices.** Three.js and manifold-3d ship in `public/THIRD_PARTY_NOTICES.txt` (spec 3.3).
   The libraries compiled into manifold's WebAssembly, such as Clipper2, still need checking before a
   public release.

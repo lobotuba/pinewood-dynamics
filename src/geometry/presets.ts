@@ -2,9 +2,9 @@
 // sawn surface, not the uncut block, so a chamfer on a wedge's low nose still takes the size asked.
 
 import type { ManifoldToplevel } from "manifold-3d";
-import { TYPICAL_KIT_ESTIMATE } from "../kit/kit.js";
+import type { KitValues } from "../kit/kit.js";
 import type { Axis, CarDesign, Cut, Feature, V3 } from "./design.js";
-import { blockBox } from "./design.js";
+import { blockBox, kitValuesOf } from "./design.js";
 import { placeHole, surfaceAlong } from "./solid.js";
 
 export type HoleFace = "top" | "underside" | "left" | "right" | "nose" | "tail";
@@ -42,7 +42,7 @@ export function newHole(
   width: number,
   width2: number,
   depth: number,
-  kit = TYPICAL_KIT_ESTIMATE,
+  kit: KitValues = kitValuesOf(design),
 ): Feature {
   const b = blockBox(kit);
   const f = HOLE_FACES[face];
@@ -54,7 +54,7 @@ export function newHole(
 }
 
 /** A preset saw or wedge cut of leg (or notch depth) `size`; `x` places bevels and notches. */
-export function newCut(w: ManifoldToplevel, design: CarDesign, preset: CutPreset, id: string, size: number, x: number, kit = TYPICAL_KIT_ESTIMATE): Cut {
+export function newCut(w: ManifoldToplevel, design: CarDesign, preset: CutPreset, id: string, size: number, x: number, kit: KitValues = kitValuesOf(design)): Cut {
   const b = blockBox(kit);
   const zTop = (at: number): number => surfaceAlong(w, design, [at, 0, 0], "z", 1, kit) ?? b.max[2];
   const zMid = (b.min[2] + b.max[2]) / 2;

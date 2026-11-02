@@ -10,7 +10,7 @@
 
 import { formatLength } from "../core/display.js";
 import type { CarDesign, Cut, P2, Profile, V3 } from "../geometry/design.js";
-import { blockBox } from "../geometry/design.js";
+import { blockBox, kitValuesOf } from "../geometry/design.js";
 import {
   bendEdge,
   deleteVertex,
@@ -25,7 +25,7 @@ import {
   toggleSmooth,
 } from "../geometry/profile.js";
 import { featureShape, wheelCentres } from "../geometry/solid.js";
-import { TYPICAL_KIT_ESTIMATE as K } from "../kit/kit.js";
+import { type KitValues, TYPICAL_KIT_ESTIMATE } from "../kit/kit.js";
 import { type CarEvaluation, shapeHalfSize } from "../mass/carModel.js";
 import { limitOf, rulesOf } from "../rules/cccs.js";
 import type { Store } from "./store.js";
@@ -101,23 +101,32 @@ export class ProfileEditor {
     private readonly store: Store,
     private readonly which: Which,
   ) {
-    const b = blockBox();
-    const pad = 12e-3;
-    const x0 = b.min[0] - pad;
-    const x1 = b.max[0] + pad;
-    const [v0, v1] = which === "side" ? [-K.wheelRadius.value - 6e-3, b.max[2] + pad] : [-(K.blockWidth.value / 2 + 20e-3), K.blockWidth.value / 2 + 20e-3];
     this.svg = el("svg", {
-      viewBox: `${x0 * MM} ${-v1 * MM} ${(x1 - x0) * MM} ${(v1 - v0) * MM}`,
       preserveAspectRatio: "xMidYMid meet",
       class: "profile-svg",
       role: "img",
       "aria-label": which === "side" ? "Side profile editor" : "Top profile editor",
     });
+    this.fit(TYPICAL_KIT_ESTIMATE);
     host.appendChild(this.svg);
     this.readout = document.createElement("div");
     this.readout.className = "readout";
     host.appendChild(this.readout);
     this.installPointer();
+  }
+
+  /** The kit the view is framed for. */
+  private framed = "";
+
+  /** Frame the view on the kit's block and wheels. */
+  private fit(K: KitValues): void {
+    this.framed = JSON.stringify(K);
+    const b = blockBox(K);
+    const pad = 12e-3;
+    const x0 = b.min[0] - pad;
+    const x1 = b.max[0] + pad;
+    const [v0, v1] = this.which === "side" ? [-K.wheelRadius.value - 6e-3, b.max[2] + pad] : [-(K.blockWidth.value / 2 + 20e-3), K.blockWidth.value / 2 + 20e-3];
+    this.svg.setAttribute("viewBox", `${x0 * MM} ${-v1 * MM} ${(x1 - x0) * MM} ${(v1 - v0) * MM}`);
   }
 
   /** Model coordinates (m, horizontal and vertical) of a pointer event. */
@@ -145,6 +154,8 @@ export class ProfileEditor {
   }
 
   render(d: CarDesign, ev: CarEvaluation): void {
+    const K = kitValuesOf(d);
+    if (JSON.stringify(K) !== this.framed) this.fit(K);
     const svg = this.svg;
     while (svg.lastChild) svg.removeChild(svg.lastChild);
     if (!this.drag) this.readout.textContent = "";
@@ -168,7 +179,7 @@ export class ProfileEditor {
     }
 
     // Block and kit parts.
-    const b = blockBox();
+    const b = blockBox(K);
     el("rect", { x: b.min[0] * MM, y: -b.max[vi] * MM, width: (b.max[0] - b.min[0]) * MM, height: (b.max[vi] - b.min[vi]) * MM, class: "block" }, svg);
     const r = K.wheelRadius.value;
     if (this.which === "side") {
@@ -185,7 +196,7 @@ export class ProfileEditor {
       }
     } else {
       const ww = K.wheelWidth.value;
-      for (const c of wheelCentres()) el("rect", { x: (c[0] - r) * MM, y: -(c[1] + ww / 2) * MM, width: 2 * r * MM, height: ww * MM, class: "wheel" }, svg);
+      for (const c of wheelCentres(K)) el("rect", { x: (c[0] - r) * MM, y: -(c[1] + ww / 2) * MM, width: 2 * r * MM, height: ww * MM, class: "wheel" }, svg);
       const width = limitOf(rulesOf(d), "RUL-002")?.si;
       if (width !== undefined) {
         const halfW = width / 2;

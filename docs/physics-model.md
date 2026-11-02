@@ -226,8 +226,10 @@ Every input is a `Sourced<T>` value carrying its provenance. The result record h
 - the track profile status;
 - the solver version and step size.
 
-`EVENT_KIT_K1` is the event kit's record. All of its values are UNKNOWN until the kit is measured.
-`TYPICAL_KIT_ESTIMATE` holds labelled guesses so the solver can run before measurements exist.
+The kit library (`src/kit/kit.ts`) holds every catalogued kit's block and wheels, each value labelled,
+plus a precision wheel set from its maker's spec. A design carries the player's kit choice, and their
+measurements are MEASURED. `TYPICAL_KIT_ESTIMATE` is the standard kit's values, used by the demo car
+and the solver tests. The kits and their sources are in `docs/design-workspace.md`.
 
 ## 7. Verification (test/p1-p5-physics.test.ts, test/p0-track-geometry.test.ts)
 

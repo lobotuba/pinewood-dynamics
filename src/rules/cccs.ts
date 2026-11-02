@@ -5,6 +5,7 @@
 import type { CarDesign, ComplianceContext } from "../geometry/design.js";
 import { inches, ounces } from "../core/units.js";
 import type { CarEvaluation } from "../mass/carModel.js";
+import { type KitChoice, blockKit, kitNote, kitWheels } from "../kit/kit.js";
 
 export type ConstraintClass = "GEOMETRY VALIDITY" | "PUBLISHED RULE" | "LOCAL/FROZEN" | "PROTECTED" | "ADVISORY";
 export type LineState = "PASS" | "FAIL" | "LOCKED" | "NOT EVALUATED";
@@ -33,6 +34,8 @@ export type Permission = "allowed" | "prohibited" | "unknown";
 export interface EventRules {
   /** Wood, wheels and axles must come from the event's kit. */
   readonly kitPartsOnly: boolean;
+  /** The block kit the event issues, by kit library id. Omitted: not stated. */
+  readonly issuedKit?: string;
   /** The kit's axle slots must be used (no extended wheelbase). */
   readonly axleSlots: "required" | "optional" | "unknown";
   /** Rounding, bevelling, cupping or lightening the wheels (RUL-008). */
@@ -109,6 +112,8 @@ export const CCCS_KIT_CAR_2026: Ruleset = {
   // Spec 9.2: what the source says, and what it leaves UNKNOWN.
   event: {
     kitPartsOnly: true,
+    // The source requires the club's own kit wood, wheels and axles (spec 9.2).
+    issuedKit: "club",
     axleSlots: "unknown",
     wheelReshaping: "prohibited",
     bentAxles: "unknown",
@@ -166,6 +171,27 @@ export function localRuleset(
   };
 }
 
+/**
+ * Starter rules for an event whose rules are not entered yet (the kit question's default away from the
+ * shipped event): the length and mass limits only, since width, height and clearances depend on the kit,
+ * and the event's kit as the one chosen. Running on wheels from outside the kit says the event allows
+ * other parts. LOCAL and unreviewed until the player enters their event's own rules.
+ */
+export function starterRules(kit: KitChoice, id: string): Ruleset {
+  return localRuleset(
+    CCCS_KIT_CAR_2026,
+    {
+      name: "My event (starter rules: length and mass only)",
+      organization: "My event",
+      effective: String(new Date().getFullYear()),
+      sourceLine: "Starter rules, to be replaced with the event's own in Race rules",
+      limits: { "RUL-002": null, "RUL-003": null, "RUL-004": null, "RUL-005": null },
+      event: { ...CCCS_KIT_CAR_2026.event, kitPartsOnly: kitWheels(kit), issuedKit: kit.block.id },
+    },
+    id,
+  );
+}
+
 export interface InspectionLine {
   readonly id: string;
   readonly label: string;
@@ -194,7 +220,23 @@ export interface Inspection {
   readonly state: ComplianceState;
 }
 
-const KIT_NOTE = "Kit dimensions are ESTIMATED until the event kit is measured (CHAR-001..003).";
+/**
+ * Kit parts (spec 9.2: the event's own kit wood, wheels and axles). Passes where the event allows other
+ * parts; otherwise the design must be on the kit the event issues, with that kit's wheels. Not evaluated
+ * while the event's kit or the design's kit is not known.
+ */
+function kitLine(ev: CarEvaluation, e: EventRules): InspectionLine {
+  const base = { id: "RUL-KIT", label: "Kit parts", cls: "PUBLISHED RULE" as const };
+  const k = ev.kit;
+  if (!e.kitPartsOnly) return { ...base, state: "PASS", provisional: false, note: "The event allows parts from outside its kit." };
+  if (!e.issuedKit)
+    return { ...base, state: "NOT EVALUATED", provisional: true, note: "The event requires its own kit, but which kit is not recorded: set it in Race rules." };
+  const issued = blockKit(e.issuedKit)?.name ?? e.issuedKit;
+  if (!ev.kitChosen) return { ...base, state: "NOT EVALUATED", provisional: true, note: `The event issues the ${issued}. Choose the kit this car is built from in the Kit panel.` };
+  if (k.block.id !== e.issuedKit) return { ...base, state: "FAIL", provisional: false, note: `The event requires its own kit (${issued}); this car is built on the ${k.block.name}.` };
+  if (!kitWheels(k)) return { ...base, state: "FAIL", provisional: false, note: `The event requires its kit's own wheels and axles; this car runs on ${k.wheels.name.toLowerCase()}.` };
+  return { ...base, state: "PASS", provisional: false, note: `Built on the event's kit with its own wheels and axles.` };
+}
 
 /**
  * Inspect a car against a ruleset. The state depends on the compliance context (9.4, 5.2): in SANDBOX
@@ -204,6 +246,7 @@ const KIT_NOTE = "Kit dimensions are ESTIMATED until the event kit is measured (
  */
 export function inspect(ev: CarEvaluation, ruleset: Ruleset = CCCS_KIT_CAR_2026, context: ComplianceContext = "CERTIFIED"): Inspection {
   const e = ev.extents;
+  const KIT_NOTE = kitNote(ev.kit);
   const measured: Record<string, { value: number; note: string; band?: number }> = {
     "RUL-001": { value: e.max[0] - e.min[0], note: `Longest point to longest point along X, every part included. ${KIT_NOTE}` },
     "RUL-002": { value: e.max[1] - e.min[1], note: `Widest points, wheels and axle heads included. ${KIT_NOTE}` },
@@ -268,6 +311,7 @@ export function inspect(ev: CarEvaluation, ruleset: Ruleset = CCCS_KIT_CAR_2026,
   });
   lines.unshift(mountLine, accessLine);
   lines.push(
+    kitLine(ev, ruleset.event),
     {
       id: "RUL-007",
       label: "Starting-gate face",
@@ -288,7 +332,7 @@ export function inspect(ev: CarEvaluation, ruleset: Ruleset = CCCS_KIT_CAR_2026,
           : `Weight ${e.wheelEnvelopeIntrusions.join(", ")} enters a wheel's swept envelope.`,
     },
     { id: "LOC-AX", label: "Axle locations", cls: "LOCAL/FROZEN", state: "LOCKED", provisional: false, note: "Official axle slots, unchanged; the design cannot move them." },
-    { id: "LOC-WB", label: "Wheelbase", cls: "LOCAL/FROZEN", state: "LOCKED", provisional: false, note: "Nominal kit wheelbase, unchanged." },
+    { id: "LOC-WB", label: "Wheelbase", cls: "LOCAL/FROZEN", state: "LOCKED", provisional: false, note: `The ${ev.kit.block.name}'s wheelbase, unchanged.` },
   );
   const certain = lines.every((l) => (l.state === "PASS" || l.state === "LOCKED") && !l.provisional);
   const state: ComplianceState = lines.some((l) => l.state === "FAIL")

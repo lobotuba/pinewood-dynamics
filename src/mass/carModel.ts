@@ -4,10 +4,10 @@
 import { type Provenance, type Sourced, sourced } from "../core/provenance.js";
 import { v2 } from "../core/vec2.js";
 import type { BallastShape, CarDesign, V3 } from "../geometry/design.js";
-import { blockBox, shapeHalfSize } from "../geometry/design.js";
+import { blockBox, kitOf, kitValuesOf, shapeHalfSize } from "../geometry/design.js";
 import type { BodySolid, MountState } from "../geometry/solid.js";
 import { wheelCentres } from "../geometry/solid.js";
-import { TYPICAL_KIT_ESTIMATE } from "../kit/kit.js";
+import type { KitChoice, KitValues } from "../kit/kit.js";
 import { type BuildPlan, planBuild } from "../build/tiers.js";
 import type { AxleSpec, CarSpec, UnderbodyPoint } from "../physics/car.js";
 import { type Mat3, type MassPart, ZERO3, boxInertia, combine, cylinderInertia, meshMassProperties, scaleMat } from "./inertia.js";
@@ -45,6 +45,9 @@ export interface CarEvaluation {
   /** Shop-order operations with the build tier each needs (12.6). */
   readonly build: BuildPlan;
   readonly spec: CarSpec;
+  /** The kit the car was evaluated on, and whether the player chose it (otherwise it is the default kit). */
+  readonly kit: KitChoice;
+  readonly kitChosen: boolean;
 }
 
 export interface AxlePrep {
@@ -76,7 +79,7 @@ export function shapeVolume(shape: BallastShape): number {
 
 export { shapeHalfSize };
 
-export function evaluateCar(design: CarDesign, body: BodySolid, kit = TYPICAL_KIT_ESTIMATE): CarEvaluation {
+export function evaluateCar(design: CarDesign, body: BodySolid, kit: KitValues = kitValuesOf(design)): CarEvaluation {
   const b = blockBox(kit);
   const blockVolume = (b.max[0] - b.min[0]) * (b.max[1] - b.min[1]) * (b.max[2] - b.min[2]);
   const bodyDensity: Sourced<number> =
@@ -190,10 +193,12 @@ export function evaluateCar(design: CarDesign, body: BodySolid, kit = TYPICAL_KI
     mounting: body.mounting,
     build: planBuild(design, body),
     spec: carSpec(design, body, total, pitch, kit),
+    kit: kitOf(design),
+    kitChosen: design.kit !== undefined,
   };
 }
 
-function carSpec(design: CarDesign, body: BodySolid, total: MassPart, pitch: MassPart, kit = TYPICAL_KIT_ESTIMATE): CarSpec {
+function carSpec(design: CarDesign, body: BodySolid, total: MassPart, pitch: MassPart, kit: KitValues = kitValuesOf(design)): CarSpec {
   const derived = <T>(x: T, how: string): Sourced<T> => sourced(x, "ESTIMATED", `Derived from the design with estimated kit and material values: ${how}`);
   // Nose: foremost point. For a flat front, the middle of the front face's height range.
   let noseX = -Infinity;

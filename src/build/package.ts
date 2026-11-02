@@ -9,10 +9,10 @@
 
 import { type UnitSystem, formatLength, formatMass } from "../core/display.js";
 import { toMm } from "../core/units.js";
-import { type CarDesign, type ComplianceContext, type Feature, type P2, blockBox, shapeHalfSize } from "../geometry/design.js";
+import { type CarDesign, type ComplianceContext, type Feature, type P2, blockBox, kitOf, kitValuesOf, shapeHalfSize } from "../geometry/design.js";
 import { outline } from "../geometry/profile.js";
 import type { BodySolid } from "../geometry/solid.js";
-import { TYPICAL_KIT_ESTIMATE } from "../kit/kit.js";
+import { type KitValues, blockKit, kitNote } from "../kit/kit.js";
 import type { CarEvaluation } from "../mass/carModel.js";
 import { MATERIALS } from "../mass/materials.js";
 import { type EventRules, type Inspection, type Permission, limitOf } from "../rules/cccs.js";
@@ -61,7 +61,7 @@ const f2 = (x: number): string => x.toFixed(2);
  * page), the scale-check bars measure 100 mm and 4 in. The print-scale tolerance is a GEO-007 field
  * still to be characterized, so none is claimed.
  */
-export function templatesSvg(design: CarDesign, ev: CarEvaluation, gate: ExportGate, ruleset: string, kit = TYPICAL_KIT_ESTIMATE): string {
+export function templatesSvg(design: CarDesign, ev: CarEvaluation, gate: ExportGate, ruleset: string, kit: KitValues = kitValuesOf(design)): string {
   const B = blockBox(kit);
   const L = toMm(B.max[0] - B.min[0]);
   const H = toMm(B.max[2] - B.min[2]);
@@ -119,7 +119,7 @@ export function templatesSvg(design: CarDesign, ev: CarEvaluation, gate: ExportG
   out.push(
     `<text x="${MARGIN}" y="${f2(y0 + 15)}" class="s">Print at 100 % (actual size, not fit to page), then measure both bars. Print-scale tolerance: not yet set (GEO-007).</text>`,
   );
-  out.push(`<text x="${MARGIN}" y="${f2(y0 + 19)}" class="s">Kit dimensions are ESTIMATED until the event kit is measured; check the block and axle slots against these lines before cutting.</text>`);
+  out.push(`<text x="${MARGIN}" y="${f2(y0 + 19)}" class="s">${esc(kitOf(design).block.name)}. ${esc(kitNote(kitOf(design)))} Check the block and axle slots against these lines before cutting.</text>`);
   const height = y0 + 26;
 
   const head = [
@@ -194,7 +194,7 @@ function featureMarks(f: Feature, view: "side" | "top", X: (x: number) => number
  * hole positions, weights, and the export status. Positions are from the block's tail end, its
  * centreline (left positive) and its bottom, the faces a builder measures from.
  */
-export function buildSheetHtml(design: CarDesign, ev: CarEvaluation, ins: Inspection, gate: ExportGate, units: UnitSystem, kit = TYPICAL_KIT_ESTIMATE): string {
+export function buildSheetHtml(design: CarDesign, ev: CarEvaluation, ins: Inspection, gate: ExportGate, units: UnitSystem, kit: KitValues = kitValuesOf(design)): string {
   const B = blockBox(kit);
   const L = (m: number) => formatLength(m, units);
   const M = (kg: number) => formatMass(kg, units);
@@ -240,7 +240,12 @@ export function buildSheetHtml(design: CarDesign, ev: CarEvaluation, ins: Inspec
     massRule ? `limit ${M(massRule.si)} (${massRule.source.value} ${massRule.source.unit}), margin ${M(massRule.si - ev.total.mass)}. The event's official scale decides.` : "this event sets no mass limit."
   }</td></tr>
   <tr><th>Centre of gravity</th><td>${L(cg[0])} ahead of the rear axle (${L(cg[0] - B.min[0])} from the tail), ${L(cg[2] - B.min[2])} up from the bottom, ${L(Math.abs(cg[1]))} ${cg[1] >= 0 ? "left" : "right"} of centre.</td></tr>
-  <tr><th>Wheelbase</th><td>${L(wb)}, LOCAL/FROZEN: set by the kit's axle slots, which are not moved. Value ESTIMATED until the kit is measured.</td></tr>
+  <tr><th>Kit</th><td>${esc(kitOf(design).block.name)}, on ${esc(kitOf(design).wheels.name.toLowerCase())}${design.kit ? "" : " (assumed: no kit chosen)"}. ${esc(kitNote(kitOf(design)))}${
+    kitOf(design).block.notModelled ? ` ${esc(kitOf(design).block.notModelled!)}` : ""
+  }</td></tr>
+  <tr><th>Wheelbase</th><td>${L(wb)}, LOCAL/FROZEN: set by the kit's axle slots, which are not moved.${
+    kitOf(design).block.frontAxleFromRear.provenance === "MEASURED" ? " Measured." : " Value ESTIMATED until the kit is measured."
+  }</td></tr>
   <tr><th>Compliance</th><td>${ins.state}</td></tr>
 </table>
 <h2>Event rules: ${esc(rules.name)}</h2>
@@ -267,6 +272,7 @@ const PERMIT: Record<Permission, string> = { allowed: "Allowed", prohibited: "No
 function eventRows(e: EventRules): [string, string][] {
   return [
     ["Kit parts", e.kitPartsOnly ? "Wood, wheels and axles from the event's kit" : "Not required"],
+    ["Event kit", e.issuedKit ? (blockKit(e.issuedKit)?.name ?? e.issuedKit) : "Not stated: ask the event"],
     ["Kit axle slots", e.axleSlots === "required" ? "Must be used" : e.axleSlots === "optional" ? "Optional (wheelbase may change)" : "Not stated: ask the event"],
     ["Reshaping wheels", PERMIT[e.wheelReshaping]],
     ["Bent or canted axles", PERMIT[e.bentAxles]],

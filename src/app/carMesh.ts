@@ -4,7 +4,7 @@
 import * as THREE from "three";
 import type { BodySolid } from "../geometry/solid.js";
 import { wheelCentres } from "../geometry/solid.js";
-import { TYPICAL_KIT_ESTIMATE as K } from "../kit/kit.js";
+import type { KitValues } from "../kit/kit.js";
 
 /** The body solid as a flat-shaded mesh with its feature edges. */
 export function bodyMeshes(body: BodySolid, material: THREE.Material): THREE.Object3D[] {
@@ -26,7 +26,7 @@ export interface WheelSet {
 }
 
 /** Wheels, hubs, axle shanks and heads at the kit's axle positions. `marked` adds a stripe so the roll shows. */
-export function wheelSet(marked = false): WheelSet {
+export function wheelSet(K: KitValues, marked = false): WheelSet {
   const r = K.wheelRadius.value;
   const ww = K.wheelWidth.value;
   const wheelGeo = new THREE.CylinderGeometry(r, r, ww, 64, 1);
@@ -38,7 +38,7 @@ export function wheelSet(marked = false): WheelSet {
   const outer = K.blockWidth.value / 2 + K.wheelBodyGap.value + ww;
   const group = new THREE.Group();
   const wheels: THREE.Group[] = [];
-  for (const c of wheelCentres()) {
+  for (const c of wheelCentres(K)) {
     const s = Math.sign(c[1]);
     const w = new THREE.Group();
     w.position.set(...c);

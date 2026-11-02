@@ -40,7 +40,8 @@ describe("M4 build package", () => {
     const g = exportGate(certified, "CERTIFIED");
     expect(g.certified).toBe(false);
     expect(g.watermark).toBe("PROVISIONAL");
-    expect(g.reasons.join(" ")).toMatch(/Not yet evaluated: Starting-gate face/);
+    // No kit chosen, so the event's kit rule is open too.
+    expect(g.reasons.join(" ")).toMatch(/Not yet evaluated: Kit parts, Starting-gate face/);
     expect(g.reasons.join(" ")).toMatch(/Passed provisionally/);
     expect(d.context).toBe("CERTIFIED");
   });

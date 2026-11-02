@@ -4,9 +4,9 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { inches } from "../core/units.js";
-import type { Ballast, CarDesign, Feature, V3 } from "../geometry/design.js";
+import { type Ballast, type CarDesign, type Feature, type V3, kitValuesOf } from "../geometry/design.js";
 import { type BodySolid, wheelCentres } from "../geometry/solid.js";
-import { TYPICAL_KIT_ESTIMATE as K } from "../kit/kit.js";
+import { type KitValues, TYPICAL_KIT_ESTIMATE } from "../kit/kit.js";
 import { type CarEvaluation, WHEEL_ENVELOPE_PAD } from "../mass/carModel.js";
 import { limitOf, rulesOf } from "../rules/cccs.js";
 import { bodyMeshes, wheelSet } from "./carMesh.js";
@@ -57,6 +57,10 @@ export class Viewport {
   private bodyMaterial = new THREE.MeshStandardMaterial({ color: 0xc8a46e, roughness: 0.75, metalness: 0, side: THREE.DoubleSide });
   private dragging: { id: string; plane: THREE.Plane; offset: THREE.Vector3 } | null = null;
   private readonly raycaster = new THREE.Raycaster();
+  /** The track surface under the wheels. */
+  private readonly grid = new THREE.GridHelper(0.6, 24, 0x4a5561, 0x323a43);
+  /** The kit the wheels, zones and datums are drawn for; they are rebuilt when the design's kit changes. */
+  private kitDrawn = "";
 
   constructor(
     private readonly el: HTMLElement,
@@ -83,13 +87,12 @@ export class Viewport {
     this.scene.add(fill);
 
     // Wheel contact plane: the track surface under the car.
-    const grid = new THREE.GridHelper(0.6, 24, 0x4a5561, 0x323a43);
-    grid.rotation.x = Math.PI / 2;
-    grid.position.set(inches(2.2), 0, -K.wheelRadius.value - 1e-5);
-    this.scene.add(grid);
+    this.grid.rotation.x = Math.PI / 2;
+    this.scene.add(this.grid);
 
     for (const g of Object.values(this.groups)) this.scene.add(g);
-    this.buildStatic();
+    this.buildCg();
+    this.buildKit(TYPICAL_KIT_ESTIMATE);
 
     new ResizeObserver(() => this.resize()).observe(el);
     this.resize();
@@ -149,17 +152,24 @@ export class Viewport {
     this.ortho.updateProjectionMatrix();
   }
 
-  private buildStatic(): void {
+  /** Wheels, protected zones, datums and the contact plane, for the design's kit. */
+  private buildKit(K: KitValues): void {
+    this.kitDrawn = JSON.stringify(K);
+    for (const g of [this.groups.wheels, this.groups.zones, this.groups.datums]) {
+      g.traverse((o) => (o as Partial<THREE.Mesh>).geometry?.dispose());
+      g.clear();
+    }
+    this.grid.position.set(inches(2.2), 0, -K.wheelRadius.value - 1e-5);
     const r = K.wheelRadius.value;
     const outer = K.blockWidth.value / 2 + K.wheelBodyGap.value + K.wheelWidth.value;
-    this.groups.wheels.add(wheelSet().group);
+    this.groups.wheels.add(wheelSet(K).group);
 
     // Wheel swept envelopes: the wheel's bounding box plus the pad, the box the inspection uses.
     const pad = WHEEL_ENVELOPE_PAD;
     const zoneGeo = new THREE.BoxGeometry(2 * (r + pad), K.wheelWidth.value + 2 * pad, 2 * (r + pad));
     const zoneMat = new THREE.MeshBasicMaterial({ color: 0xff7a59, transparent: true, opacity: 0.14, depthWrite: false });
     const zoneEdge = new THREE.LineBasicMaterial({ color: 0xff7a59 });
-    for (const c of wheelCentres()) {
+    for (const c of wheelCentres(K)) {
       const box = new THREE.Mesh(zoneGeo, zoneMat);
       box.position.set(...c);
       const edges = new THREE.LineSegments(new THREE.EdgesGeometry(zoneGeo), zoneEdge);
@@ -189,7 +199,9 @@ export class Viewport {
       [xf, yd + 0.004, z0],
     ].map((p) => new THREE.Vector3(...(p as [number, number, number])));
     this.groups.datums.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), dim));
+  }
 
+  private buildCg(): void {
     this.groups.cg.add(
       new THREE.Mesh(new THREE.SphereGeometry(0.0032, 24, 16), new THREE.MeshBasicMaterial({ color: 0xffcc33, depthTest: false })),
     );
@@ -205,6 +217,8 @@ export class Viewport {
 
   /** Rebuild the parts that depend on the design. */
   setModel(design: CarDesign, body: BodySolid, ev: CarEvaluation): void {
+    const K = kitValuesOf(design);
+    if (JSON.stringify(K) !== this.kitDrawn) this.buildKit(K);
     const g = this.groups.body;
     for (const ch of g.children) (ch as THREE.Mesh).geometry.dispose();
     g.clear();
