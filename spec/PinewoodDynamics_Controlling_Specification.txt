@@ -872,6 +872,8 @@ D-04 Units: internal SI; display METRIC by default, ENGLISH selectable (6.4): DE
 D-05 KID level has two separate design modalities, shape by removal and build by adding
      parts (12.7): DECIDED. Still OPEN: whether KID ships in the MVP or in Release 2.
      Proposed: Release 2, so the MVP proves the physics first.
+     Owner, 2026-11-02: "let's start the kids mode". KID level is being built now; first
+     slice (level switch, Shape It, Add Weight, Why?, Race, Build It) in docs/kid-level.md.
 D-06 Lead: INCLUDED, under the SAF-003 content rules (7.4): DECIDED.
 D-07 Awana brand: NOT USED anywhere in the product (BRD-007, 9.3): DECIDED.
 D-08 Name: Pinewood Dynamics, chosen because it spans all gravity-car racing: DECIDED,

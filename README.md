@@ -24,6 +24,10 @@ sheet (targets, operations, holes, weights), and the body STL. Designs carry a c
 CERTIFIED refuses any edit that breaks a rule, SANDBOX blocks nothing and watermarks everything. See
 `docs/build.md` and `docs/design-workspace.md`.
 
+KID level, first slice: a Kid / Builder switch; Shape It (a shape gallery and drawn saw lines), Add Weight
+(rods that drill their own holes), Why? (rule problems in plain words, and what-if races said as car
+lengths), Race and Build It. Add Parts is next. See `docs/kid-level.md`.
+
 ## Commands
 
 ```

@@ -445,3 +445,13 @@ export function wheelCentres(kit: KitValues = TYPICAL_KIT_ESTIMATE): V3[] {
 export function surfaceAlong(w: ManifoldToplevel, design: CarDesign, at: V3, axis: Axis, sign: 1 | -1, kit: KitValues = kitValuesOf(design)): number | null {
   return withBlank(w, design, kit, (blank) => surfaceOn(blank, at, AXES.indexOf(axis), sign));
 }
+
+/** Many `surfaceAlong` queries on one sawn blank, built once. */
+export function withSurfaces<T>(
+  w: ManifoldToplevel,
+  design: CarDesign,
+  f: (along: (at: V3, axis: Axis, sign: 1 | -1) => number | null) => T,
+  kit: KitValues = kitValuesOf(design),
+): T {
+  return withBlank(w, design, kit, (blank) => f((at, axis, sign) => surfaceOn(blank, at, AXES.indexOf(axis), sign)));
+}

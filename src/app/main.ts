@@ -5,10 +5,15 @@
 import wasmUrl from "manifold-3d/manifold.wasm?url";
 import { type CarDesign, contextOf, uncutDesign, wedgeDesign } from "../geometry/design.js";
 import { askKit } from "./kitDialog.js";
+import { KidPanel, WHY_SEQ } from "./kidPanel.js";
+import { withKidShape } from "../kid/shapes.js";
+import { addKidWeight, placeKidWeight, refitKidWeights } from "../kid/weights.js";
+import { whatIfs } from "../kid/whatIf.js";
+import { kidRefusal } from "../kid/words.js";
 import { newCut, newHole } from "../geometry/presets.js";
 import { accessHole, evaluateBody, loadManifold, seatBallast } from "../geometry/solid.js";
 import { evaluateCar } from "../mass/carModel.js";
-import { inspect, rulesOf, violations } from "../rules/cccs.js";
+import { inspect, limitOf, rulesOf, violations } from "../rules/cccs.js";
 import { bodyStl, buildSheetHtml, exportGate, packageFileName, templatesSvg } from "../build/package.js";
 import { Panels } from "./panels.js";
 import { ProfileEditor } from "./profileEditor.js";
@@ -33,10 +38,27 @@ async function start(): Promise<void> {
   });
   const worker = new Worker(new URL("./race.worker.ts", import.meta.url), { type: "module" });
   let race: RacePanel | null = null;
+  // KID level (spec 16): the same design and evaluation, shown through the kid panel.
+  const kid = new KidPanel($("kid"), store, {
+    reshape: (d, id) => refitKidWeights(w, withKidShape(d, id)),
+    addWeight: (d, kind, id) => addKidWeight(w, d, kind, id),
+    moveWeight: (d, id, x) => {
+      const b = d.ballast.find((o) => o.id === id);
+      return b ? placeKidWeight(w, d, b, x) : null;
+    },
+    whatIfs: (d, ev) => whatIfs(w, d, ev, limitOf(rulesOf(d), "RUL-006")?.si ?? null),
+    post: (spec, seq) => worker.postMessage({ kind: "preview", seq, spec } satisfies RaceRequest),
+    race: () => setMode(true),
+  });
   worker.onmessage = (e: MessageEvent<RaceReply | SessionReply>) => {
     if (e.data.kind === "session") race?.onSession(e.data);
-    else panels.renderRace(e.data);
+    else if (e.data.seq >= WHY_SEQ) kid.onWhy(e.data);
+    else {
+      panels.renderRace(e.data);
+      kid.renderRace(e.data);
+    }
   };
+  const isKid = (): boolean => store.view.level === "KID";
 
   // Race mode: each design evaluated once (designs are immutable, so the object is the key).
   const evaluated = new WeakMap<CarDesign, EvaluatedCar | null>();
@@ -96,12 +118,13 @@ async function start(): Promise<void> {
     const ev = body.empty ? null : evaluateCar(d, body);
     const ins = ev ? inspect(ev, rulesOf(d), context) : null;
     if (context === "CERTIFIED") {
-      const failed = ins ? violations(ins).map((l) => l.label) : [];
+      const broken = ins ? violations(ins) : [];
+      const failed = broken.map((l) => l.label);
       if (failed.length) {
         if (lastValid && contextOf(lastValid) === "CERTIFIED") {
           // MODE-002: in CERTIFIED context the edit is refused, and the design stays where it passed.
           store.refuse(lastValid);
-          notice(`Not allowed in CERTIFIED context: ${failed.join(", ")}. Switch to SANDBOX to try it.`, "blocked");
+          notice(isKid() ? kidRefusal(broken) : `Not allowed in CERTIFIED context: ${failed.join(", ")}. Switch to SANDBOX to try it.`, "blocked");
         } else {
           // Opened or entered failing (an older file, a changed kit estimate): it can only be SANDBOX.
           store.update({ ...d, context: "SANDBOX" });
@@ -120,10 +143,15 @@ async function start(): Promise<void> {
     document.body.classList.toggle("sandbox", context === "SANDBOX");
     const ctx = $<HTMLSelectElement>("context");
     ctx.value = context;
+    document.body.classList.toggle("level-kid", isKid());
+    $("kid").hidden = !isKid();
     viewport.setModel(d, body, ev);
-    side.render(d, ev);
-    top.render(d, ev);
-    panels.render(d, ev, ins);
+    if (isKid()) kid.render(d, ev, ins);
+    else {
+      side.render(d, ev);
+      top.render(d, ev);
+      panels.render(d, ev, ins);
+    }
     ($("undo") as HTMLButtonElement).disabled = !store.canUndo;
     ($("redo") as HTMLButtonElement).disabled = !store.canRedo;
     const name = $<HTMLInputElement>("design-name");
@@ -150,6 +178,9 @@ async function start(): Promise<void> {
   // Toolbar.
   $("undo").onclick = () => store.undo();
   $("redo").onclick = () => store.redo();
+  const level = $<HTMLSelectElement>("level");
+  level.value = store.view.level;
+  level.onchange = () => store.setView({ level: level.value === "KID" ? "KID" : "BUILDER" });
   const units = $<HTMLSelectElement>("units");
   units.value = store.view.units;
   units.onchange = () => store.setView({ units: units.value === "english" ? "english" : "metric" });
@@ -179,7 +210,7 @@ async function start(): Promise<void> {
     a.click();
     URL.revokeObjectURL(a.href);
   };
-  $("panels").addEventListener("click", (e) => {
+  const onExport = (e: Event): void => {
     const kind = (e.target as HTMLElement).closest<HTMLElement>("[data-export]")?.dataset.export;
     if (!kind) return;
     const d = store.design;
@@ -194,7 +225,9 @@ async function start(): Promise<void> {
       const unit = kind === "stl-mm" ? "mm" : "in";
       download(new Blob([bodyStl(body, unit, d.name)], { type: "model/stl" }), packageFileName(d, "body", unit));
     }
-  });
+  };
+  $("panels").addEventListener("click", onExport);
+  $("kid").addEventListener("click", onExport);
   $("save-version").onclick = () => {
     const v = store.saveVersion();
     notice(`Saved ${v.name}. Race it against other versions in Race mode.`, "ok");

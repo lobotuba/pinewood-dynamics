@@ -12,8 +12,17 @@ import type { RaceStatus } from "../physics/race.js";
 export type DisplayMode = "solid" | "xray" | "wireframe";
 export type Selection = { kind: "ballast" | "feature"; id: string } | null;
 
+/**
+ * Experience level (MODE-001): presentation only. It picks the panels, words and design modalities
+ * shown and never enters the design, the physics or the compliance result.
+ */
+export type Level = "KID" | "BUILDER";
+
 export interface View {
   readonly units: UnitSystem;
+  readonly level: Level;
+  /** KID level shows numbers only when asked (spec 16). */
+  readonly kidNumbers: boolean;
   readonly display: DisplayMode;
   readonly show: { body: boolean; wheels: boolean; ballast: boolean; cg: boolean; datums: boolean; envelope: boolean; zones: boolean };
   readonly selection: Selection;
@@ -98,6 +107,8 @@ export class Store {
     this.committed = this.design;
     this.view = {
       units: saved?.units ?? "metric",
+      level: saved?.level ?? "BUILDER",
+      kidNumbers: false,
       display: "solid",
       show: { body: true, wheels: true, ballast: true, cg: true, datums: true, envelope: false, zones: false },
       selection: null,
@@ -240,13 +251,13 @@ export class Store {
 
   setView(patch: Partial<View>): void {
     this.view = { ...this.view, ...patch };
-    if (patch.units) this.save();
+    if (patch.units || patch.level) this.save();
     this.emit("view");
   }
 
   private save(): void {
     try {
-      localStorage.setItem(KEY, JSON.stringify({ design: this.committed, units: this.view.units, versions: this.versions, results: this.results, rulesets: this.rulesets, kits: this.kits }));
+      localStorage.setItem(KEY, JSON.stringify({ design: this.committed, units: this.view.units, level: this.view.level, versions: this.versions, results: this.results, rulesets: this.rulesets, kits: this.kits }));
     } catch {
       // Storage can be unavailable (private mode, blocked site data); the session still works.
     }
@@ -256,6 +267,7 @@ export class Store {
 function load(): {
   design: CarDesign;
   units: UnitSystem;
+  level: Level;
   versions: SavedVersion[];
   results: SavedRace[];
   rulesets: Ruleset[];
@@ -267,6 +279,7 @@ function load(): {
     const x = JSON.parse(raw) as {
       design?: CarDesign;
       units?: UnitSystem;
+      level?: Level;
       versions?: SavedVersion[];
       results?: SavedRace[];
       rulesets?: Ruleset[];
@@ -284,7 +297,7 @@ function load(): {
     const own = <T extends { id: string; length?: unknown; diameter?: unknown }>(a: T[] | undefined, key: "length" | "diameter"): T[] =>
       Array.isArray(a) ? a.filter((y) => typeof y?.id === "string" && y[key]) : [];
     const kits = { blocks: own(x.kits?.blocks, "length"), wheels: own(x.kits?.wheels, "diameter") };
-    return { design: upgradeDesign(x.design), units: x.units === "english" ? "english" : "metric", versions, results, rulesets, kits };
+    return { design: upgradeDesign(x.design), units: x.units === "english" ? "english" : "metric", level: x.level === "KID" ? "KID" : "BUILDER", versions, results, rulesets, kits };
   } catch {
     return null;
   }

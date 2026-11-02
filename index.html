@@ -14,6 +14,12 @@
         <button id="mode-design" role="tab" aria-selected="true">Design</button><button id="mode-race" role="tab" aria-selected="false">Race</button>
       </nav>
       <input id="design-name" class="design-name" aria-label="Design name" />
+      <label class="level" title="Experience level (MODE-001): what is shown, never how the car is judged">Level
+        <select id="level">
+          <option value="KID">Kid</option>
+          <option value="BUILDER">Builder</option>
+        </select>
+      </label>
       <label class="context" title="CERTIFIED refuses any edit that breaks a rule or lock; SANDBOX blocks nothing and watermarks everything (MODE-002)">Context
         <select id="context">
           <option value="CERTIFIED">CERTIFIED</option>
@@ -69,6 +75,7 @@
         <p class="hint editors-hint">Drag a point to move it, click an edge to add a point, double-click a point to delete it. Right-click a point (or hover it and press S) to make it a smooth curve point; hover a corner and press R to round it off; drag an edge's middle handle to bend it into an arc, double-click that handle to straighten it. Alt turns off the 0.25 mm snap.</p>
       </section>
       <aside id="panels" class="panels"></aside>
+      <aside id="kid" class="kid" aria-label="Kid workspace" hidden></aside>
     </main>
     <main class="race" id="race-main" hidden>
       <aside id="race-setup" class="race-setup"></aside>
