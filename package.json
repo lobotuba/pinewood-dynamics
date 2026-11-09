@@ -1,6 +1,6 @@
 {
   "name": "pinewood-dynamics",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "private": true,
   "description": "Pinewood Dynamics: gravity-car design, physics simulation and build software",
   "type": "module",

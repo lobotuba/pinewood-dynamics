@@ -34,7 +34,7 @@ lifecycle states, and accepts release gates.
 - branding/Pinewood_Dynamics_Brand_Analysis_and_Direction.txt
 - branding/Pinewood_Dynamics_Preliminary_Brand_Clearance_Search.txt
 - spec/GravityRacer_Branding_Clearance_Preliminary_Search.txt
-- spec/Software Mockup - Light Mode.png (reviewed; corrections in section 17)
+- spec/Software Mockup - Light Mode.png (reviewed; corrections in section 17; kept out of the repository because it shows third-party marks)
 
 0.4 Superseded as controlling text
 All GravityRacer_* specification, GUI and amendment files listed above are SUPERSEDED as

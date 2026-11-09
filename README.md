@@ -1,7 +1,31 @@
 # Pinewood Dynamics
 
-Gravity-car design, physics simulation and build software. Working name subject to trademark
-clearance; see `spec/PinewoodDynamics_Controlling_Specification.txt`, the controlling document.
+Gravity-car design, physics simulation and build software: shape a car in 3D, race it on a simulated
+track, and print the templates to build it. Runs in the browser, offline.
+
+Version 1.0.0. "Pinewood Dynamics" is a working name, subject to trademark clearance. The controlling
+document is `spec/PinewoodDynamics_Controlling_Specification.txt`.
+
+## Running it
+
+You need [Node.js](https://nodejs.org/) 20.19 or later (or 22.12 or later).
+
+```
+npm install
+npm run dev
+```
+
+Open the address Vite prints (normally http://localhost:5173/). On first launch the app asks which block
+kit and race rules your car uses. Pick **Kid** or **Builder** in the top bar.
+
+## Known limits in 1.0
+
+- Kit sizes come from retailers' catalogues and are ESTIMATED until you measure your own kit. Where a
+  catalogue gives a wheelbase but not where offset slots sit, the rear slot is placed as on the standard
+  kit (7/8 in from the rear face). Measure your block and enter the slot positions in the Kit panel.
+- The physics is verified against analytic solutions and one published experiment, but is not yet
+  validated against filmed runs on a real track.
+- The KID level has no Add Parts step yet, and the Engineering level is not offered.
 
 ## Status
 
@@ -64,3 +88,15 @@ npm run survey:precision   # how precisely a track must be surveyed
 - `src/validation`: published comparison datasets, every value labelled published or assumed
 - `test`: verification tests, named by requirement ID and physics gate
 - `spec`, `branding`: requirements and brand documents
+
+## Trademarks
+
+Kits, tracks and race organizations are named generically in the app. Any product or organization names
+in the source records and documents belong to their owners. This project is not affiliated with or
+endorsed by any of them.
+
+## License
+
+Copyright (c) 2026 Robert Voss. All rights reserved. The source is published to read; no licence to
+use, copy, modify or distribute it is granted (see `LICENSE`). Third-party components keep their own
+licences (`public/THIRD_PARTY_NOTICES.txt`).
